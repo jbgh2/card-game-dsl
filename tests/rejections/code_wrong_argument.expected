@@ -1,0 +1,1 @@
+code_wrong_argument.cardlang:12:13: error: `highest_trump_or_led_suit` reads the Arrival Record of its pile argument, which must name a zone (`highest_trump_or_led_suit(trick_pile)`); got a literal

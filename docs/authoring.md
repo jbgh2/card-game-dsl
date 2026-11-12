@@ -474,6 +474,25 @@ causes stays in the library's file, and a warning on your `uses` line says
 why: no game yet checks clean with the library, or none reaches the definition
 refused (decisions.md, "Family libraries").
 
+A tool, or a model writing a game for you, can ask for the refusals as data
+instead: `cardlang check <file> --json` prints one JSON document on stdout, a
+Record Envelope, with the exit code the text would give. Each refusal is a
+record holding a Diagnostic Code naming the kind of fix (`unknown-name`,
+`written-twice`, `decides-on-hidden-cards`), its severity, the author who must
+act (one of `cardlang.diagnostics.Author`: most often `game` or `library`),
+the file, line, column and length it stands at, the message as the text
+prints it, its notes, and its Near Misses as suggestions marked `offered`,
+which a tool shows rather than applies. A game that checks clean prints an
+empty list. The text output never shows a code (decisions.md, "Every refusal
+carries its Diagnostic Code").
+
+```json
+{"code": "unknown-name", "severity": "error", "author": "game",
+ "span": {"file": "hearts.cardlang", "line": 66, "column": 16, "length": 12},
+ "message": "unresolved name 'hnad'", "notes": [],
+ "suggestions": [{"text": "hand", "applicability": "offered"}]}
+```
+
 ## Reaching OpenSpiel with your own game
 
 The corpus registers itself from `docs/games/`, but a file of your own reaches

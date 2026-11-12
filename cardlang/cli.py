@@ -3,6 +3,7 @@
     cardlang docs/games/hearts.cardlang                       # check only; silent on success
     cardlang docs/games/hearts.cardlang --emit-ir             # check, then print the IR JSON
     cardlang check docs/games/hearts.cardlang                 # the same check, named
+    cardlang check docs/games/hearts.cardlang --json          # its refusals as one Record Envelope
     cardlang play docs/games/hearts.cardlang --vs all=random  # take a seat and play it
     cardlang demo docs/games/hearts.cardlang                  # one uniform-random self-play
 
@@ -33,7 +34,9 @@ runtime's are both already typed, and each
 failure reaches the [[author]] who can act on it (`cardlang/runtime/errors.py`,
 Contract): a `GameDescriptionError` the game author, an `InstallationError`
 whoever installed this checkout. It never discriminates the `GameDescriptionError`
-subtypes; which ROLE of guard fired is the suite's question, not a caller's.
+subtypes; which ROLE of guard fired is the suite's question, not a caller's,
+and the Told Diagnostic it renders a refusal through names the Author the role
+implies (`cardlang.records.refusal_diagnostic`).
 
 `IllegalMove` is rendered beside them and means something else, which the
 message says: the game's own `error(...)` refused, no player was offered the
@@ -62,6 +65,11 @@ number, a broken checkout, a refusal of the line's words. That last is told
 by `_refuse` and leaves through argparse's own exit, `SystemExit`, as
 argparse's usage errors do.
 The two are split by who must act, not by how badly it went.
+
+`check --json` prints one Record Envelope (`cardlang.records`) on stdout in
+place of the text, whatever the outcome, with the same exit code; every
+refusal it records is a Told Diagnostic, the command line's own (an
+unreadable path) told to whoever ran the command.
 """
 
 from __future__ import annotations
@@ -74,10 +82,19 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NoReturn, assert_never
+from typing import Any, NoReturn, assert_never, cast
 
+from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity, listed, near_misses
+from cardlang.diagnostics import (
+    Author,
+    Diagnostic,
+    DiagnosticError,
+    Severity,
+    Told,
+    listed,
+    near_misses,
+)
 from cardlang.openspiel.infostate import derive, render_information_state
 from cardlang.openspiel.replay import HistoryMismatch, load, returns_for
 from cardlang.pipeline import check_source, compile_path, extensions_read, game_identity
@@ -105,17 +122,29 @@ from cardlang.play.session import (
 from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import EndedBy, GameResult, play_game, stop_result_words
-from cardlang.runtime.errors import GameDescriptionError, InstallationError, Located
+from cardlang.records import RUNTIME_REFUSALS, RuntimeRefusal, envelope, refusal_diagnostic
+from cardlang.runtime.errors import GameDescriptionError, InstallationError
 from cardlang.runtime.observe import render
 from cardlang.runtime.state import IllegalMove, RuntimeState
 from cardlang.runtime.values import Player
 
 
 def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
+    # One JSON document on stdout: the IR, or the Record Envelope, never both.
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument(
         "--emit-ir",
         action="store_true",
         help="print the validated IR as JSON on success",
+    )
+    output.add_argument(
+        "--json",
+        action="store_true",
+        help=(
+            "print every refusal as a Diagnostic Record, in one JSON document on "
+            "stdout (an empty list when the game checks clean); a command line "
+            "that cannot be read is still refused as text"
+        ),
     )
 
 
@@ -352,6 +381,7 @@ def _normalize(argv: list[str]) -> _Line | Diagnostic:
         f"{word} is not a command, and no file has that name; "
         f"the commands are: {', '.join(COMMANDS)}",
         near_misses=near,
+        code=Code.UNKNOWN_COMMAND,
     )
 
 
@@ -423,17 +453,20 @@ def _set_aside(parser: _Parser, line: _Line, aside: list[str]) -> Diagnostic:
                 Severity.ERROR,
                 f"{moved} comes after the file, and a command goes first: "
                 f"{shlex.join(['cardlang', moved, *rest])}",
+                code=Code.COMMAND_GOES_FIRST,
             )
         if moved in declarers:
             return Diagnostic(
                 Severity.ERROR,
                 f"{moved} comes after the file, and a command goes first, but {moved} "
                 f"refuses this line too: {why(moved)}",
+                code=Code.COMMAND_GOES_FIRST,
             )
         return Diagnostic(
             Severity.ERROR,
             f"{moved} comes after the file, and a command goes first, but {moved} "
             f"does not take every word of this line: {apart()}",
+            code=Code.COMMAND_GOES_FIRST,
         )
     word = aside[0]
     if option_shaped(word) and Path(word).exists():
@@ -441,6 +474,7 @@ def _set_aside(parser: _Parser, line: _Line, aside: list[str]) -> Diagnostic:
             Severity.ERROR,
             f"{word} begins with a dash, so it reads as a command-line option, not as the "
             f"file of that name; spell the file {path_word(word)}",
+            code=Code.FILE_NAME_READS_AS_OPTION,
         )
     if option_shaped(word):
         name = word.split("=", 1)[0]
@@ -452,17 +486,20 @@ def _set_aside(parser: _Parser, line: _Line, aside: list[str]) -> Diagnostic:
                     Severity.ERROR,
                     f"{subject} takes no {name}; {name} is an option of {listed(belongs, 'and')}, "
                     f"and {declarers[0]} refuses this line too: {why(declarers[0])}",
+                    code=Code.OPTION_OF_ANOTHER_COMMAND,
                 )
             if not takers:
                 return Diagnostic(
                     Severity.ERROR,
                     f"{subject} takes no {name}; no command takes every word of this line: {apart()}",
+                    code=Code.OPTION_OF_ANOTHER_COMMAND,
                 )
             where = "first" if line.implicit else f"in place of {command}"
             return Diagnostic(
                 Severity.ERROR,
                 f"{subject} takes no {name}; {name} is an option of {listed(belongs, 'and')}, "
                 f"so name {listed(takers)} {where}",
+                code=Code.OPTION_OF_ANOTHER_COMMAND,
             )
         # The measure offers `--version` the command-line option
         # `--decisions`, and `-v` the command-line option `--vs` (issue #1098).
@@ -476,10 +513,12 @@ def _set_aside(parser: _Parser, line: _Line, aside: list[str]) -> Diagnostic:
             Severity.ERROR,
             f"{subject} takes no {name}" + ("" if near else f"; {hint}"),
             near_misses=near,
+            code=Code.UNKNOWN_OPTION,
         )
     return Diagnostic(
         Severity.ERROR,
         f"{subject} reads one game file and no other word, so {word} is one too many",
+        code=Code.EXTRA_WORD,
     )
 
 
@@ -527,7 +566,7 @@ def main(argv: list[str] | None = None) -> int:
         args, aside = parser.parse_known_args(line.argv)
     except _Refused as refused:
         told = f"{_READ_AS_BARE}: {refused.message}" if line.implicit else refused.message
-        _refuse(parser, line, Diagnostic(Severity.ERROR, told))
+        _refuse(parser, line, Diagnostic(Severity.ERROR, told, code=Code.COMMAND_LINE_USAGE))
     if aside:
         _refuse(parser, line, _set_aside(parser, line, aside))
     if args.file is None:
@@ -537,12 +576,15 @@ def main(argv: list[str] | None = None) -> int:
             Diagnostic(
                 Severity.ERROR,
                 f"{line.subject()} needs a game file, its name ending in {extensions_read()}",
+                code=Code.MISSING_GAME_FILE,
             ),
         )
     implicit = line.implicit
 
     path = Path(args.file)
     refusal = _unreadable(args.file)
+    if args.command == "check" and args.json:
+        return _check_json(path, refusal)
     if refusal is not None:
         print(f"cardlang: {refusal}", file=sys.stderr)
         if implicit:
@@ -600,7 +642,7 @@ def main(argv: list[str] | None = None) -> int:
         return _EXIT_CANNOT_PROCEED
 
 
-def _print_refusal(exc: Located) -> None:
+def _print_refusal(exc: GameDescriptionError | IllegalMove) -> None:
     """A refusal, at the sentence that refused.
 
     Rendered through the checker's own `Diagnostic`, so the two halves of the
@@ -613,13 +655,52 @@ def _print_refusal(exc: Located) -> None:
     if exc.span is None:
         print(f"  {exc}", file=sys.stderr)
     else:
-        print(Diagnostic(Severity.ERROR, str(exc), exc.span).format(), file=sys.stderr)
+        print(refusal_diagnostic(exc).diagnostic.format(), file=sys.stderr)
     where = [w for w in (
         None if exc.phase is None else f"in phase {exc.phase}",
         None if exc.zone is None else f"moving from {exc.zone}",
     ) if w is not None]
     if where:
         print(f"  {', '.join(where)}", file=sys.stderr)
+
+
+def _check_json(path: Path, unreadable: str | None) -> int:
+    """`check --json`: one Record Envelope on stdout, whatever the outcome,
+    and the exit code the text output would give."""
+    told: tuple[Told, ...] = ()
+    exit_code = _EXIT_OK
+    if unreadable is not None:
+        told = (
+            Told(
+                Diagnostic(Severity.ERROR, unreadable, code=Code.UNREADABLE_FILE),
+                Author.INVOCATION,
+            ),
+        )
+        exit_code = _EXIT_CANNOT_PROCEED
+    else:
+        try:
+            check_source(path)
+        except DiagnosticError as exc:
+            told, exit_code = exc.told, _EXIT_GAME_AT_FAULT
+        except RUNTIME_REFUSALS as exc:
+            refused = refusal_diagnostic(cast(RuntimeRefusal, exc))
+            told = (refused,)
+            exit_code = (
+                _EXIT_CANNOT_PROCEED
+                if refused.author in (Author.INSTALLATION, Author.REGISTRATION)
+                else _EXIT_GAME_AT_FAULT
+            )
+        except Exception as exc:
+            # An engine failure outside the typed channels: the envelope says
+            # so, and the traceback and exit status stay the text output's
+            # (issue #1104).
+            crashed = Diagnostic(
+                Severity.ERROR, str(exc) or type(exc).__name__, code=Code.ENGINE_GAP
+            )
+            print(json.dumps(envelope((Told(crashed, Author.ENGINE),)), indent=2))
+            raise
+    print(json.dumps(envelope(told), indent=2))
+    return exit_code
 
 
 def _check(path: Path, emit_ir: bool) -> int:

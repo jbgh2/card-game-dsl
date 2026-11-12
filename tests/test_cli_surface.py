@@ -229,6 +229,7 @@ def _play_option_subsets() -> tuple[tuple[str, ...], ...]:
 # names a decision it reaches on every seed.
 _SAMPLE_VALUE: dict[str, list[str]] = {
     "--emit-ir": [],
+    "--json": [],
     "--seed": ["7"],
     "--info-state": ["0"],
     "--view": ["0"],
@@ -281,6 +282,7 @@ _NAMES_ITS_OWN_OPPONENTS = ("--vs", "--resume")
 # passing unexamined.
 _EXPECTED: dict[tuple[str, str], str] = {
     ("check", "--emit-ir"): "accepted",
+    ("check", "--json"): "accepted",
     ("check", "--seed"): "refused",
     ("check", "--info-state"): "refused",
     ("check", "--at"): "refused",
@@ -291,6 +293,7 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("check", "--resume"): "refused",
     ("check", "--vs"): "refused",
     ("demo", "--emit-ir"): "refused",
+    ("demo", "--json"): "refused",
     ("demo", "--seed"): "accepted",
     ("demo", "--info-state"): "accepted",
     ("demo", "--at"): "accepted",
@@ -301,6 +304,7 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("demo", "--resume"): "refused",
     ("demo", "--vs"): "refused",
     ("play", "--emit-ir"): "refused",
+    ("play", "--json"): "refused",
     ("play", "--seed"): "accepted",
     ("play", "--info-state"): "refused",
     ("play", "--at"): "refused",

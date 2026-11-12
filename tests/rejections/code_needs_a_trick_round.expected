@@ -1,0 +1,1 @@
+code_needs_a_trick_round.cardlang:15:1: error: this game defines chooser_for but holds no trick round for the routing to reach — the helpers would be silently ignored (routing at other decision points is issue #458)

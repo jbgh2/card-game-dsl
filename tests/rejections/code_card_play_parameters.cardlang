@@ -1,0 +1,26 @@
+
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
+  state {
+    done : Boolean = false
+    marker[player] : Integer = 0
+  }
+  phase root {
+    deal 5 cards from deck to each hand
+    repeat until done {
+      offer to 0 one of [play_one, play_two, stop]
+    }
+  }
+  winner: highest marker
+}
+move_type play_one(c : Card) {
+  effect {
+    move one card from hand[actor] where card is c to pile
+    done := true
+  }
+}
+move_type stop { effect { done := true } }
+move_type play_two(c : Card) { effect { done := true } }

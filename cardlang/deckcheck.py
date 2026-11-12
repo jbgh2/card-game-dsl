@@ -42,6 +42,7 @@ from __future__ import annotations
 
 from typing import assert_never
 
+from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.attribution import raise_if_errors
 from cardlang.diagnostics import DiagnosticBag
@@ -106,6 +107,7 @@ def _check_windows(
             f"deck '{game.deck}' holds {capacity} cards but phase '{phase.name}' "
             f"deals up to {peak} from it in one hand with {players} players",
             span,
+            code=Code.DECK_TOO_SMALL,
         )
     for sub in _nested_repeating_phases(phase):
         _check_windows(sub, players, counts, deck_zones, capacity, game, bag)

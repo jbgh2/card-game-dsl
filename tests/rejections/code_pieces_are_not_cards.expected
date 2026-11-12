@@ -1,0 +1,1 @@
+code_pieces_are_not_cards.cardlang:1:1: error: this game declares pieces ('breakthrough_men') -- `ranking:` orders a deck's cards by rank, which a piece set has no notion of; drop the clause

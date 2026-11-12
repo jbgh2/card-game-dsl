@@ -12,7 +12,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity, Span
+from cardlang.diagnostic_codes import Code
+from cardlang.diagnostics import Author, Diagnostic, DiagnosticError, Severity, Span, Told
 
 # A fence is a line whose first non-whitespace content is a run of three or
 # more backticks. The opening fence may carry an info string (e.g. ```dsl);
@@ -92,4 +93,6 @@ def extract_single_block(
             f"expected exactly one fenced code block, found {len(blocks)}; "
             "a game file's DSL must live in a single block"
         )
-    raise DiagnosticError(Diagnostic(Severity.ERROR, message, span))
+    raise DiagnosticError(
+        Told(Diagnostic(Severity.ERROR, message, span, code=Code.ONE_FENCED_BLOCK), Author.GAME)
+    )

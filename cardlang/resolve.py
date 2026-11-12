@@ -382,6 +382,7 @@ from typing import (
     get_type_hints,
 )
 
+from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.board_domains import (
     LINE_NOUN,
@@ -698,6 +699,7 @@ def _check_reserved(
             f"{kind} '{name}' is a reserved word — {_RESERVED_WHY[name]} — "
             f"pick another name",
             span,
+            code=Code.RESERVED_WORD,
         )
 
 
@@ -1531,6 +1533,7 @@ def _apply_uses(
                 f"game '{game.name}' already uses " + cite_library(use.name, None)
                 + " — the repeat imports nothing further; delete it",
                 use.span,
+                code=Code.WRITTEN_TWICE,
             )
             continue
         seen_uses[use.name] = use
@@ -1540,6 +1543,7 @@ def _apply_uses(
                 + " needs no `uses` line; its rules are switched on by name in "
                 "`active_rules:` — delete this line",
                 use.span,
+                code=Code.HAS_NO_EFFECT,
             )
             continue
         if use.name not in available:
@@ -1551,6 +1555,7 @@ def _apply_uses(
                 use.name,
                 available,
                 use.span,
+                code=Code.UNKNOWN_LIBRARY,
             )
             continue
         libraries.append((use, load_library(use.name)))
@@ -2437,6 +2442,7 @@ def _check_library_clause_gates(
             + naming_library(gate.fix(game), library.name, None),
             use.span,
             stands_on=tuple(refused),
+            code=Code.LIBRARY_REQUIREMENT_UNMET,
         )
     _check_library_lines_span(game, use, library, _library_calls(library, game), bag)
 
@@ -2480,6 +2486,7 @@ def _check_library_lines_span(
                 f"but this game's `board: {board}` has none — declare a board "
                 f"that does",
                 use.span,
+                code=Code.LIBRARY_REQUIREMENT_UNMET,
             )
 
 
@@ -2520,6 +2527,7 @@ def _check_library_collisions(
                         f"override: rename the game's {noun}, or drop it and use "
                         + defined + "'s",
                         local[definition.name].span,
+                        code=Code.NAME_TAKEN,
                     )
                 elif definition.name in from_libraries:
                     bag.error(
@@ -2529,6 +2537,7 @@ def _check_library_collisions(
                         + " — resolution is flat, so neither wins; "
                         "use only one of them, or rename in one library",
                         use.span,
+                        code=Code.NAME_TAKEN,
                     )
                 else:
                     from_libraries[definition.name] = defined
@@ -2545,6 +2554,7 @@ def _check_library_collisions(
                     + " — delete it (`active_rules` resolves it from the stdlib), or "
                     "rename it if the body genuinely differs",
                     rule.span,
+                    code=Code.NAME_TAKEN,
                 )
         for fn in library.functions:
             # The WHOLE registry, unlike the namespace `_library_slot_names`
@@ -2561,6 +2571,7 @@ def _check_library_collisions(
                     f"it (a call would type-check against the native signature "
                     f"but run this one instead)",
                     fn.span,
+                    code=Code.NAME_TAKEN,
                 )
             elif fn.name in K.KERNEL_CONTRACT_NAMES:
                 row = K.CONTRACTS[fn.name]
@@ -2571,6 +2582,7 @@ def _check_library_collisions(
                     f"library that needs the fact writes the row in `requires` "
                     f"(`{row.spelled}`)",
                     fn.span,
+                    code=Code.LIBRARY_REACHES_ONE_GAME,
                 )
             elif (slot := _round_query_slot(fn.name)) is not None:
                 bag.error(
@@ -2579,6 +2591,7 @@ def _check_library_collisions(
                     f"names; in a game whose round names it, that slot runs the "
                     f"language's `{fn.name}` and never calls this function — rename it",
                     fn.span,
+                    code=Code.NAME_TAKEN,
                 )
 
 
@@ -2730,6 +2743,7 @@ def _check_library_shadows_game(
                     f"{game_noun} — the two libraries cannot both be used: drop "
                     f"one `uses` line",
                     use.span,
+                    code=Code.NAME_TAKEN,
                 )
                 continue
             bag.error(
@@ -2741,6 +2755,7 @@ def _check_library_shadows_game(
                 f"cannot see " + cite_library(library.name, inject_span)
                 + "'s, so the two would silently mean different things: rename one",
                 game_span if game_span is not None else inject_span,
+                code=Code.NAME_TAKEN,
             )
 
 
@@ -2799,6 +2814,7 @@ def _check_state_claims(
                     f"name can be one or the other: drop it from whichever "
                     f"clause is wrong",
                     decl.span,
+                    code=Code.REQUIRES_WHAT_IS_PROVIDED,
                 )
             elif decl.name in provided:
                 contested.add(decl.name)
@@ -2808,6 +2824,7 @@ def _check_state_claims(
                     + " — resolution is flat, so neither wins; use only one of them, "
                     "or rename in one library",
                     use.span,
+                    code=Code.NAME_TAKEN,
                 )
             elif decl.name in declared:
                 contested.add(decl.name)
@@ -2819,6 +2836,7 @@ def _check_state_claims(
                     "game's declaration and read " + cite_library(library.name, decl.span)
                     + "'s, or rename the game's",
                     declared[decl.name].span,
+                    code=Code.NAME_TAKEN,
                 )
             else:
                 provided[decl.name] = cite_library(library.name, decl.span)
@@ -2838,6 +2856,7 @@ def _check_state_claims(
                     "another library's provision; declare it in the game and "
                     "rename one of the two",
                     use.span,
+                    code=Code.REQUIRES_WHAT_IS_PROVIDED,
                 )
     return _StateClaims(provided=provided, contested=frozenset(contested))
 
@@ -2883,6 +2902,7 @@ def _check_provided_readonly(
             "game must change, or have " + owner + " expose a procedure that makes "
             "the change",
             getattr(node, "span", None),
+            code=Code.NOT_WRITABLE,
         )
 
 
@@ -2984,6 +3004,7 @@ def _check_provided_shadowed_by_binder(
                 f"there, and nothing in this file says the spelling was taken: "
                 f"rename the {noun}",
                 span,
+                code=Code.NAME_TAKEN,
             )
         else:
             bag.error(
@@ -2994,6 +3015,7 @@ def _check_provided_shadowed_by_binder(
                 f"not this game's to choose, so there is nothing here to rename: "
                 f"rename " + library + "'s variable",
                 span,
+                code=Code.NAME_TAKEN,
             )
 
     for node in _walk(game):
@@ -3767,6 +3789,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 ref.name,
                 reach.unresolved_near.get(ref.span, ()),
                 ref.span,
+                code=Code.OUTSIDE_LIBRARY_CONTRACT,
             )
         else:
             call_it: Said = (
@@ -3778,10 +3801,11 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 + _cite_own(library, ref.name, f"'{ref.name}'") + ", which is "
                 f"{what.phrase}, not a value" + call_it,
                 ref.span,
+                code=Code.WRONG_SORT_OF_NAME,
             )
     for call in reach.refused_calls:
         if call.func in VALUE_NAMES:
-            bag.error(_callback_outside_slot(call.func), call.span)
+            bag.error(_callback_outside_slot(call.func), call.span, code=Code.WRONG_SORT_OF_NAME)
             continue
         what = _library_own_name_is(library, call.func) or _language_name_is(
             library, call.func
@@ -3794,6 +3818,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 f"fact each game answers for itself — contract for it with "
                 f"`{K.CONTRACTS[call.func].spelled}` in `requires {{ }}`",
                 call.span,
+                code=Code.OUTSIDE_LIBRARY_CONTRACT,
             )
         elif what is None:
             bag.unknown(
@@ -3805,19 +3830,21 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 call.func,
                 _library_slot_names(library)["function"],
                 call.span,
+                code=Code.OUTSIDE_LIBRARY_CONTRACT,
             )
         elif what.kind == "primitive":
-            bag.error(_primitive_in_library(library, "call", call.func, call.span), call.span)
+            bag.error(_primitive_in_library(library, "call", call.func, call.span), call.span, code=Code.LIBRARY_REACHES_ONE_GAME)
         else:
             bag.error(
                 cite_library(library.name, call.span) + " calls "
                 + _cite_own(library, call.func, f"'{call.func}'") + ", which is "
                 f"{what.phrase}, not a function",
                 call.span,
+                code=Code.WRONG_SORT_OF_NAME,
             )
     for node, name in _round_slot_primitives(library):
         at = getattr(node, "span", None)
-        bag.error(_primitive_in_library(library, "round slot", name, at), at)
+        bag.error(_primitive_in_library(library, "round slot", name, at), at, code=Code.LIBRARY_REACHES_ONE_GAME)
     for card in reach.card_literals:
         bag.error(
             cite_library(library.name, card.span) + f" names the card `{card.rank} of "
@@ -3825,6 +3852,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             f"do not share a deck, and Kuhn's holds three cards. Take the card "
             f"as a parameter, or keep the definition that needs it in the game",
             card.span,
+            code=Code.LIBRARY_REACHES_ONE_GAME,
         )
     for leak in reach.slot_leaks:
         # A `run` or an offering naming one of the library's own definitions
@@ -3841,6 +3869,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 f"{_NAMESPACE_NOUN[leak.namespace]}, but it is {own.phrase}, not "
                 f"a {_NAMESPACE_NOUN[leak.namespace]}",
                 getattr(leak.node, "span", None),
+                code=Code.WRONG_SORT_OF_NAME,
             )
             continue
         if leak.namespace == "type" and leak.name.removesuffix("?") == COMBINATION_TYPE_NAME:
@@ -3853,6 +3882,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 f"function and the helpers it passes one to hold — keep the "
                 f"definition in the game",
                 getattr(leak.node, "span", None),
+                code=Code.LIBRARY_REACHES_ONE_GAME,
             )
             continue
         bag.unknown(
@@ -3864,6 +3894,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             leak.name.removesuffix("?"),
             _library_slot_names(library).get(leak.namespace, frozenset()),
             getattr(leak.node, "span", None),
+            code=Code.OUTSIDE_LIBRARY_CONTRACT,
         )
     # A PROVIDED default reaching the contract is in scope for the general
     # declare-order Owner Guard too (`_check_state_default_scope`), which would refuse
@@ -3893,6 +3924,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                     + cite_named(decl, f"'{decl.name}'") + " a literal default and set it from "
                     + _cite_own(library, node.name, f"'{node.name}'") + " in a phase",
                     node.span or decl.span,
+                    code=Code.OUTSIDE_LIBRARY_CONTRACT,
                 )
 
 
@@ -3977,6 +4009,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                 f"{n.PROCEDURE_CONTRACT_TYPE}`), and a library declares no "
                 f"Primitives",
                 want.span,
+                code=Code.TYPE_NOT_ALLOWED_HERE,
             )
             continue
         if not is_zone_contract(want):
@@ -3986,6 +4019,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                     f"'{want.type_name}' is a state type and takes no type "
                     f"argument — the `<…>` form belongs to zone types",
                     want.span,
+                    code=Code.BAD_REQUIRES_ROW,
                 )
             continue
         takes_owner = LIBRARY_ZONE_TYPES[want.type_name]
@@ -3995,12 +4029,14 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                 f"'{want.type_name}' takes one owner argument, got "
                 f"{len(want.type_args)}",
                 want.span,
+                code=Code.WRONG_ARGUMENT_COUNT,
             )
         elif not takes_owner and want.type_args:
             bag.error(
                 cite_library(library.name, want.span) + f" requires " + cite_where(f"`{spelled}`", want.span) + f", but zone type "
                 f"'{want.type_name}' takes no type arguments",
                 want.span,
+                code=Code.WRONG_ARGUMENT_COUNT,
             )
         for arg in want.type_args:
             if want.index is None:
@@ -4011,6 +4047,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                     f"write `{want.name}[{arg.name}] : {want.type_name}"
                     f"<{arg.name}>`",
                     want.span,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
             elif arg.name != want.index:
                 bag.error(
@@ -4018,6 +4055,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                     f"owner argument names a different domain than its index — "
                     f"write `{want.type_name}<{want.index}>`",
                     want.span,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
     _check_contract_reach(library, bag)
 
@@ -4058,7 +4096,7 @@ def _refuse_kind_word(library: n.Library, want: n.RequireDecl, bag: DiagnosticBa
             f"so no library text could use one — keep the definition that needs "
             f"it in the game"
         )
-    bag.error(message, want.span)
+    bag.error(message, want.span, code=Code.BAD_REQUIRES_ROW)
 
 
 def _check_signature_row(
@@ -4076,6 +4114,7 @@ def _check_signature_row(
                 head + f", but " + cite_where(f"'{want.name}'", want.span) + f" is a function every game has — call "
                 f"it directly; it needs no contract row",
                 want.span,
+                code=Code.REQUIRES_WHAT_IS_PROVIDED,
             )
         elif want.name in K.KERNEL_CONTRACT_NAMES:
             row = K.CONTRACTS[want.name]
@@ -4088,6 +4127,7 @@ def _check_signature_row(
                     f"the game answers the kernel's row, so write the row as "
                     f"the kernel states it",
                     want.span,
+                    code=Code.BAD_REQUIRES_ROW,
                 )
         elif want.name in _ROUND_QUERY_NAMES:
             bag.error(
@@ -4096,6 +4136,7 @@ def _check_signature_row(
                 f"round names it may not define a function of that name — rename "
                 f"the row",
                 want.span,
+                code=Code.NAME_TAKEN,
             )
         elif want.name in PRIMITIVE_CALL_FUNCS:
             bag.error(
@@ -4104,6 +4145,7 @@ def _check_signature_row(
                 f"not reach one, so name a function each game defines in the "
                 f"language",
                 want.span,
+                code=Code.LIBRARY_REACHES_ONE_GAME,
             )
         _check_signature_result(library, want, bag)
     seen: set[str] = set()
@@ -4113,6 +4155,7 @@ def _check_signature_row(
                 head + f", which names more than one parameter named '{p.name}' — "
                 f"rename one",
                 want.span,
+                code=Code.NAME_TAKEN,
             )
         seen.add(p.name)
         if p.name in RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS:
@@ -4121,6 +4164,7 @@ def _check_signature_row(
                 f"language reserves — the game's definition could not take it, "
                 f"so rename it",
                 want.span,
+                code=Code.RESERVED_WORD,
             )
         if isinstance(want, n.FunctionContract):
             admitted = p.type_name.removesuffix("?") in KNOWN_TYPE_NAMES
@@ -4134,6 +4178,7 @@ def _check_signature_row(
                 head + f", whose parameter `{p.name} : {p.type_name}` no {noun} "
                 f"could declare — a {noun} parameter is {domains}",
                 want.span,
+                code=Code.BAD_REQUIRES_ROW,
             )
 
 
@@ -4175,7 +4220,7 @@ def _check_signature_result(
         )
     else:
         return
-    bag.error(message, want.span)
+    bag.error(message, want.span, code=Code.BAD_REQUIRES_ROW)
 
 
 def _check_contract_names(library: n.Library, bag: DiagnosticBag) -> None:
@@ -4192,6 +4237,7 @@ def _check_contract_names(library: n.Library, bag: DiagnosticBag) -> None:
                 cite_library(library.name, want.span) + f" requires " + cite_where(f"'{want.name}'", want.span) + f" in more than "
                 f"one row — a contract names each thing once; keep one row",
                 want.span,
+                code=Code.WRITTEN_TWICE,
             )
             continue
         seen[want.name] = want
@@ -4209,6 +4255,7 @@ def _check_contract_names(library: n.Library, bag: DiagnosticBag) -> None:
                 f"{_CONTRACT_KIND_OF[type(want)][1]} and also holds a {noun} of "
                 f"that name — rename one",
                 want.span,
+                code=Code.NAME_TAKEN,
             )
 
 
@@ -4234,6 +4281,7 @@ def _check_contract_reach(library: n.Library, bag: DiagnosticBag) -> None:
                 f"as never offered, so no game could answer the row: offer it, "
                 f"or drop the row",
                 want.span,
+                code=Code.UNUSED_DECLARATION,
             )
         elif isinstance(want, n.ProcedureContract):
             bag.error(
@@ -4242,6 +4290,7 @@ def _check_contract_reach(library: n.Library, bag: DiagnosticBag) -> None:
                 f"never run, so no game could answer the row: run it from a "
                 f"move type's effect, or drop the row",
                 want.span,
+                code=Code.UNUSED_DECLARATION,
             )
     rows = _contracted(library, "procedures")
     for proc in library.procedures:
@@ -4254,6 +4303,7 @@ def _check_contract_reach(library: n.Library, bag: DiagnosticBag) -> None:
                     "procedure may not run another, so "
                     f"run it from a move type's effect",
                     nd.span,
+                    code=Code.NOT_YET_SUPPORTED,
                 )
 
 
@@ -4324,6 +4374,7 @@ def _check_definition_requirement(
             head + f", which game '{game.name}' defines {len(found)} times — a "
             f"requirement must name ONE definition",
             use.span,
+            code=Code.REQUIREMENT_MATCHES_SEVERAL,
         )
         return None
     if not found:
@@ -4342,6 +4393,7 @@ def _check_definition_requirement(
                 head + f", which game '{game.name}' does not answer, since it "
                 f"declares no Trick Order — " + fix,
                 use.span,
+                code=Code.LIBRARY_REQUIREMENT_UNMET,
             )
             return None
         others = _game_declarations_of(game, want.name)
@@ -4351,6 +4403,7 @@ def _check_definition_requirement(
                 f"row names a {noun}, so the definition belongs in "
                 + _definition_template(want),
                 use.span,
+                code=Code.REQUIREMENT_MISMATCH,
             )
         else:
             table = (
@@ -4364,6 +4417,7 @@ def _check_definition_requirement(
                 want.name,
                 _definitions_of_kind(game, want),
                 use.span,
+                code=Code.LIBRARY_REQUIREMENT_UNMET,
             )
         return None
     if isinstance(want, n.MoveContract):
@@ -4375,6 +4429,7 @@ def _check_definition_requirement(
             head + f", but game '{game.name}' defines " + cite_named(have, f"`{want.name}`") + f" with {count} "
             f"parameter{'' if count == 1 else 's'}",
             use.span,
+            code=Code.REQUIREMENT_MISMATCH,
         )
         return None
     for i, (got, wanted) in enumerate(zip(have.params, want.params), start=1):
@@ -4383,6 +4438,7 @@ def _check_definition_requirement(
                 head + f", but game '{game.name}' defines " + cite_named(have, f"`{want.name}`") + f" whose "
                 f"parameter {i} is `{got.type_name}`",
                 use.span,
+                code=Code.REQUIREMENT_MISMATCH,
             )
             return None
     return n.ContractStamp(
@@ -4429,6 +4485,7 @@ def _check_definition_claims(
                         f"game, so a name can be one or the other: drop it from "
                         f"whichever clause is wrong",
                         own[want.name].span,
+                        code=Code.REQUIRES_WHAT_IS_PROVIDED,
                     )
                 elif want.name in defined_by:
                     contested.add((field, want.name))
@@ -4439,6 +4496,7 @@ def _check_definition_claims(
                         f"and is not answered by another library's definition; "
                         f"define it in the game and rename one of the two",
                         use.span,
+                        code=Code.REQUIRES_WHAT_IS_PROVIDED,
                     )
     return frozenset(contested)
 
@@ -4481,6 +4539,7 @@ def _check_zone_requirement(
                 f"game '{game.name}' declares as state — '{want.type_name}' is "
                 f"a zone type, so the declaration belongs in `zones {{ }}`",
                 use.span,
+                code=Code.REQUIREMENT_MISMATCH,
             )
         else:
             bag.unknown(
@@ -4490,6 +4549,7 @@ def _check_zone_requirement(
                 want.name,
                 {z.name for z in game.zones},
                 use.span,
+                code=Code.LIBRARY_REQUIREMENT_UNMET,
             )
         return
     if len(found) > 1:
@@ -4498,6 +4558,7 @@ def _check_zone_requirement(
             f"'{game.name}' declares {len(found)} times — a requirement must "
             f"name ONE declaration",
             use.span,
+            code=Code.REQUIREMENT_MATCHES_SEVERAL,
         )
         return
     have = found[0]
@@ -4507,6 +4568,7 @@ def _check_zone_requirement(
             cite_library(library.name, want.span) + f" requires zone " + cite_where(f"`{spelled}`", want.span) + f", but game "
             f"'{game.name}' declares it indexed by {shown_index}",
             use.span,
+            code=Code.REQUIREMENT_MISMATCH,
         )
     wanted_args = tuple(a.name for a in want.type_args)
     have_args = tuple(a.name for a in have.type_ref.args)
@@ -4520,6 +4582,7 @@ def _check_zone_requirement(
             f"per-observer projection, so the contract names the type the "
             f"library's definitions were written against",
             use.span,
+            code=Code.REQUIREMENT_MISMATCH,
         )
 
 
@@ -4572,6 +4635,7 @@ def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
             decl.index,
             role_names(ZONE_INDEX_ROLES),
             decl.span,
+            code=Code.WRONG_SUBSCRIPT,
         )
 
 
@@ -4703,6 +4767,7 @@ def _check_requires(
                     f"game '{game.name}' declares as {others[0]} — the row names "
                     f"a `state {{ }}` variable, so the declaration belongs there",
                     use.span,
+                    code=Code.REQUIREMENT_MISMATCH,
                 )
                 continue
             bag.unknown(
@@ -4712,6 +4777,7 @@ def _check_requires(
                 want.name,
                 {nd.name for nd in _walk(game) if isinstance(nd, n.StateDecl)},
                 use.span,
+                code=Code.LIBRARY_REQUIREMENT_UNMET,
             )
             continue
         if len(found) > 1:
@@ -4722,6 +4788,7 @@ def _check_requires(
                 f"definitions read depends on where they run; keep a single "
                 f"declaration of " + cite_where(f"'{want.name}'", want.span),
                 use.span,
+                code=Code.REQUIREMENT_MATCHES_SEVERAL,
             )
             continue
         have = found[0]
@@ -4740,6 +4807,7 @@ def _check_requires(
                 cite_library(library.name, want.span) + f" requires state " + cite_where(f"`{spelled}`", want.span) + f" to be "
                 f"{need}, but game '{game.name}' declares it as {got}",
                 use.span,
+                code=Code.REQUIREMENT_MISMATCH,
             )
         if (have.type_name, have.optional) != (want.type_name, False):
             bag.error(
@@ -4747,6 +4815,7 @@ def _check_requires(
                 f"'{game.name}' declares it as "
                 f"`{have.type_name}{'?' if have.optional else ''}`",
                 use.span,
+                code=Code.REQUIREMENT_MISMATCH,
             )
     return stamps
 
@@ -5081,6 +5150,7 @@ def _refuse_play_source_params(rule: n.RuleDef, bag: DiagnosticBag) -> bool:
                 f"{_PLAY_SOURCE_READING} — rename the parameter of rule "
                 f"" + cite_named(rule, f"'{rule.name}'"),
                 p.span or rule.span,
+                code=Code.RESERVED_WORD,
             )
             fired = True
     return fired
@@ -5099,6 +5169,7 @@ def _check_template(rule: n.RuleDef, bag: DiagnosticBag, flavor: Flavor) -> bool
             f"'{dup}' — substitution binds by name, so one would silently "
             f"shadow the other",
             rule.span,
+            code=Code.NAME_TAKEN,
         )
         ok = False
     binders = _template_binders(rule, flavor)
@@ -5111,6 +5182,7 @@ def _check_template(rule: n.RuleDef, bag: DiagnosticBag, flavor: Flavor) -> bool
                 p.type_name,
                 ("Suit",),
                 rule.span,
+                code=Code.NOT_YET_SUPPORTED,
             )
             ok = False
         if p.name in binders:
@@ -5118,6 +5190,7 @@ def _check_template(rule: n.RuleDef, bag: DiagnosticBag, flavor: Flavor) -> bool
                 f"rule " + cite_named(rule, f"'{rule.name}'") + f" introduces a binder named '{p.name}', "
                 f"shadowing its own parameter — rename one",
                 rule.span,
+                code=Code.NAME_TAKEN,
             )
             ok = False
     return ok
@@ -5229,6 +5302,7 @@ def _instantiate_rules(
                 + " — delete the local definition (`active_rules` resolves it "
                 "from the library), or rename it if the body genuinely differs",
                 r.span,
+                code=Code.NAME_TAKEN,
             )
 
     def named(name: str, template: n.RuleDef) -> Said:
@@ -5269,6 +5343,7 @@ def _instantiate_rules(
                         named(ref.name, template)
                         + " takes no parameters — drop the argument list",
                         ref.span,
+                        code=Code.WRONG_ARGUMENT_COUNT,
                     )
                 elif ref.name not in local and ref.name not in instances:
                     instances[ref.name] = ((), template)
@@ -5280,6 +5355,7 @@ def _instantiate_rules(
                     f"({', '.join(f'{p.name}: {p.type_name}' for p in template.params)}) "
                     "— pass arguments: " + cite_named(template, f"`{ref.name}(…)`"),
                     ref.span,
+                    code=Code.WRONG_ARGUMENT_COUNT,
                 )
                 continue
             if len(ref.args) != len(template.params):
@@ -5287,6 +5363,7 @@ def _instantiate_rules(
                     named(ref.name, template) + f" takes {len(template.params)} "
                     f"argument(s), got {len(ref.args)}",
                     ref.span,
+                    code=Code.WRONG_ARGUMENT_COUNT,
                 )
                 continue
             if not check_template_once(ref.name, template):
@@ -5303,6 +5380,7 @@ def _instantiate_rules(
                         arg.name if isinstance(arg, n.NameRef) else "",
                         suits or (),
                         ref.span,
+                        code=Code.WRONG_ARGUMENT,
                     )
                     args_ok = False
             if not args_ok:
@@ -5316,6 +5394,7 @@ def _instantiate_rules(
                         f"per rule name (activate under distinct names when a "
                         f"game needs two)",
                         ref.span,
+                        code=Code.CONFLICTING_CLAUSES,
                     )
                 continue
             mapping = {p.name: a for p, a in zip(template.params, ref.args)}
@@ -5337,6 +5416,7 @@ def _instantiate_rules(
                 f"reference it from `active_rules` with arguments, or delete it "
                 f"(its body would otherwise go entirely unchecked)",
                 r.span,
+                code=Code.UNUSED_DECLARATION,
             )
     rules += [instances[name][1] for name in lib_order]
     return replace(game, rules=tuple(rules)) if tuple(rules) != game.rules else game
@@ -5469,6 +5549,7 @@ def _check_rules_reach_a_trick(game: n.Game, bag: DiagnosticBag) -> None:
             f"follows_lead(card, <pile>)`), or, for a move made by an `offer`, "
             f"state the condition in the move type's `when:`",
             (slots[0] if slots else modes[0]).span,
+            code=Code.RULE_NEVER_CONSULTED,
         )
 
 
@@ -5488,6 +5569,7 @@ def _validate_removes(
                 "one of this phase's modes) — add " + named(f"`{ref.name}`") + " or " + named(f"`+{ref.name}`")
                 + " there, or delete this removal",
                 ref.span,
+                code=Code.MISSING_DECLARATION,
             )
 
 
@@ -5548,6 +5630,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
                 f"player's `{node.name}` is no one's. Say whose: "
                 f"`{node.name}[<player>]`",
                 node.span or decl.span,
+                code=Code.NO_PLAYER_ACTING,
             )
         elif isinstance(node, n.Choose):
             bag.error(
@@ -5557,6 +5640,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
                 f"the decision — and a decision with no actor has no "
                 f"information set to attach to. Move it into a phase",
                 node.span or decl.span,
+                code=Code.NO_PLAYER_ACTING,
             )
         elif isinstance(node, n.NameRef) and _pronoun_refused(
             node.name, node.ref_kind, _DEFAULT_REFUSED_PRONOUNS
@@ -5568,6 +5652,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
                 f"no one. Use a seat number, or set the variable during "
                 f"play",
                 node.span or decl.span,
+                code=Code.NO_PLAYER_ACTING,
             )
         elif isinstance(node, n.Call):
             bag.error(
@@ -5579,6 +5664,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
                 f"exist yet — use a literal here and compute the value "
                 f"in the phase that needs it",
                 node.span or decl.span,
+                code=Code.OUT_OF_SCOPE,
             )
         elif isinstance(node, n.NameRef) and _state_out_of_scope(
             node.name, node.ref_kind, in_scope
@@ -5589,6 +5675,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
                 f"can only read state declared before it — earlier in "
                 f"the same `state {{ }}` block, or in an enclosing one",
                 node.span or decl.span,
+                code=Code.OUT_OF_SCOPE,
             )
 
 
@@ -5811,6 +5898,7 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
             f"that declares it — move the declaration to a phase that encloses "
             f"both, or move this reference into {home}",
             node.span,
+            code=Code.OUT_OF_SCOPE,
         )
 
     # A result ranking's target needs naming separately: `state_var` is a bare
@@ -5822,7 +5910,7 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
         where = declared_at.get(target, []) if target is not None else []
         if target is not None and target not in top and where:
             home = " or ".join(f"phase '{w}'" for w in where)
-            bag.error(ranking_slot(ranking).out_of_scope(target, home), ranking.span)
+            bag.error(ranking_slot(ranking).out_of_scope(target, home), ranking.span, code=Code.OUT_OF_SCOPE)
 
 
 # The board verbs that return a positional collection, each the `BoardEntry`
@@ -5891,6 +5979,7 @@ def _check_positional_index_range(game: n.Game, bag: DiagnosticBag) -> None:
             f"position {index} is past the end: this collection holds "
             f"{length}, at positions 0 .. {length - 1}",
             nd.index.span or nd.span,
+            code=Code.OUT_OF_RANGE,
         )
 
 
@@ -5951,6 +6040,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 "with `up to N` (`0 .. hand_size up to 10`) — the OpenSpiel "
                 "action space reserves that many ids up front",
                 node.span,
+                code=Code.CHOOSE_INTEGER_BOUNDS,
             )
             continue
         if ceiling < 0:
@@ -5959,6 +6049,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"start at 0, so the range reserves no action id and no value "
                 f"can ever be chosen — raise the upper bound to 0 or more",
                 node.span,
+                code=Code.CHOOSE_INTEGER_BOUNDS,
             )
             continue
         if node.ceiling is not None and isinstance(node.hi, n.IntLit):
@@ -5968,6 +6059,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"{node.ceiling}` clause (it applies only when the upper bound is "
                 f"a runtime expression)",
                 node.span,
+                code=Code.HAS_NO_EFFECT,
             )
             continue
         # A literal lower bound is the smallest value the choose could ever
@@ -5982,6 +6074,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"value would fall outside the reserved action block), so no "
                 f"value can ever be chosen — lower the start or raise the bound",
                 node.span,
+                code=Code.CHOOSE_INTEGER_BOUNDS,
             )
             continue
         if isinstance(node.lo, n.IntLit) and node.lo.value < 0:
@@ -5990,6 +6083,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"reserved block: values start at 0, and every legal value must "
                 f"have an OpenSpiel action id in 0 .. {ceiling} — raise the start",
                 node.span,
+                code=Code.CHOOSE_INTEGER_BOUNDS,
             )
             continue
         if isinstance(node.excluding, n.IntLit):
@@ -6002,6 +6096,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                     f"so the `excluding` clause can never act — remove it, or "
                     f"exclude a value in range",
                     node.excluding.span or node.span,
+                    code=Code.HAS_NO_EFFECT,
                 )
             elif low == ceiling:
                 bag.error(
@@ -6010,6 +6105,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                     f"would always empty the choice — a choice must offer at "
                     f"least one candidate",
                     node.excluding.span or node.span,
+                    code=Code.CHOOSE_INTEGER_BOUNDS,
                 )
 
 
@@ -6265,6 +6361,7 @@ def _check_alias_operands(
         f"loop, then `{left.name} is not w`); to act as one named player, use "
         f"`as <player> {{ … }}`.",
         node.span,
+        code=Code.CONSTANT_CONDITION,
     )
 
 
@@ -6278,6 +6375,7 @@ def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
             f"game '{game.name}' must declare `winner: <rank-dir> <var>` or "
             "`loser: <player-expr>` — without one the playout has no result",
             game.span,
+            code=Code.MISSING_DECLARATION,
         )
     elif game.loser is not None and game.players.count == 1:
         # An elimination names one loser among the survivors, so a one-seat
@@ -6287,6 +6385,7 @@ def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
             "elimination game needs at least two players — this game seats "
             "one; rank a score with `winner:` instead",
             game.loser.span,
+            code=Code.USE_WINNER_NOT_LOSER,
         )
     if (
         game.stop_result is not None
@@ -6305,6 +6404,7 @@ def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
             "max_length: tie` — every seat a winner — or rank a state variable "
             "the game keeps: `at max_length: lowest <variable>`.",
             game.stop_result.span,
+            code=Code.USE_WINNER_NOT_LOSER,
         )
 
 
@@ -6353,6 +6453,7 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
                 f"one Player parameter (the seat whose move is routed); it "
                 f"takes ({got})",
                 fn.span,
+                code=Code.WRONG_SIGNATURE,
             )
     if not any(isinstance(node, n.TrickRound) for node in _walk(game)):
         names = Sentence.join(
@@ -6370,6 +6471,7 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
                 f"the routing to reach — a game with no trick round cannot use "
                 + cite_library(origin.library, helpers[0].span)
             ),
+            code=Code.NEEDS_A_TRICK_ROUND,
         )
 
 def _map_climb_rounds(node: object, step: Callable[[n.ClimbRound], n.ClimbRound]) -> object:
@@ -6410,6 +6512,7 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     f"that several games import may not name one: write the "
                     f"round in the game",
                     nd.span,
+                    code=Code.LIBRARY_REACHES_ONE_GAME,
                 )
                 return nd
             if follows in functions:
@@ -6422,6 +6525,7 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     f"`function {follows}_play(play : Combination, standing : "
                     f"Combination?) = …` and name it",
                     nd.span,
+                    code=Code.CLIMB_ROUND_QUERIES,
                 )
             else:
                 bag.unknown(
@@ -6430,6 +6534,7 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     follows,
                     functions,
                     nd.span,
+                    code=Code.UNKNOWN_FUNCTION,
                 )
             return nd
         if lead in PRIMITIVE_CLIMB_ENGINES:
@@ -6445,13 +6550,16 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     f"with `follows` query '{follows}', which is another "
                     f"engine's; '{lead}' follows with '{own}'",
                     nd.span,
+                    code=Code.CLIMB_ROUND_QUERIES,
                 )
             elif follows in functions:
+                named = next(f for f in game.functions if f.name == follows)
                 bag.error(
-                    f"climb round `follows` names '{follows}', a function of this "
-                    f"game; the registered engine '{lead}' follows with its own "
-                    f"query '{own}'",
+                    "climb round `follows` names " + cite_named(named, f"'{follows}'")
+                    + f", a function of this game; the registered engine '{lead}' "
+                    f"follows with its own query '{own}'",
                     nd.span,
+                    code=Code.CLIMB_ROUND_QUERIES,
                 )
             else:
                 bag.unknown(
@@ -6460,6 +6568,7 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     follows,
                     (own,),
                     nd.span,
+                    code=Code.CLIMB_ROUND_QUERIES,
                 )
             return nd
         bag.unknown(
@@ -6468,6 +6577,7 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
             lead,
             (*PRIMITIVE_CLIMB_ENGINES, *catalogues),
             nd.span,
+            code=Code.CLIMB_ROUND_QUERIES,
         )
         return nd
 
@@ -6483,6 +6593,7 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
             + ", ".join(f"'{x}'" for x in names)
             + " — the action space numbers one universe of plays",
             game.span,
+            code=Code.CLIMB_ROUND_QUERIES,
         )
     return stamped
 
@@ -6605,6 +6716,7 @@ def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
                 f"two alike, so a game whose climbing round uses `{engine}` "
                 "cannot use " + cite_library(mt.origin.library, mt.span)
             ),
+            code=Code.NAME_TAKEN,
         )
 
 
@@ -6646,6 +6758,7 @@ def _check_unoffered_move_types(
                 f"`offer` presents: nothing reads the row. "
                 f"Delete it, or present the move at an offering the game reaches",
                 mt.span,
+                code=Code.UNUSED_DECLARATION,
             )
             continue
         bag.error(
@@ -6653,6 +6766,7 @@ def _check_unoffered_move_types(
             f"presents it, so no seat can ever play it. "
             f"Present it at an offering the game reaches, or delete it",
             mt.span,
+            code=Code.UNUSED_DECLARATION,
         )
 
 
@@ -6677,6 +6791,7 @@ def _check_climb_play_zones(game: n.Game, bag: DiagnosticBag) -> None:
             f"`{node.play_zone}` a type that shows every seat its cards "
             f"(`TrickPile`)",
             node.span,
+            code=Code.WRONG_ZONE_VISIBILITY,
         )
 
 
@@ -6722,6 +6837,7 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
                         f"`{node.source_zone}`, but `{node.source_zone}` is a "
                         f"`{ztype}`, which {_OWN_POOL_BLIND}. {fix(node.source_zone, opens=True)}",
                         node.span,
+                        code=Code.WRONG_ZONE_VISIBILITY,
                     )
     family = CARD_PARAMETER_FAMILY
     offers = [nd for nd in _walk(game) if isinstance(nd, n.Offer) and nd.span is not None]
@@ -6754,6 +6870,7 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
                     f"`{family}` a `{ztype}`, which {_OWN_POOL_BLIND} — {fix(family)}"
                 ),
                 stands_on=offered_by,
+                code=Code.WRONG_ZONE_VISIBILITY,
             )
 
 
@@ -6885,6 +7002,7 @@ def _ranking_target_role(
             + cite_named(decl, decl.name) + "[team]`. A scalar has no "
             f"per-member value to rank",
             ranking.span,
+            code=Code.UNRANKABLE_WINNER_TARGET,
         )
         return None
     if decl.optional:
@@ -6892,6 +7010,7 @@ def _ranking_target_role(
             f"" + what + f"declared `{decl.type_name}?` — an optional score may be "
             f"`none`, which cannot be ranked against a number",
             ranking.span,
+            code=Code.UNRANKABLE_WINNER_TARGET,
         )
         return None
     if decl.type_name not in _RANKABLE_TYPES:
@@ -6901,6 +7020,7 @@ def _ranking_target_role(
             f"score, so the target must be {rankable}. Its values become "
             f"the game's OpenSpiel returns",
             ranking.span,
+            code=Code.UNRANKABLE_WINNER_TARGET,
         )
         return None
     return decl.index
@@ -6954,12 +7074,14 @@ def _check_teams(game: n.Game, bag: DiagnosticBag) -> None:
             f"declares {count} player(s) (0..{count - 1}). The seat never "
             f"matches, so its team silently plays a member short",
             game.span,
+            code=Code.TEAMS_MUST_PARTITION_SEATS,
         )
     for seat in sorted(s for s, ts in holding.items() if len(ts) > len(set(ts))):
         bag.error(
             f"`teams:` lists seat {seat} twice in the same team — a seat "
             f"belongs to its team once",
             game.span,
+            code=Code.TEAMS_MUST_PARTITION_SEATS,
         )
     for seat in sorted(s for s, ts in holding.items() if len(set(ts)) > 1):
         named = ", ".join(str(t) for t in sorted(set(holding[seat])))
@@ -6968,12 +7090,14 @@ def _check_teams(game: n.Game, bag: DiagnosticBag) -> None:
             f"{named}) — the engine keeps only the last, so this seat would "
             f"score for a team you did not put it on",
             game.span,
+            code=Code.TEAMS_MUST_PARTITION_SEATS,
         )
     for seat in (s for s in range(count) if s not in holding):
         bag.error(
             f"`teams:` leaves seat {seat} on no team, but the game declares "
             f"{count} player(s) — every seat must belong to exactly one team",
             game.span,
+            code=Code.TEAMS_MUST_PARTITION_SEATS,
         )
 
 
@@ -6986,12 +7110,14 @@ def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
             "none, and the OpenSpiel adapter reports it as the game's length "
             "(docs/decisions.md, \"Game length as a declared contract\")",
             game.span,
+            code=Code.MISSING_DECLARATION,
         )
     elif game.max_length <= 0:
         bag.error(
             f"game '{game.name}' declares `max_length: {game.max_length}` — "
             "it must be a positive integer",
             game.span,
+            code=Code.OUT_OF_RANGE,
         )
 
 
@@ -7157,6 +7283,7 @@ def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
                 f"{p.lo}..{p.hi} — the bounds are inclusive and must satisfy "
                 f"lo <= hi",
                 p.span,
+                code=Code.OUT_OF_RANGE,
             )
         elif p.hi - p.lo + 1 > _POSITION_MEMBER_CEILING:
             bag.error(
@@ -7165,6 +7292,7 @@ def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
                 f"({_POSITION_MEMBER_CEILING}); every member mints action-"
                 f"space ids, so a runaway range is a declaration error",
                 p.span,
+                code=Code.OUT_OF_RANGE,
             )
         source = _reserved_domain_source(game, p.name, DECLARED_POSITION_SITE)
         if source is not None:
@@ -7172,6 +7300,7 @@ def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
                 f"position domain '{p.name}' collides with {source} — "
                 f"pick another name",
                 p.span,
+                code=Code.NAME_TAKEN,
             )
     return frozenset(p.name for p in game.positions)
 
@@ -7213,6 +7342,7 @@ def _resolve_board(
             f"(a card game with a board is rejected until a game witnesses "
             f"needing both)",
             game.board.span,
+            code=Code.MISSING_DECLARATION,
         )
         return game
     # Collision: the minted `cell` may shadow neither a declared `positions { }`
@@ -7226,6 +7356,7 @@ def _resolve_board(
             f"collides with the declared `positions {{ {BOARD_DOMAIN} : ... }}` "
             f"— rename the declared domain (a board already provides '{BOARD_DOMAIN}')",
             game.board.span,
+            code=Code.NAME_TAKEN,
         )
         return game
     minted_clash = _reserved_domain_source(game, BOARD_DOMAIN, MINTED_CELL_SITE)
@@ -7234,6 +7365,7 @@ def _resolve_board(
             f"the board mints a position domain named '{BOARD_DOMAIN}', which "
             f"collides with {minted_clash}",
             game.board.span,
+            code=Code.NAME_TAKEN,
         )
         return game
     # Family/args validity is the registry's to judge: `board_entry` raises an
@@ -7268,6 +7400,7 @@ def _resolve_board(
             f"`positions {{ {DIRECTION_DOMAIN} : ... }}` — rename the declared "
             f"domain (a board already provides '{DIRECTION_DOMAIN}')",
             game.board.span,
+            code=Code.NAME_TAKEN,
         )
     # The `cell` clash above is checked against BOTH declared positions and the
     # reserved set; `dir` gets the same second check, so every name the board
@@ -7284,6 +7417,7 @@ def _resolve_board(
             f"rename the declared type (a board already provides "
             f"'{DIRECTION_DOMAIN}')",
             game.board.span,
+            code=Code.NAME_TAKEN,
         )
     if entry is None:
         assert refused is not None
@@ -7321,9 +7455,9 @@ def _tell_board_refusal(
     """Tell the board registry's refusal: a family it does not register is a
     name refused against `BOARD_FAMILIES`, any other refusal its own."""
     if family in BOARD_FAMILIES:
-        bag.error(str(refused), span)
+        bag.error(str(refused), span, code=Code.BOARD_SHAPE)
     else:
-        bag.unknown(str(refused), family, BOARD_FAMILIES, span)
+        bag.unknown(str(refused), family, BOARD_FAMILIES, span, code=Code.UNKNOWN_BOARD)
 
 
 def _resolve_zone(
@@ -7340,6 +7474,7 @@ def _resolve_zone(
             zone.index or "",
             (*role_names(_KNOWN_ROLES), *positions),
             zone.span,
+            code=Code.UNKNOWN_INDEX_DOMAIN,
         )
 
     ref = zone.type_ref
@@ -7357,17 +7492,19 @@ def _resolve_zone(
                 f"zone's angle brackets take an index domain: write a zone "
                 f"type such as `Hand<player>`",
                 ref.span,
+                code=Code.TYPE_NOT_ALLOWED_HERE,
             )
         else:
-            bag.unknown(f"unknown zone type '{ref.name}'", ref.name, LIBRARY_ZONE_TYPES, ref.span)
+            bag.unknown(f"unknown zone type '{ref.name}'", ref.name, LIBRARY_ZONE_TYPES, ref.span, code=Code.UNKNOWN_ZONE_TYPE)
         return
     if takes_owner and len(ref.args) != 1:
         bag.error(
             f"zone type '{ref.name}' takes one owner argument, got {len(ref.args)}",
             ref.span,
+            code=Code.WRONG_ARGUMENT_COUNT,
         )
     if not takes_owner and ref.args:
-        bag.error(f"zone type '{ref.name}' takes no type arguments", ref.span)
+        bag.error(f"zone type '{ref.name}' takes no type arguments", ref.span, code=Code.WRONG_ARGUMENT_COUNT)
     for arg in ref.args:
         if role_of(arg.name) not in _KNOWN_ROLES and arg.name not in positions:
             bag.unknown(
@@ -7375,6 +7512,7 @@ def _resolve_zone(
                 arg.name,
                 (*role_names(_KNOWN_ROLES), *positions),
                 arg.span,
+                code=Code.UNKNOWN_INDEX_DOMAIN,
             )
         elif takes_owner and zone.index is None:
             # An owned zone type has no index to key its owner by. The runtime
@@ -7388,6 +7526,7 @@ def _resolve_zone(
                 f"no index — an owned zone type must be indexed by its owner; "
                 f"write '{zone.name}[{arg.name}] : {ref.name}<{arg.name}>'",
                 zone.span,
+                code=Code.WRONG_SUBSCRIPT,
             )
         elif takes_owner and arg.name != zone.index:
             # Same silent-ignore: the runtime keys the family by the index, so
@@ -7402,6 +7541,7 @@ def _resolve_zone(
                 f"index, so '<{arg.name}>' would be silently ignored); write "
                 f"'{ref.name}<{zone.index}>'",
                 arg.span,
+                code=Code.WRONG_SUBSCRIPT,
             )
     if zone.index in positions:
         # A position-indexed family has no owner (no observer IS a column —
@@ -7419,6 +7559,7 @@ def _resolve_zone(
                 f"use a uniform-projection type (Cascade, HiddenStack, "
                 f"Foundation, Cell, …)",
                 ref.span,
+                code=Code.WRONG_ZONE_VISIBILITY,
             )
 
 
@@ -7578,6 +7719,7 @@ def _check_play_source(
                                 f"plays from, and a function cannot see which cards "
                                 f"those are — take " + cite_named(rule, f"'{rule.name}'") + f" out of `active_rules:`"
                             ),
+                            code=Code.READS_BEYOND_PARAMETERS,
                         )
                         continue
                     inner: Said = (
@@ -7599,6 +7741,7 @@ def _check_play_source(
                             f"write the filter in the rule's own clause "
                             f"(`cards in {nd.name} where ...`) instead of calling it"
                         ),
+                        code=Code.READS_BEYOND_PARAMETERS,
                     )
     if not reading:
         return
@@ -7612,6 +7755,7 @@ def _check_play_source(
                 f"its rules could never read this zone by that name — rename "
                 f"the zone",
                 z.span,
+                code=Code.RESERVED_WORD,
             )
     for nd in _walk(game):
         if isinstance(nd, n.StateDecl) and nd.name == PLAY_SOURCE_NAME:
@@ -7628,6 +7772,7 @@ def _check_play_source(
                     f"{_PLAY_SOURCE_READING}, so no rule could read the variable "
                     f"by that name — take " + rules + " out of `active_rules:`"
                 ),
+                code=Code.RESERVED_WORD,
             )
     if not sources:
         activated = _activated_rule_names(game)
@@ -7648,6 +7793,7 @@ def _check_play_source(
                 f"never apply — play the hand with a trick round, or delete rule "
                 + cite_named(rule, f"'{rule.name}'"),
                 rule.span,
+                code=Code.NEEDS_A_TRICK_ROUND,
             )
 
 
@@ -7695,6 +7841,7 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
                 f"names none of them: say which {index}'s, "
                 f"`{nd.name}[<{index}>]`{team}",
                 nd.span,
+                code=Code.WRONG_SUBSCRIPT,
             )
         for cls, field in _ZONE_SLOTS:
             if not isinstance(nd, cls):
@@ -7710,6 +7857,7 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
                     f"`hand[player]` -- `{name}` is "
                     f"{_family_shape(index_of[name])}",
                     span,
+                    code=Code.WRONG_ZONE_SHAPE,
                 )
             elif field == _PLAY_SLOT_FIELD and index_of[name] is not None:
                 bag.error(
@@ -7717,6 +7865,7 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
                     f"on, so it must be a single zone, like `trick_pile` -- "
                     f"`{name}` is {_family_shape(index_of[name])}",
                     span,
+                    code=Code.WRONG_ZONE_SHAPE,
                 )
         if isinstance(nd, n.Call) and nd.func in BUILTIN_IMPLICIT_READS:
             family, _need = BUILTIN_IMPLICIT_READS[nd.func]
@@ -7743,6 +7892,7 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
                     f"meeting it can answer the call — contract `{family}` per "
                     f"player, like {kept}",
                     nd.span,
+                    code=Code.WRONG_ZONE_SHAPE,
                 )
                 continue
             bag.error(
@@ -7758,6 +7908,7 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
                     f"game {declared} — declare `{family}` a zone kept per "
                     f"player, like {kept}"
                 ),
+                code=Code.WRONG_ZONE_SHAPE,
             )
 
 
@@ -7794,6 +7945,7 @@ def _check_nested_ring_flags(game: n.Game, bag: DiagnosticBag) -> None:
                 f"the outer one at once — give the inner ring its own go-again "
                 f"flag",
                 inner.span or ring.span,
+                code=Code.NAME_TAKEN,
             )
 
 
@@ -7827,6 +7979,7 @@ def _check_rule_reaches_a_reader(
             f"absent), which no decision site consults: {trick}. Name "
             f"`{RULE_ENFORCED_MOVE_TYPE}` in its `constrains:`.",
             rule.span,
+            code=Code.RULE_NEVER_CONSULTED,
         )
         return
     declared = move_types.get(target) if target != RULE_ENFORCED_MOVE_TYPE else None
@@ -7837,6 +7990,7 @@ def _check_rule_reaches_a_reader(
             f"in its `when:` instead; a condition that reads the whole position is "
             f"a function the `when:` calls",
             rule.span,
+            code=Code.RULE_NEVER_CONSULTED,
         )
         return
     if declared is not None and declared.origin is not None:
@@ -7849,6 +8003,7 @@ def _check_rule_reaches_a_reader(
             f"in its `when:`, in place of `{target}`, writing the offer in the game "
             f"wherever the library's own procedure makes it",
             rule.span,
+            code=Code.RULE_NEVER_CONSULTED,
         )
         return
     form = KERNEL_MOVE_FORMS.get(target)
@@ -7858,6 +8013,7 @@ def _check_rule_reaches_a_reader(
             target,
             (*move_types, *KERNEL_MOVE_FORMS),
             rule.span,
+            code=Code.UNKNOWN_MOVE_TYPE,
         )
         return
     head = "rule " + named + f" constrains '{target}', which no decision site consults: {trick}. "
@@ -7872,12 +8028,14 @@ def _check_rule_reaches_a_reader(
                     "`applies_when:` alone selects when a rule fires, not what it "
                     "does.",
                     rule.span,
+                    code=Code.MISSING_DECLARATION,
                 )
         case "offer":
             bag.error(
                 head + f"Declare `{target}` as a move type of the game, with the "
                 f"condition in its `when:`, and offer it.",
                 rule.span,
+                code=Code.RULE_NEVER_CONSULTED,
             )
         case "chosen_movement":
             bag.error(
@@ -7885,6 +8043,7 @@ def _check_rule_reaches_a_reader(
                 "(`move chosen N cards from ... to ...`): state the condition on "
                 "the movement, its `chosen N` or a `where` filter.",
                 rule.span,
+                code=Code.RULE_NEVER_CONSULTED,
             )
         case "number_choice":
             bag.error(
@@ -7893,6 +8052,7 @@ def _check_rule_reaches_a_reader(
                 f"`{target}` as a move type of the game, with the condition in its "
                 f"`when:`, and offer it.",
                 rule.span,
+                code=Code.RULE_NEVER_CONSULTED,
             )
         case "climb_round":
             bag.error(
@@ -7901,6 +8061,7 @@ def _check_rule_reaches_a_reader(
                 "condition there; a Registered Engine's `follows` fixes the "
                 "legality, and the game cannot add to it.",
                 rule.span,
+                code=Code.RULE_NEVER_CONSULTED,
             )
         case _:
             assert_never(form)
@@ -7918,6 +8079,7 @@ def _resolve_rule(
             f"declare the fallback when no card satisfies it (`if_impossible: hand` "
             f"to play any card, or `error(...)` to reject the move)",
             rule.span,
+            code=Code.MISSING_DECLARATION,
         )
 
 
@@ -7942,6 +8104,7 @@ def _resolve_phase_level(
                 f"phase '{phase.name}' declares more than one `state {{ }}` "
                 f"block — merge the declarations into one",
                 state_blocks[1].span,
+                code=Code.WRITTEN_TWICE,
             )
         if phase.qualifier is None or phase.qualifier.kind != "repeat_until":
             for hook in phase.items:
@@ -7952,6 +8115,7 @@ def _resolve_phase_level(
                         f"phase '{phase.name}' has no iteration — put the "
                         f"statements in the phase body",
                         hook.span,
+                        code=Code.OUT_OF_PLACE,
                     )
         modes = tuple(i for i in phase.items if isinstance(i, n.Mode))
         mode_names = {m.name for m in modes}
@@ -7981,6 +8145,7 @@ def _resolve_transition(
             transition.mode,
             _transition_targets(mode_names, source),
             transition.span,
+            code=Code.UNKNOWN_MODE,
         )
     if transition.event.move_type not in LIBRARY_MOVE_TYPES:
         bag.unknown(
@@ -7988,6 +8153,7 @@ def _resolve_transition(
             transition.event.move_type,
             ("play_to_trick",),
             transition.event.span,
+            code=Code.UNKNOWN_MOVE_TYPE,
         )
     elif transition.event.move_type != "play_to_trick":
         bag.error(
@@ -7995,6 +8161,7 @@ def _resolve_transition(
             f"type must be `play_to_trick`, not "
             f"'{transition.event.move_type}' (roadmap.md)",
             transition.event.span,
+            code=Code.NOT_YET_SUPPORTED,
         )
 
 
@@ -8050,6 +8217,7 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
                     f"condition, and sharing it makes either trigger end both. "
                     f"Give each condition its own target mode",
                     transition.span,
+                    code=Code.MODE_PAIRING,
                 )
 
     for mode in modes:
@@ -8063,6 +8231,7 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
                 f"use a state variable with `applies_when` for a progression "
                 f"through three or more stages",
                 mode.span,
+                code=Code.MODE_PAIRING,
             )
         elif not is_source and not is_target and mode.name not in undecided:
             bag.error(
@@ -8072,6 +8241,7 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
                 f"`transition_to: {mode.name}`, or put these rules on the "
                 f"phase itself",
                 mode.span,
+                code=Code.UNUSED_DECLARATION,
             )
 
 
@@ -8089,6 +8259,7 @@ def _resolve_phase_item(
                     ref.name,
                     known_rule_names,
                     ref.span,
+                    code=Code.UNKNOWN_RULE,
                 )
             if ref.delta == "override":
                 overridden = known_rule_names.get(ref.name)
@@ -8098,6 +8269,7 @@ def _resolve_phase_item(
                     + " is not yet supported by the runtime "
                     "(roadmap.md) — use `add`/`remove` deltas",
                     ref.span,
+                    code=Code.NOT_YET_SUPPORTED,
                 )
     elif isinstance(item, n.LegalMoves):
         for name in item.move_types:
@@ -8107,6 +8279,7 @@ def _resolve_phase_item(
                     name,
                     LIBRARY_MOVE_TYPES,
                     item.span,
+                    code=Code.UNKNOWN_MOVE_TYPE,
                 )
     elif isinstance(item, n.Mode):
         for block in item.active_rules:
@@ -8354,6 +8527,7 @@ def _check_kernel_answers(game: n.Game, bag: DiagnosticBag) -> set[str]:
             f"kernel's `{row.spelled}`, so it takes exactly one Card — write "
             f"`function {answer.name}(card : Card) = …`",
             answer.span or game.span,
+            code=Code.WRONG_SIGNATURE,
         )
         refused.add("card_points" if answer.name == "card_points" else "trick_order")
     return refused
@@ -8394,12 +8568,14 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
                     + " and " + _answer_spelling(decl) + f" both answer the "
                     f"kernel's `{K.CONTRACTS[name].spelled}`; keep one",
                     decl.span,
+                    code=Code.WRITTEN_TWICE,
                 )
             elif name in seen:
                 bag.error(
                     f"duplicate {kind} " + cite_named(decl, f"'{name}'")
                     + " — the later declaration would silently shadow the earlier one",
                     getattr(decl, "span", None),
+                    code=Code.NAME_TAKEN,
                 )
             seen[name] = decl
             if reserved:
@@ -8617,6 +8793,7 @@ def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
                 game.deck,
                 DECKS,
                 game.span,
+                code=Code.UNKNOWN_DECK,
             )
         else:
             piece_sets = sorted(
@@ -8628,6 +8805,7 @@ def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
                 game.deck,
                 piece_sets,
                 game.span,
+                code=Code.UNKNOWN_DECK,
             )
     elif cs.flavor != game.content_flavor:
         if cs.flavor == "piece":
@@ -8635,12 +8813,14 @@ def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
                 f"'{game.deck}' is a piece set — declare it with "
                 f"`pieces: {game.deck}`, not `cards:`",
                 game.span,
+                code=Code.WRONG_SPELLING,
             )
         else:
             bag.error(
                 f"'{game.deck}' is a card deck — declare it with "
                 f"`cards: {game.deck}`, not `pieces:`",
                 game.span,
+                code=Code.WRONG_SPELLING,
             )
 
 
@@ -8659,12 +8839,14 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
             f"{kind} -- `ranking:` orders a deck's cards by rank, which a "
             f"piece set has no notion of; drop the clause",
             game.span,
+            code=Code.PIECES_ARE_NOT_CARDS,
         )
     if game.suit_ranking is not None:
         bag.error(
             f"{kind} -- `suit ranking:` orders a deck's suits, which a piece "
             f"set has none of; drop the clause",
             game.suit_ranking.span or game.span,
+            code=Code.PIECES_ARE_NOT_CARDS,
         )
     for answer in K.answers(game):
         spelled = answer.spelled_as
@@ -8673,6 +8855,7 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"{kind} -- `card_points` prices a deck's cards by rank, which a "
                 f"piece set has no notion of; drop the clause",
                 answer.span or game.span,
+                code=Code.PIECES_ARE_NOT_CARDS,
             )
         else:
             bag.error(
@@ -8681,6 +8864,7 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"fact of a deck card, which a piece set has no notion of; drop "
                 f"the function",
                 answer.span or game.span,
+                code=Code.PIECES_ARE_NOT_CARDS,
             )
 
 
@@ -8699,6 +8883,7 @@ def _resolve_direction(game: n.Game, bag: DiagnosticBag) -> None:
             game.direction,
             GAME_DIRECTIONS,
             game.span,
+            code=Code.UNKNOWN_TURN_DIRECTION,
         )
 
 
@@ -8741,6 +8926,7 @@ def _expand_ranking(game: n.Game, bag: DiagnosticBag) -> n.Game:
             f"({', '.join(offenders)}), so no named convention orders it; "
             f"enumerate the ranking explicitly instead",
             game.span,
+            code=Code.RANKING_INCOMPLETE,
         )
         return game
     return replace(
@@ -8797,6 +8983,7 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
                 f"most once (a duplicate would silently give it two "
                 f"strengths and shift every rank after it down by one)",
                 game.span,
+                code=Code.WRITTEN_TWICE,
             )
         seen[rank] = None
         if rank not in known:
@@ -8832,6 +9019,7 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
                 phrase if meant_a_convention else rank,
                 RANKING_CONVENTIONS if meant_a_convention else known,
                 game.span,
+                code=Code.UNKNOWN_RANK,
             )
 
 
@@ -8871,6 +9059,7 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag, refused: set[str]) ->
                 f"appear at most once (a duplicate would silently keep only "
                 f"the last value)",
                 entry.span or game.span,
+                code=Code.WRITTEN_TWICE,
             )
         seen.add(entry.rank)
         if entry.rank not in known:
@@ -8880,6 +9069,7 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag, refused: set[str]) ->
                 entry.rank,
                 known,
                 entry.span or game.span,
+                code=Code.UNKNOWN_RANK,
             )
     if len(bag.items) > before:
         refused.add("card_points")
@@ -8960,6 +9150,7 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag, refused: set[str]) -
             f"`ranking: {words}`; `suit ranking:` lists "
             f"{_declared_suits_phrase(game.deck)} strongest first",
             span,
+            code=Code.WRONG_SPELLING,
         )
         refused.add("suit_ranking")
         return
@@ -8971,6 +9162,7 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag, refused: set[str]) -
                 f"suit ranking: repeats suit '{name}' — name each suit once, "
                 f"strongest first",
                 span,
+                code=Code.WRITTEN_TWICE,
             )
         seen.add(name)
         if name in suits:
@@ -8982,6 +9174,7 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag, refused: set[str]) -
                 f"`suit ranking:` lists {_declared_suits_phrase(game.deck)} "
                 f"strongest first",
                 span,
+                code=Code.WRONG_SPELLING,
             )
         else:
             bag.unknown(
@@ -8990,6 +9183,7 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag, refused: set[str]) -
                 name,
                 DECKS[game.deck].suits,
                 span,
+                code=Code.UNKNOWN_SUIT,
             )
     for declared in DECKS[game.deck].suits:
         if declared not in seen:
@@ -8997,6 +9191,7 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag, refused: set[str]) -
                 f"suit ranking: leaves out {declared} — list "
                 f"{_declared_suits_phrase(game.deck)} strongest first",
                 span,
+                code=Code.RANKING_INCOMPLETE,
             )
     if len(bag.items) > before:
         refused.add("suit_ranking")
@@ -9087,6 +9282,7 @@ def _check_primitive_type(
                 f" which takes an element type — write "
                 f"`{COLLECTION_TYPE_CONSTRUCTOR}<Card>`",
                 decl.span,
+                code=Code.WRONG_PRIMITIVE_TYPE,
             )
         elif spelled.base not in declarable:
             bag.error(
@@ -9097,6 +9293,7 @@ def _check_primitive_type(
                 f"a collection of them (issue #547 tracks the shapes that "
                 f"have no spelling)",
                 decl.span,
+                code=Code.WRONG_PRIMITIVE_TYPE,
             )
         return
     element = spelled.element
@@ -9108,6 +9305,7 @@ def _check_primitive_type(
             f"`{COLLECTION_TYPE_CONSTRUCTOR}` is the one type an entry writes "
             f"with angle brackets; a zone's are a `zones {{ }}` line's",
             decl.span,
+            code=Code.WRONG_PRIMITIVE_TYPE,
         )
     elif element in COLLECTION_ELEMENT_NAMES:
         return
@@ -9119,6 +9317,7 @@ def _check_primitive_type(
             f"{', '.join(sorted(COLLECTION_ELEMENT_NAMES))} (issue #547 "
             f"reopens this when one takes another element)",
             decl.span,
+            code=Code.WRONG_PRIMITIVE_TYPE,
         )
     else:
         bag.error(
@@ -9127,6 +9326,7 @@ def _check_primitive_type(
             f"domain (`Hand<player>`), a collection's take what it holds; "
             f"write `{COLLECTION_TYPE_CONSTRUCTOR}<Card>`",
             decl.span,
+            code=Code.WRONG_PRIMITIVE_TYPE,
         )
 
 
@@ -9146,6 +9346,7 @@ def _check_primitive_name(
             f"`primitives` declares one `{decl.name}` entry — the repeat would "
             f"silently replace the first; keep one",
             decl.span,
+            code=Code.WRITTEN_TWICE,
         )
         return
     if decl.name in BUILTIN_CALL_FUNCS:
@@ -9154,6 +9355,7 @@ def _check_primitive_name(
             f"`primitives` entry may not declare it — a call would resolve "
             f"against two homes at once; rename the Primitive",
             decl.span,
+            code=Code.NAME_TAKEN,
         )
         return
     if decl.name in K.KERNEL_CONTRACT_NAMES:
@@ -9163,6 +9365,7 @@ def _check_primitive_name(
             f"answers in the language (`function {decl.name}(card : Card) = …`), "
             f"so a `primitives` entry may not declare it; rename the Primitive",
             decl.span,
+            code=Code.NAME_TAKEN,
         )
         return
     if decl.name in own_definitions:
@@ -9170,6 +9373,7 @@ def _check_primitive_name(
             f"`{decl.name}` is already defined in this game, so a `primitives` "
             f"entry may not declare it too — a call would name both; rename one",
             decl.span,
+            code=Code.NAME_TAKEN,
         )
         return
     walled = walled_namespace_of(decl.name)
@@ -9180,6 +9384,7 @@ def _check_primitive_name(
             f"mechanic's, not a parameter list; the round slots take their own "
             f"declaration form (issue #142)",
             decl.span,
+            code=Code.WRONG_SORT_OF_NAME,
         )
         return
     if unimplemented(frozenset({decl.name})):
@@ -9191,6 +9396,7 @@ def _check_primitive_name(
             decl.name,
             PRIMITIVE_IMPLEMENTATIONS,
             decl.span,
+            code=Code.UNKNOWN_PRIMITIVE,
         )
 
 
@@ -9246,6 +9452,7 @@ def _check_primitive_reads(
                 f"once — each parameter is named once, and the repeat would "
                 f"silently replace the first; rename one",
                 param.span or decl.span,
+                code=Code.NAME_TAKEN,
             )
             return
         seen_params.add(param.name)
@@ -9258,6 +9465,7 @@ def _check_primitive_reads(
                 f"one value per name, so two declarations of one name cannot "
                 f"both reach it; keep one",
                 read.span or decl.span,
+                code=Code.WRITTEN_TWICE,
             )
             return
         seen.add(read.name)
@@ -9274,6 +9482,7 @@ def _check_primitive_reads(
                     f"it never receives the declared reads — a `reads` clause "
                     f"on it would be accepted and ignored; drop the clause",
                     decl.span,
+                    code=Code.HAS_NO_EFFECT,
                 )
                 return
             case InvocationContract.BUNDLED:
@@ -9291,6 +9500,7 @@ def _check_primitive_reads(
                 f"say which, and the two are materialized into different halves "
                 f"of what the implementation receives; rename one of the two",
                 read.span or decl.span,
+                code=Code.NAME_TAKEN,
             )
             continue
         if read.name in collisions.shadowed:
@@ -9316,6 +9526,7 @@ def _check_primitive_reads(
                     f"is active; rename one of the two"
                 ),
                 read.span or decl.span,
+                code=Code.NAME_TAKEN,
             )
             continue
         if read.name in collisions.phase_zone:
@@ -9330,6 +9541,7 @@ def _check_primitive_reads(
                 f"whichever phase a read names, so one of the two spellings "
                 f"would still be unreachable)",
                 read.span or decl.span,
+                code=Code.NAME_TAKEN,
             )
             continue
         if read.phase is not None and _check_read_tail(game, decl, read, bag):
@@ -9351,6 +9563,7 @@ def _check_primitive_reads(
                     f"declare the scope, declare it in the game's "
                     f"`state {{ }}` block, or pass the value as an argument",
                     read.span or decl.span,
+                    code=Code.OUT_OF_SCOPE,
                 )
                 continue
             hint = (
@@ -9368,6 +9581,7 @@ def _check_primitive_reads(
                 | {nd.name for nd in _walk(game) if isinstance(nd, n.StateDecl)}
                 - phase_local_state_names(game),
                 read.span or decl.span,
+                code=Code.UNKNOWN_NAME,
             )
             continue
         if read.binder is None:
@@ -9378,6 +9592,7 @@ def _check_primitive_reads(
                 f"`{read.name}` is a {kind.value} — it has no instances to key, "
                 f"so write `{read.name}`",
                 read.span or decl.span,
+                code=Code.WRONG_SUBSCRIPT,
             )
         elif read.binder not in params:
             bag.error(
@@ -9386,6 +9601,7 @@ def _check_primitive_reads(
                 f"({', '.join(p.name for p in decl.params) or 'it declares none'}) "
                 f"— an index binder keys the instance the CALL names",
                 read.span or decl.span,
+                code=Code.UNKNOWN_NAME,
             )
     _check_read_tails_nest(game, decl, bag)
 
@@ -9438,6 +9654,7 @@ def _check_read_tails_nest(
         f"entry could never be called; keep one, and pass the other value as "
         f"an argument or declare it in the game's `state {{ }}`",
         decl.span,
+        code=Code.OUT_OF_SCOPE,
     )
 
 
@@ -9475,6 +9692,7 @@ def _check_read_tail(
             phase,
             known,
             read.span or decl.span,
+            code=Code.UNKNOWN_PHASE,
         )
         return True
     if classify_read(game, read.name, phase) is None:
@@ -9502,6 +9720,7 @@ def _check_read_tail(
             read.name,
             states_declared_in(game, phase),
             read.span or decl.span,
+            code=Code.UNKNOWN_STATE_VARIABLE,
         )
         return True
     inner = descendant_redeclarations(game, phase, read.name)
@@ -9513,6 +9732,7 @@ def _check_read_tail(
             f"would receive that phase's value while the declaration names "
             f"`{phase}`'s; rename one of the two",
             read.span or decl.span,
+            code=Code.NAME_TAKEN,
         )
         return True
     return False
@@ -9951,7 +10171,7 @@ def _check_direct_call_positions(
                     f"containment taxonomy disagree"
                 )
                 where = _outside_phase(game, holder, scope.region)
-            bag.error(_outside(entry, scope, where), node.span or game.span)
+            bag.error(_outside(entry, scope, where), node.span or game.span, code=Code.OUT_OF_SCOPE)
 
 
 def _check_offered_containers(
@@ -10031,6 +10251,7 @@ def _check_offered_containers(
                     f"`in {phase_name}` from " + entry_named + f"'s read of it"
                 ),
                 stands_on=move_type.span,
+                code=Code.OUT_OF_SCOPE,
             )
         if not positions:
             if walled or from_procedures:
@@ -10060,6 +10281,7 @@ def _check_offered_containers(
                     f"to be inside, so the scope cannot be established; offer "
                     f"" + cite_named(move_type, f"`{move_type.name}`") + f" inside `{phase_name}`"
                 ),
+                code=Code.OUT_OF_SCOPE,
             )
             continue
         for site in positions:
@@ -10079,6 +10301,7 @@ def _check_offered_containers(
                     f"`{phase_name}`, where that state does not stand; run "
                     + run_named + f" inside `{phase_name}` only",
                     site.span or game.span,
+                    code=Code.OUT_OF_SCOPE,
                 )
                 continue
             bag.error(
@@ -10088,6 +10311,7 @@ def _check_offered_containers(
                 f"that state does not stand; offer " + cite_named(move_type, f"`{move_type.name}`") + f" inside "
                 f"`{phase_name}` only",
                 getattr(site, "span", None) or game.span,
+                code=Code.OUT_OF_SCOPE,
             )
 
 
@@ -10131,6 +10355,7 @@ def _check_run_sites(
             f"its `run` site sits — this one is {where}, which runs outside "
             f"`{phase_name}`; run " + procedure + f" inside `{phase_name}` only",
             run.span or game.span,
+            code=Code.OUT_OF_SCOPE,
         )
 
 
@@ -10193,6 +10418,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                     f"Order, but this game declares none — {_ANSWER_IS_TRUMP}; "
                     f"or name {others}",
                     rnd.span,
+                    code=Code.MISSING_DECLARATION,
                 )
             elif "reads an unstated trump" in refusals:
                 # The round-configured twin of a Trick Order's required
@@ -10214,6 +10440,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                     f"round winner {rnd.winner_fn} reads a trump, but none is "
                     f"stated — {fix}; a no-trump trick names highest_of_led_suit",
                     rnd.span,
+                    code=Code.MISSING_DECLARATION,
                 )
         # A call spliced from a library is `_check_library_clause_gates`'s,
         # which this loop and the excluded-call loop below shadow.
@@ -10222,6 +10449,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                 f"`{call.func}(...)` reads the game's Trick Order, but this game "
                 f"declares none — {_ANSWER_IS_TRUMP}",
                 call.span or game.span,
+                code=Code.MISSING_DECLARATION,
             )
         for name in K.TRICK_ORDER_CONTRACTS[1:]:
             orphan = K.answer(game, name)
@@ -10233,6 +10461,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                 f"kernel's `{row.spelled}`, a row of the Trick Order, but the "
                 f"game declares no Trick Order — {_ANSWER_IS_TRUMP}; or rename it",
                 orphan.span or game.span,
+                code=Code.MISSING_DECLARATION,
             )
         return
 
@@ -10245,6 +10474,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                 + _cite_in(game, "function", "is_trump", "`is_trump`")
                 + " is the trump; drop the clause",
                 rnd.span,
+                code=Code.CONFLICTING_CLAUSES,
             )
         refusals = _winner_refusals(rnd, game)
         if "replaced by the Trick Order" in refusals:
@@ -10255,6 +10485,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                 f"{gated} is the winner that reads it; name that, or "
                 f"{_drop_trick_order(game)}",
                 rnd.span,
+                code=Code.CONFLICTING_CLAUSES,
             )
         if "early beside the Trick Order" in refusals:
             bag.error(
@@ -10263,6 +10494,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                 f"follow class may differ; no game has needed both — drop the "
                 f"clause",
                 rnd.span,
+                code=Code.CONFLICTING_CLAUSES,
             )
     for nd in _walk(game):
         if not isinstance(nd, n.ClimbRound):
@@ -10274,6 +10506,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                 f"a Trick Order cannot also name {fname} (the climb family "
                 f"reading the Trick Order is issue #251)",
                 nd.span,
+                code=Code.CONFLICTING_CLAUSES,
             )
     for nd in _walk(game):
         if isinstance(nd, n.Call) and nd.func in TRICK_ORDER_EXCLUDED_FUNCS:
@@ -10285,6 +10518,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                 f"functions are the trick order; call "
                 f"`{min(TRICK_ORDER_GATED_WINNERS)}({arg})`",
                 nd.span or game.span,
+                code=Code.CONFLICTING_CLAUSES,
             )
 
 
@@ -10306,6 +10540,7 @@ def _check_piece_rounds(game: n.Game, bag: DiagnosticBag) -> None:
                 f"{phrase} reads a deck card's suit or rank, which a piece set "
                 f"has none of",
                 nd.span,
+                code=Code.PIECES_ARE_NOT_CARDS,
             )
 
 
@@ -10327,7 +10562,7 @@ def _gated_calls(game: n.Game) -> list[n.Call]:
 
 
 class _ErrorSink(Protocol):
-    def error(self, message: Said, span: Span | None) -> None: ...
+    def error(self, message: Said, span: Span | None, *, code: Code) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -10338,8 +10573,8 @@ class _RouteSink:
     bag: DiagnosticBag
     route: Route
 
-    def error(self, message: Said, span: Span | None) -> None:
-        self.bag.error(message, span, route=self.route)
+    def error(self, message: Said, span: Span | None, *, code: Code) -> None:
+        self.bag.error(message, span, route=self.route, code=code)
 
 
 def _entry_route(kind: str, entry: _LibraryEntry, fallback: Span | None) -> Route:
@@ -10513,6 +10748,7 @@ def _check_answer_hermeticity(game: n.Game, bag: DiagnosticBag) -> set[str]:
                     voice.subject() + f" reads the pronoun '{nd.name}'"
                     + through(fn) + reason,
                     nd.span or answer.span,
+                    code=Code.ANSWER_READS_BEYOND_THE_CARD,
                 )
             elif isinstance(nd, n.Choose):
                 reason = (
@@ -10522,6 +10758,7 @@ def _check_answer_hermeticity(game: n.Game, bag: DiagnosticBag) -> set[str]:
                 out.error(
                     voice.subject() + " makes a `choose`" + through(fn) + reason,
                     nd.span or answer.span,
+                    code=Code.ANSWER_READS_BEYOND_THE_CARD,
                 )
             elif isinstance(nd, n.NameRef) and nd.ref_kind == "zone":
                 _check_answer_zone_read(
@@ -10545,6 +10782,7 @@ def _check_answer_hermeticity(game: n.Game, bag: DiagnosticBag) -> set[str]:
                     f"{home} declares" + through(fn) + scoped
                     + f"; declare '{nd.name}' there",
                     nd.span or answer.span,
+                    code=Code.ANSWER_READS_BEYOND_THE_CARD,
                 )
             elif isinstance(nd, n.Call):
                 _check_answer_call(game, voice, nd, fn, out, through)
@@ -10577,6 +10815,7 @@ def _check_answer_zone_read(
         bag.error(
             voice.subject() + f" reads zone '{nd.name}' ({ztype})" + through(fn) + reason,
             nd.span or voice.answer.span,
+            code=Code.ANSWER_READS_BEYOND_THE_CARD,
         )
     elif (
         decl.index is not None
@@ -10607,6 +10846,7 @@ def _check_answer_zone_read(
             voice.subject() + f" reads `{nd.name}` bare (the acting player's "
             f"instance)" + through(fn) + reason,
             nd.span or voice.answer.span,
+            code=Code.ANSWER_READS_BEYOND_THE_CARD,
         )
 
 
@@ -10636,6 +10876,7 @@ def _check_answer_call(
             voice.subject() + f" calls the declared Primitive `{nd.func}(...)`"
             + through(fn) + reads,
             span,
+            code=Code.ANSWER_READS_BEYOND_THE_CARD,
         )
         return
     if nd.func in K.KERNEL_CONTRACT_NAMES:
@@ -10657,12 +10898,14 @@ def _check_answer_call(
             voice.subject() + f" calls `{nd.func}(...)`, which reads every row "
             f"of the Trick Order" + through(fn) + defines,
             span,
+            code=Code.ANSWER_READS_BEYOND_THE_CARD,
         )
         return
     bag.error(
         f"`{nd.func}(...)` may not be called from " + voice.subject() + through(fn)
         + " — " + voice.named() + " reads the card and public state only",
         span,
+        code=Code.ANSWER_READS_BEYOND_THE_CARD,
     )
 
 
@@ -10696,6 +10939,7 @@ def _check_reference_order(
         "call only the ones before it; spell the fact in this function, or move "
         "it to the later one",
         nd.span or voice.answer.span,
+        code=Code.ANSWER_CALLS_LATER_ANSWER,
     )
 
 
@@ -10737,6 +10981,7 @@ def _check_arrival_record_pile_args(game: n.Game, bag: DiagnosticBag) -> None:
                 f"which must name a zone (`{nd.func}(trick_pile)`); got "
                 f"{_arg_shape(arg)}",
                 nd.span or game.span,
+                code=Code.WRONG_ARGUMENT,
             )
             continue
         decl = zones.get(name)
@@ -10750,6 +10995,7 @@ def _check_arrival_record_pile_args(game: n.Game, bag: DiagnosticBag) -> None:
                 f"derivable from any observer's stream — a winner may only be "
                 f"named over a fully public pile",
                 nd.span or game.span,
+                code=Code.WRONG_ZONE_VISIBILITY,
             )
 
 
@@ -10914,7 +11160,7 @@ def _check_unread_clauses(
         if any(row.needs(nd, written) for nd in nodes for row in rows):
             continue
         span = _clause_span(written, clause, value) or written.span
-        bag.error(_UNREAD_SENTENCES[clause](written, nodes), span)
+        bag.error(_UNREAD_SENTENCES[clause](written, nodes), span, code=Code.UNUSED_DECLARATION)
 
 
 def _classify(name: str, cats: _Categories) -> n.RefKind | None:
@@ -11090,7 +11336,7 @@ def _refuse_bare_always(pred: object, clause: str, cats: _Categories, bag: Diagn
         and "always" not in cats.definitions
     ):
         return False
-    bag.error(_always_message(clause), pred.span)
+    bag.error(_always_message(clause), pred.span, code=Code.HAS_NO_EFFECT)
     return True
 
 
@@ -11146,6 +11392,7 @@ def _refused_binder_sources(
                 f"simultaneous moves are per "
                 f"{' or '.join(role_names(SIMULTANEOUS_ROLES))}",
                 nd.span,
+                code=Code.WRONG_SORT_OF_NAME,
             )
             refused[id(nd)] = frozenset(role_names(SIMULTANEOUS_ROLES))
     return refused
@@ -11204,6 +11451,7 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             node.trump.name,
             _resolving_here(node.trump, (*cats.suits, *cats.state_vars), cats),
             node.trump.span,
+            code=Code.UNKNOWN_SUIT,
         )
         rest = _rewrite(replace(node, trump=None), cats, bag)
         assert isinstance(rest, n.TrickRound)
@@ -11221,6 +11469,7 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             label.name,
             cats.shapes,
             label.span,
+            code=Code.UNKNOWN_PLAY_SHAPE,
         )
         # The label is told once here; its side stays unclassified.
         other = node.left if node.right is label else node.right
@@ -11255,10 +11504,10 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             elif node.name == "player":
                 hint = " (`player` is bound only inside a player query or quantifier)"
             elif (outside := _slot_name_outside_slot(node.name)) is not None:
-                bag.error(outside, node.span)
+                bag.error(outside, node.span, code=Code.WRONG_SORT_OF_NAME)
                 return replace(node, ref_kind=kind)
             elif node.name == "max_length":
-                bag.error(MAX_LENGTH_AS_VALUE, node.span)
+                bag.error(MAX_LENGTH_AS_VALUE, node.span, code=Code.WRONG_SORT_OF_NAME)
                 return replace(node, ref_kind=kind)
             bag.unknown(
                 f"unresolved name '{node.name}'{hint}",
@@ -11273,6 +11522,7 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
                     cats,
                 ),
                 node.span,
+                code=Code.UNKNOWN_NAME,
             )
         return replace(node, ref_kind=kind)
     if isinstance(node, n.Produces):
@@ -11323,7 +11573,7 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         plain = replace(cats, rule_clause=False)
         obj: object = node.obj
         if _classify(PLAY_SOURCE_NAME, plain) is None:
-            bag.error(_SUBSCRIPTED_PLAY_SOURCE, node.obj.span)
+            bag.error(_SUBSCRIPTED_PLAY_SOURCE, node.obj.span, code=Code.WRONG_SUBSCRIPT)
         else:
             obj = _rewrite(node.obj, plain, bag)
         return replace(node, obj=obj, index=_rewrite_value(node.index, cats, bag))  # type: ignore[arg-type]
@@ -11479,6 +11729,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                 f"rename it (a call would type-check against the native signature but "
                 f"run this function instead)",
                 fn.span,
+                code=Code.NAME_TAKEN,
             )
         elif fn.name in slot_written and (slot := _round_query_slot(fn.name)) is not None:
             bag.error(
@@ -11486,6 +11737,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                 f"language's own `{fn.name}`, which {slot} names; that slot always runs "
                 f"the language's `{fn.name}` and never calls this function — rename it",
                 fn.span,
+                code=Code.NAME_TAKEN,
             )
         allowed = {p.name for p in fn.params}
         for nd in _walk(fn.body):  # binders the body itself introduces are in scope
@@ -11498,6 +11750,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                     f"function " + cite_named(fn, f"'{fn.name}'") + f" references '{nd.name}', which is not one of "
                     f"its parameters or a binding in its body",
                     nd.span,
+                    code=Code.READS_BEYOND_PARAMETERS,
                 )
             elif _pronoun_refused(nd.name, nd.ref_kind, _refused_call_site_pronouns(fn)):
                 # An answer's pronoun is `_check_answer_hermeticity`'s, which
@@ -11516,6 +11769,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                         else "pass the value in as a parameter"
                     ),
                     nd.span,
+                    code=Code.READS_BEYOND_PARAMETERS,
                 )
         if _reaches(fn.name, fn.name, calls):
             library_functions = {f.name: f for f in game.functions if f.origin is not None}
@@ -11573,6 +11827,7 @@ def _report_recursion(
         bag.error(
             f"function " + cite_named(fn, f"'{fn.name}'") + f" is recursive; functions must be non-recursive",
             fn.span,
+            code=Code.RECURSIVE_FUNCTION,
         )
         return
     if fn.name in library_functions:
@@ -11587,6 +11842,7 @@ def _report_recursion(
         "back; functions must be non-recursive, and this game's definition "
         "closes the cycle",
         fn.span,
+        code=Code.RECURSIVE_FUNCTION,
     )
 
 
@@ -11698,6 +11954,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                     f"parameter '{p.name}' of function " + cite_named(fn, f"'{fn.name}'")
                     + f" is typed `{p.type_name}`, " + refusal,
                     fn.span,
+                    code=Code.TYPE_NOT_ALLOWED_HERE,
                 )
             elif base_of(p.type_name) not in parameter_known:
                 bag.unknown(
@@ -11706,6 +11963,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                     base_of(p.type_name),
                     parameter_known,
                     fn.span,
+                    code=Code.UNKNOWN_TYPE,
                 )
     for phase in _walk(game):
         if not isinstance(phase, n.Phase) or not phase.outcome_cases:
@@ -11714,11 +11972,12 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
             for payload in case.payload_types:
                 refused = _combination_outside_a_parameter(payload, "an outcome's payload")
                 if refused is not None:
-                    bag.error(refused, case.span or phase.span)
+                    bag.error(refused, case.span or phase.span, code=Code.TYPE_NOT_ALLOWED_HERE)
                 elif (refusal := _direction_refusal(game, base_of(payload))) is not None:
                     bag.error(
                         f"the payload of case '{case.tag}' is typed `{payload}`, " + refusal,
                         case.span or phase.span,
+                        code=Code.TYPE_NOT_ALLOWED_HERE,
                     )
                 elif base_of(payload) not in known:
                     bag.unknown(
@@ -11727,6 +11986,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                         base_of(payload),
                         known,
                         case.span or phase.span,
+                        code=Code.UNKNOWN_TYPE,
                     )
     # Move parameters are deliberately NOT checked here: `_check_move_params`
     # already owns them with a stricter, better-worded gate (it names the legal
@@ -11961,6 +12221,7 @@ def _check_hosted_binder(poll: n.HostedPoll, cats: _Categories, bag: DiagnosticB
         f"name — inside `before asking {poll.binder} {{ … }}` the name would "
         f"mean the seat about to be asked; pick a fresh name",
         poll.span,
+        code=Code.NAME_TAKEN,
     )
 
 
@@ -12152,6 +12413,7 @@ def _check_hosted_node(
         bag.error(
             f"{clause} may not hold {HOSTED_POLL_REFUSED[type(nd)]}" + via + f": {why_live}",
             cast(n.Stmt, nd).span,
+            code=Code.HOSTED_POLL_READS_UNPUBLISHED_STATE,
         )
         return
     if isinstance(nd, n.NameRef) and nd.name == "state" and nd.ref_kind == "pronoun":
@@ -12159,6 +12421,7 @@ def _check_hosted_node(
             f"{clause} may not read `state`" + via + ": the round's state is "
             "published only once the round has ended",
             nd.span,
+            code=Code.HOSTED_POLL_READS_UNPUBLISHED_STATE,
         )
     elif isinstance(nd, n.Call) and nd.func in primitives:
         bag.error(
@@ -12166,6 +12429,7 @@ def _check_hosted_node(
             f"module reads the round's live, unpublished state through its "
             f"engine facts",
             nd.span,
+            code=Code.HOSTED_POLL_READS_UNPUBLISHED_STATE,
         )
 
 
@@ -12200,11 +12464,12 @@ def _check_procedures(
                 f"'{dup}' — substitution binds by name, so one would silently "
                 f"shadow the other",
                 proc.span,
+                code=Code.NAME_TAKEN,
             )
         for p in proc.params:
             refused = _combination_outside_a_parameter(p.type_name, "a procedure's parameter")
             if refused is not None:
-                bag.error(refused, p.span)
+                bag.error(refused, p.span, code=Code.TYPE_NOT_ALLOWED_HERE)
             elif p.type_name not in _PROCEDURE_PARAM_DOMAINS:
                 bag.unknown(
                     f"procedure parameter '{p.name}: {p.type_name}' has an "
@@ -12214,6 +12479,7 @@ def _check_procedures(
                     p.type_name,
                     _PROCEDURE_PARAM_DOMAINS,
                     p.span,
+                    code=Code.NOT_YET_SUPPORTED,
                 )
 
         # Binders the body introduces, and the name-capture Owner Guard: a binder
@@ -12229,6 +12495,7 @@ def _check_procedures(
                     f"procedure " + cite_named(proc, f"'{proc.name}'") + f" introduces a binder named "
                     f"'{p.name}', shadowing its own parameter — rename one",
                     proc.span,
+                    code=Code.NAME_TAKEN,
                 )
 
         if not proc.body:
@@ -12236,6 +12503,7 @@ def _check_procedures(
                 f"procedure " + cite_named(proc, f"'{proc.name}'") + f" has an empty body — it would splice "
                 f"nothing at every site that runs it; give it statements or delete it",
                 proc.span,
+                code=Code.HAS_NO_EFFECT,
             )
 
         allowed = params | binders
@@ -12254,6 +12522,7 @@ def _check_procedures(
                         f"enclosing constructs, so it may not contain non-local "
                         f"control flow",
                         nd.span,
+                        code=Code.OUT_OF_PLACE,
                     )
                 elif isinstance(nd, _WINNER_BINDING_STMTS):
                     bag.error(
@@ -12263,6 +12532,7 @@ def _check_procedures(
                         f"`winner` Owner Guard cannot distinguish a round-local binding "
                         f"from the caller's call-site pronoun (procedures.md)",
                         nd.span,
+                        code=Code.NOT_YET_SUPPORTED,
                     )
                 elif isinstance(nd, n.Produces) and nd.phase in outcome_phases:
                     bag.error(
@@ -12276,6 +12546,7 @@ def _check_procedures(
                         f"pass here and then fail at play time. Consume the outcome "
                         f"at the site",
                         nd.span,
+                        code=Code.OUTCOME_READ_BEFORE_PRODUCED,
                     )
                 elif isinstance(nd, n.RunStmt):
                     bag.error(
@@ -12284,6 +12555,7 @@ def _check_procedures(
                         f"procedure may not invoke another (v1 — expansion is a "
                         f"single splice, not a call graph)",
                         nd.span,
+                        code=Code.NOT_YET_SUPPORTED,
                     )
                 elif isinstance(nd, n.NameRef):
                     if nd.ref_kind == "local" and nd.name not in allowed:
@@ -12291,6 +12563,7 @@ def _check_procedures(
                             f"procedure " + cite_named(proc, f"'{proc.name}'") + f" references '{nd.name}', which "
                             f"is not one of its parameters or a binding in its body",
                             nd.span,
+                            code=Code.READS_BEYOND_PARAMETERS,
                         )
                     elif _pronoun_refused(nd.name, nd.ref_kind, _refused_call_site_pronouns(proc)):
                         remedy = (
@@ -12305,6 +12578,7 @@ def _check_procedures(
                             f"sites that need not share a call-site context — "
                             + remedy,
                             nd.span,
+                            code=Code.READS_BEYOND_PARAMETERS,
                         )
 
     # Call sites: the procedure must exist, every declared procedure must be
@@ -12316,7 +12590,7 @@ def _check_procedures(
         if isinstance(nd, n.RunStmt):
             invoked.add(nd.name)
             if nd.name not in known:
-                bag.unknown(f"run of unknown procedure '{nd.name}'", nd.name, known, nd.span)
+                bag.unknown(f"run of unknown procedure '{nd.name}'", nd.name, known, nd.span, code=Code.UNKNOWN_PROCEDURE)
             else:
                 _check_positive_arguments(known[nd.name], nd, bag)
     # Only the game's OWN procedures: a library's are its own to define, and
@@ -12329,6 +12603,7 @@ def _check_procedures(
                 + cite_named(proc, proc.name) + "(…)`, or delete it (its body would otherwise be "
                 f"spliced nowhere, and go entirely unchecked downstream)",
                 proc.span,
+                code=Code.UNUSED_DECLARATION,
             )
 
 
@@ -12355,12 +12630,14 @@ def _check_positive_arguments(
                 "parameter takes a whole number of 1 or more written at the "
                 "run, so the check can see it before play",
                 arg.span,
+                code=Code.WRONG_ARGUMENT,
             )
         elif arg.value < 1:
             bag.error(
                 head + f" — {arg.value} is not one: a Positive parameter takes "
                 "a whole number of 1 or more, so write 1 or more",
                 arg.span,
+                code=Code.OUT_OF_RANGE,
             )
 
 
@@ -12423,7 +12700,7 @@ def _check_move_params(
     for p in mt.params:
         refused = _combination_outside_a_parameter(p.type_name, "a move type's parameter")
         if refused is not None:
-            bag.error(refused, span)
+            bag.error(refused, span, code=Code.TYPE_NOT_ALLOWED_HERE)
             return
     # A piece game has no suit/rank/card domain to enumerate, so a move
     # parameterized by one has no candidate space. Checked before the
@@ -12440,6 +12717,7 @@ def _check_move_params(
                 f"{offending[0]} parameter, whose domain is the deck's "
                 f"suits/ranks; a piece set enumerates neither",
                 span,
+                code=Code.PIECES_ARE_NOT_CARDS,
             )
             return
     if "Card" in types and mt.stake is not None:
@@ -12448,6 +12726,7 @@ def _check_move_params(
             f"its card, and its action id is the card's, naming no move type, "
             f"so no seat can read the row — delete it (issue #770)",
             span,
+            code=Code.HAS_NO_EFFECT,
         )
     if "Card" in types and len(types) > 1:
         bag.error(
@@ -12456,6 +12735,7 @@ def _check_move_params(
             f"so a Card parameter cannot be combined with another parameter "
             f"(fold into one parameter)",
             span,
+            code=Code.CARD_PLAY_PARAMETERS,
         )
     names = [p.name for p in mt.params]
     dup_names = sorted({name for name in names if names.count(name) > 1})
@@ -12466,6 +12746,7 @@ def _check_move_params(
             f"so a repeated name silently shadows the earlier parameter instead "
             f"of binding both (rename one)",
             span,
+            code=Code.NAME_TAKEN,
         )
     for t in types:
         if t.rstrip("?") == "Integer":
@@ -12474,6 +12755,7 @@ def _check_move_params(
                 f"parameter domains are deferred (see "
                 f"open-questions/move-parameter-domains.md)",
                 span,
+                code=Code.NOT_YET_SUPPORTED,
             )
         elif (
             t not in _FIXED_DOMAINS
@@ -12496,6 +12778,7 @@ def _check_move_params(
                 t,
                 (*_FIXED_DOMAINS, "Card", *positions, *directions),
                 span,
+                code=Code.UNKNOWN_TYPE,
             )
         # Exact string, matching `_FIXED_DOMAINS`'s own convention (never by
         # stripping a trailing `?`): `Rank?` is not in `_FIXED_DOMAINS`, so it
@@ -12507,6 +12790,7 @@ def _check_move_params(
                 f"no ranking: — Rank enumerates the declared ranking, so it "
                 f"needs a non-empty one",
                 span,
+                code=Code.MISSING_DECLARATION,
             )
 
 
@@ -12572,6 +12856,7 @@ def _check_card_offering(
             "indistinguishable — fold them into one move type",
             span,
             for_game=for_game,
+            code=Code.CARD_PLAY_PARAMETERS,
         )
     hand = next((z for z in game.zones if z.name == family), None)
     if not card_param_moves or (
@@ -12606,6 +12891,7 @@ def _check_card_offering(
                 f"the acting seat's `{family}[player]`, but this game declares no "
                 f"`{family}[player]`{shape} — " + fix
             ),
+            code=Code.MISSING_DECLARATION,
         )
         return
     # The game's own offer of a library move type: a contract fixing `hand`
@@ -12622,6 +12908,7 @@ def _check_card_offering(
             + cite_named(move, f"`{move.name}`") + f" — contract `{family}` per player, like "
             f"`{family}[player] : Hand<player>`",
             param.span or move.span,
+            code=Code.WRONG_ZONE_SHAPE,
         )
         return
     bag.error(
@@ -12629,6 +12916,7 @@ def _check_card_offering(
         f"which enumerates the actor's `{family}[player]` zone — this game "
         f"declares none",
         span,
+        code=Code.MISSING_DECLARATION,
     )
 
 
@@ -12648,7 +12936,7 @@ def _check_offering_moves(
     offerings from reporting the same defect once per mention."""
     for name in names:
         if name not in defined_move_types:
-            bag.unknown(f"offer names unknown move type '{name}'", name, defined_move_types, span)
+            bag.unknown(f"offer names unknown move type '{name}'", name, defined_move_types, span, code=Code.UNKNOWN_MOVE_TYPE)
 
 
 def _spelled_zone(member: n.Expr) -> str | None:
@@ -12686,6 +12974,7 @@ def _check_subset_source(sq: n.SubsetQuery, bag: DiagnosticBag) -> None:
                 f"`{spelled}` appears twice in one subset source — name each "
                 f"zone once; a card is counted once per zone it is drawn from",
                 member.span,
+                code=Code.WRITTEN_TWICE,
             )
         seen.add(spelled)
 
@@ -12882,10 +13171,10 @@ def _check_domain_query(
             if nd.binder not in declared and (
                 nd.binder in _minted_directions(game) or lack is not None
             ):
-                bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span)
+                bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span, code=Code.WRONG_SORT_OF_NAME)
                 return True
         if lack is not None:
-            bag.error(f"`{head}` ranges over the board directions, but {lack}", nd.span)
+            bag.error(f"`{head}` ranges over the board directions, but {lack}", nd.span, code=Code.MISSING_DECLARATION)
             return True
         if directions:
             universe += (
@@ -12910,12 +13199,12 @@ def _check_domain_query(
             # form's: `in` iterates a collection's MEMBERS, and subsets are
             # spelled with `of`. Calling the word unknown would be false, and
             # would send a designer looking for a declaration to add.
-            bag.error(_subset_refusal(nd.kind, head), nd.span)
+            bag.error(_subset_refusal(nd.kind, head), nd.span, code=Code.WRONG_SPELLING)
             return True
         if nd.binder not in declared and (
             nd.binder in _minted_directions(game) or lack is not None
         ):
-            bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span)
+            bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span, code=Code.WRONG_SORT_OF_NAME)
             return True
         if game.board is not None:
             universe += f"; the board's lines: `{LINE_NOUN}`"
@@ -12936,12 +13225,13 @@ def _check_domain_query(
                     nd.spelled,
                     _nouns_a_query_takes(nd, game, cats.flavor),
                     nd.span,
+                    code=Code.UNKNOWN_INDEX_DOMAIN,
                 )
                 return True
     if not target_ok:
         named = _bare_noun_refusal(nd, head, game, cats, universe)
         if named is not None:
-            bag.error(named, nd.span)
+            bag.error(named, nd.span, code=Code.WRONG_SORT_OF_NAME)
             return True
     if nd.kind != "any" and not nd.spelled.endswith("s"):
         # A singular noun under `all`/`number of`/the Set Form: guide to the
@@ -12954,7 +13244,7 @@ def _check_domain_query(
                 if nd.source is None
                 else f"{n.collection_query_head(nd.kind, plural)} in …"
             )
-            bag.error(f"`{head}` needs the plural noun -- write `{fixed}`", nd.span)
+            bag.error(f"`{head}` needs the plural noun -- write `{fixed}`", nd.span, code=Code.WRONG_SPELLING)
             return True
         refused: str | None = nd.spelled
     else:
@@ -12966,6 +13256,7 @@ def _check_domain_query(
         nd.spelled,
         _nouns_a_query_takes(nd, game, cats.flavor),
         nd.span,
+        code=Code.UNKNOWN_INDEX_DOMAIN,
     )
     return True
 
@@ -13093,7 +13384,7 @@ def _membership_capture(
     fixes = frozenset((*cats.collection_nouns, content_noun(cats.flavor, plural=False)))
     if _classify(nd.spelled, cats) is None and nd.binder in cats.collection_nouns:
         plural = n.collection_query_head(nd.kind, nd.spelled + "s")
-        bag.error(f"`{nd.spelled} in …` needs the plural noun -- write `{plural} in …`", nd.span)
+        bag.error(f"`{nd.spelled} in …` needs the plural noun -- write `{plural} in …`", nd.span, code=Code.WRONG_SPELLING)
         return fixes
     if _classify(nd.spelled, cats) is None:
         universe = (
@@ -13108,6 +13399,7 @@ def _membership_capture(
             nd.spelled,
             {noun + "s" for noun in fixes},
             nd.span,
+            code=Code.UNKNOWN_NAME,
         )
         return fixes
     source = n.short_spelling(nd.source)
@@ -13123,6 +13415,7 @@ def _membership_capture(
         f"test against a query is parenthesized, and a membership beside a "
         f"condition is joined with `and`: write `{fixed}`",
         nd.span,
+        code=Code.NEEDS_PARENTHESES,
     )
     return None
 
@@ -13155,12 +13448,13 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
         bag.error(
             f"`{nd.func}` reads the board, but the game declares no `board:`",
             nd.span,
+            code=Code.MISSING_DECLARATION,
         )
         return
     for gate in _BOARD_NEED_GATES:
         if _refuses(gate, nd, game):
             verb, _, rest = gate.reads.partition(" ")
-            bag.error(f"`{nd.func}` {verb}s {rest}, but {gate.lacks(game)}", nd.span)
+            bag.error(f"`{nd.func}` {verb}s {rest}, but {gate.lacks(game)}", nd.span, code=Code.MISSING_DECLARATION)
             return
     # A seat verb reads the board from one of its two seats -- a grid's
     # per-player frame, or a seat's borders -- defined only for players 0 and
@@ -13175,6 +13469,7 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
             bag.error(
                 f"`{nd.func}` {verb}s {rest}, but {gate.lacks(game)}; {gate.fix(game)}",
                 nd.span,
+                code=Code.MISSING_DECLARATION,
             )
     args = nd.args
     if nd.func == "lines" and len(args) == 1 and isinstance(args[0], n.IntLit):
@@ -13240,7 +13535,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # claimed (issue #364).
                 outside = _slot_name_outside_slot(nd.func)
                 if outside is not None:
-                    bag.error(outside, nd.span)
+                    bag.error(outside, nd.span, code=Code.WRONG_SORT_OF_NAME)
                 else:
                     bag.unknown(
                         f"call to unknown function '{nd.func}'"
@@ -13248,6 +13543,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.func,
                         (*native_namespace, *defined_functions, *K.KERNEL_CONTRACT_NAMES),
                         nd.span,
+                        code=Code.UNKNOWN_FUNCTION,
                     )
             case n.Call() if nd.func in defined_functions:
                 # A call the game's OWN `function` defines. Every arm below
@@ -13273,6 +13569,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"`{nd.func}` reads a card's suit/rank/points, which a piece "
                     f"set has none of",
                     nd.span,
+                    code=Code.PIECES_ARE_NOT_CARDS,
                 )
             case n.Call() if nd.func in _CARD_POINTS_CALLS:
                 # An unanswered `card_points` (an answered one met the
@@ -13283,6 +13580,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"`card_points(...)` reads the game's card points, but this "
                     f"game declares none — {_card_points_fix(game)}",
                     nd.span,
+                    code=Code.MISSING_DECLARATION,
                 )
             case n.Call() if nd.func in K.KERNEL_CONTRACT_NAMES:
                 # An unanswered Trick Order row: with a Trick Order the
@@ -13295,6 +13593,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"but this game declares no `suit ranking:` — declare one "
                     f"listing {_declared_suits_phrase(game.deck)} strongest first",
                     nd.span,
+                    code=Code.MISSING_DECLARATION,
                 )
             case n.Call() if nd.func in _TEAM_CALL_FUNCS and not game.teams:
                 # The team-indexed `state`/`zone` arms below refuse the
@@ -13305,6 +13604,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"declares no `teams:` — declare the partnerships "
                     f"(`teams: [[0, 2], [1, 3]]`) or ask about the player",
                     nd.span,
+                    code=Code.MISSING_DECLARATION,
                 )
             case n.Call() if nd.func in BOARD_ONLY_CALL_FUNCS:
                 # A board-reading call (lines) in a boardless game, or a literal
@@ -13335,6 +13635,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"declaring it, and this game writes no `primitives {{ }}` "
                     f"block; declare it in one to call it",
                     nd.span,
+                    code=Code.MISSING_DECLARATION,
                 )
             case n.StateDecl():
                 # One arm, both checks: a match runs its first matching arm
@@ -13342,12 +13643,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # of two independent errors on the same declaration.
                 refused = _combination_outside_a_parameter(nd.type_name, "a state variable")
                 if refused is not None:
-                    bag.error(refused, nd.span)
+                    bag.error(refused, nd.span, code=Code.TYPE_NOT_ALLOWED_HERE)
                 elif (typed := _state_type_refusal(game, nd.type_name)) is not None:
                     bag.error(
                         "state variable " + cite_named(nd, f"'{nd.name}'")
                         + f" is typed `{nd.type_name}`, " + typed,
                         nd.span,
+                        code=Code.TYPE_NOT_ALLOWED_HERE,
                     )
                 elif nd.type_name not in state_types:
                     bag.unknown(
@@ -13356,6 +13658,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.type_name,
                         state_types,
                         nd.span,
+                        code=Code.UNKNOWN_TYPE,
                     )
                 if nd.index is not None and role_of(nd.index) not in ZONE_INDEX_ROLES:
                     # Same guard as a zone's index role, same registry. Before
@@ -13372,6 +13675,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.index,
                         role_names(ZONE_INDEX_ROLES),
                         nd.span,
+                        code=Code.WRONG_SUBSCRIPT,
                     )
                 elif _refuses(_TEAM_STATE_GATE, nd, game):
                     # A team-indexed store in a game with no teams has
@@ -13383,6 +13687,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"the game declares no `teams:` — there are no "
                         f"teams to key it by",
                         nd.span,
+                        code=Code.MISSING_DECLARATION,
                     )
             case n.ZoneDecl() if (
                 nd.index is not None
@@ -13394,6 +13699,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"declares no `teams:` — there are no teams to key "
                     f"it by",
                     nd.span,
+                    code=Code.MISSING_DECLARATION,
                 )
             case n.LetStmt() if (
                 nd.index is not None and nd.index in _MISLEADING_LET_INDEXES
@@ -13406,6 +13712,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"build. Rename the binder; per-value stores are recorded "
                     f"in roadmap.md",
                     nd.span,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
             case n.Produces() if nd.phase not in outcome_phases:
                 bag.unknown(
@@ -13413,12 +13720,14 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.phase,
                     outcome_phases,
                     nd.span,
+                    code=Code.UNKNOWN_OUTCOME,
                 )
             case n.ForEach() if _refuses(_CELL_RANGE_GATE, nd, game):
                 bag.error(
                     "`for each cell ...` ranges over the board's cells, but this "
                     f"game declares no `board:` — {_board_remedy(game)}",
                     nd.span,
+                    code=Code.MISSING_DECLARATION,
                 )
             case n.ForEach() if (
                 role_of(nd.role) not in _ITERATION_ROLES
@@ -13433,6 +13742,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.role,
                     (*role_names(_ITERATION_ROLES), *iterable_positions),
                     nd.span,
+                    code=Code.UNKNOWN_INDEX_DOMAIN,
                 )
             case (n.ForEach() | n.Quantifier()) if (
                 game.content_flavor == "piece" and role_of(nd.role) in CARD_AXIS_ROLES
@@ -13446,6 +13756,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"the `{nd.role}` role ranges over a deck's {nd.role}s, which "
                     f"a piece set has none of",
                     nd.span,
+                    code=Code.PIECES_ARE_NOT_CARDS,
                 )
             case (n.ForEach() | n.Quantifier()) if _refuses(_TEAM_RANGE_GATE, nd, game):
                 # The team domain of a game with no `teams:` is empty, so the
@@ -13462,6 +13773,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"the partnerships (`teams: [[0, 2], [1, 3]]`) or range "
                     f"over players",
                     nd.span,
+                    code=Code.MISSING_DECLARATION,
                 )
             case n.EachSimultaneous() if _simultaneous_role_refused(nd):
                 pass  # refused by `_refused_binder_sources`, before names are classified
@@ -13487,6 +13799,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"nobody sees a passed card before choosing their own), and a "
                     f"snapshot is only defined for that one shape",
                     nd.span,
+                    code=Code.OUT_OF_PLACE,
                 )
             case n.CardLiteral() if game.content_flavor == "piece":
                 # `mark of x` is a well-formed literal against a piece set's own
@@ -13499,28 +13812,30 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"card literal (`{nd.rank} of {nd.suit}`) names a deck card; "
                     f"a piece has no rank-of-suit identity",
                     nd.span,
+                    code=Code.PIECES_ARE_NOT_CARDS,
                 )
             case n.CardLiteral():
                 if nd.rank not in cats.ranks:
-                    bag.unknown(f"unknown rank '{nd.rank}' in card literal", nd.rank, cats.ranks, nd.span)
+                    bag.unknown(f"unknown rank '{nd.rank}' in card literal", nd.rank, cats.ranks, nd.span, code=Code.UNKNOWN_RANK)
                 if nd.suit not in cats.suits:
-                    bag.unknown(f"unknown suit '{nd.suit}' in card literal", nd.suit, cats.suits, nd.span)
+                    bag.unknown(f"unknown suit '{nd.suit}' in card literal", nd.suit, cats.suits, nd.span, code=Code.UNKNOWN_SUIT)
             case n.RotateStmt():
                 # Both checks in ONE arm: a bare `case n.RotateStmt():` above a guarded
                 # one consumes the node, so the guarded arm never runs. (It did exactly
                 # that, and `tests/test_binder_scoping.py` caught it.)
                 bad = _bad_write_target(game, nd)
                 if bad is not None:
-                    bag.error(bad, nd.span)
+                    bag.error(bad, nd.span, code=Code.NOT_WRITABLE)
                 for value in nd.values:
                     if value not in cats.enums:
                         bag.unknown(
-                            f"rotate through unknown value '{value}'", value, cats.enums, nd.span
+                            f"rotate through unknown value '{value}'", value, cats.enums, nd.span,
+                            code=Code.UNKNOWN_NAME,
                         )
             case n.AssignStmt():
                 bad = _bad_write_target(game, nd)
                 if bad is not None:
-                    bag.error(bad, nd.span)
+                    bag.error(bad, nd.span, code=Code.NOT_WRITABLE)
             case n.Transfer():
                 for endpoint, direction in (
                     ("source", "move cards from"),
@@ -13528,7 +13843,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 ):
                     bad = _bad_zone_endpoint(game, nd, endpoint, direction)
                     if bad is not None:
-                        bag.error(bad, nd.span)
+                        bag.error(bad, nd.span, code=Code.WRONG_SORT_OF_NAME)
                 # The joint-selection matrix (decisions.md "Joint-predicate
                 # selection"): `jointly` is a DECISION over subsets, so it
                 # requires `chosen` — a dealt jointly-selection has no
@@ -13543,6 +13858,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         "`random` joint selection is not implemented; "
                         "recorded in roadmap.md)",
                         nd.span,
+                        code=Code.NOT_YET_SUPPORTED,
                     )
                 if nd.joint and nd.dest_each:
                     # `to each` would silently make EACH destination seat its
@@ -13556,6 +13872,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         "decider; write one joint selection per destination "
                         "instead (recorded in roadmap.md)",
                         nd.span,
+                        code=Code.NOT_YET_SUPPORTED,
                     )
                 if nd.amount == "some" and not nd.joint:
                     bag.error(
@@ -13564,6 +13881,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         "owns the size constraint — use a count, `one`, or "
                         "`all` otherwise",
                         nd.span,
+                        code=Code.OUT_OF_PLACE,
                     )
                 if nd.dest_each and not isinstance(nd.dest, n.NameRef):
                     # The executor keys the family by BARE name per seat, so a
@@ -13577,6 +13895,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         "computed destination targets one zone, so drop "
                         "`each` or name the family",
                         nd.span,
+                        code=Code.WRONG_ZONE_SHAPE,
                     )
                 if nd.dest_each and isinstance(nd.dest, n.NameRef):
                     # `to each X` deals one parcel per PLAYER (the executor
@@ -13606,6 +13925,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             f"a player-indexed family (like hand[player]), or "
                             f"target one instance directly",
                             nd.span,
+                            code=Code.WRONG_ZONE_SHAPE,
                         )
                     elif each_refused and nd.dest.ref_kind is not None:
                         # The executor consumes the NAME (`zones.instance(X,
@@ -13624,6 +13944,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             f"a player-indexed zone family declared in "
                             f"`zones {{ }}` — '{nd.dest.name}' is {what_k}",
                             nd.span,
+                            code=Code.WRONG_ZONE_SHAPE,
                         )
             case n.EpistemicOp() if _refuses(_CARD_CONTENT_GATE, nd, game):
                 # `reveal one card from ...` hardcodes the noun "card"; a piece
@@ -13635,6 +13956,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"`reveal one card` identifies a deck card; reveal a piece is "
                     f"not expressible",
                     nd.span,
+                    code=Code.PIECES_ARE_NOT_CARDS,
                 )
             case n.EpistemicOp():
                 # The other member of the zone-position class: `shuffle turn` /
@@ -13643,13 +13965,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # refuses anything else, exactly like the movement endpoints.
                 bad = _bad_zone_endpoint(game, nd, "zone", nd.op)
                 if bad is not None:
-                    bag.error(bad, nd.span)
+                    bag.error(bad, nd.span, code=Code.WRONG_SORT_OF_NAME)
             case n.Winner() | n.StopResult() if (
                 nd.state_var is not None and nd.state_var not in cats.state_vars
             ):
                 outside = _slot_name_outside_slot(nd.state_var)
                 if outside is not None:
-                    bag.error(outside, nd.span)
+                    bag.error(outside, nd.span, code=Code.WRONG_SORT_OF_NAME)
                 else:
                     bag.unknown(
                         f"{ranking_slot(nd).unknown} references unknown "
@@ -13657,6 +13979,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.state_var,
                         cats.state_vars,
                         nd.span,
+                        code=Code.UNKNOWN_STATE_VARIABLE,
                     )
             case n.Turns() if nd.again is not None and nd.again not in cats.state_vars:
                 # The go-again flag is ordinary game state the body's effects
@@ -13672,6 +13995,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.again,
                     cats.state_vars,
                     nd.span,
+                    code=Code.UNKNOWN_STATE_VARIABLE,
                 )
             case n.Offer():
                 _check_offering_moves(nd.offering, defined_move_types, bag, nd.span)
@@ -13688,16 +14012,19 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.unknown(
                         f"climb round source zone '{nd.source_zone}' is unknown",
                         nd.source_zone, zone_names, nd.span,
+                        code=Code.UNKNOWN_ZONE,
                     )
                 if nd.play_zone not in zone_names:
                     bag.unknown(
                         f"climb round play zone '{nd.play_zone}' is unknown",
                         nd.play_zone, zone_names, nd.span,
+                        code=Code.UNKNOWN_ZONE,
                     )
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
                     bag.unknown(
                         f"climb round move type '{nd.move_type}' is unknown",
                         nd.move_type, (CLIMB_DECISION_MOVE_TYPE,), nd.span,
+                        code=Code.UNKNOWN_MOVE_TYPE,
                     )
                 elif nd.move_type != CLIMB_DECISION_MOVE_TYPE:
                     # The climbing form's decision site is hardwired to
@@ -13710,6 +14037,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"the climb round form runs `{CLIMB_DECISION_MOVE_TYPE}`; "
                         f"'{nd.move_type}' is not runnable on it (roadmap.md)",
                         nd.span,
+                        code=Code.NOT_YET_SUPPORTED,
                     )
                 # The two slot names are the engine's, paired and stamped by
                 # `_resolve_climb_engines`.
@@ -13719,11 +14047,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.unknown(
                         f"round source zone '{nd.source_zone}' is unknown",
                         nd.source_zone, zone_names, nd.span,
+                        code=Code.UNKNOWN_ZONE,
                     )
                 if nd.play_zone not in zone_names:
                     bag.unknown(
                         f"round play zone '{nd.play_zone}' is unknown",
                         nd.play_zone, zone_names, nd.span,
+                        code=Code.UNKNOWN_ZONE,
                     )
                 else:
                     # A trick's plays ARE the provenance every winner reads, so
@@ -13748,6 +14078,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             f"plays are the provenance every winner reads; use "
                             f"a TrickPile",
                             nd.span,
+                            code=Code.WRONG_ZONE_VISIBILITY,
                         )
                 if nd.winner_fn not in _ROUND_QUERY_REGISTRIES[(n.TrickRound, "winner_fn")]:
                     bag.unknown(
@@ -13760,6 +14091,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             if not _winner_refusals(replace(nd, winner_fn=name), game)
                         },
                         nd.span,
+                        code=Code.UNKNOWN_ROUND_FUNCTION,
                     )
                 elif nd.winner_fn in TRICK_ORDER_GATED_WINNERS:
                     # A Trick Order winner takes no `trump` argument at all --
@@ -13782,11 +14114,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"reads no trump — the clause would be silently ignored; "
                         f"drop it, or name a winner that reads a trump ({readers})",
                         nd.span,
+                        code=Code.HAS_NO_EFFECT,
                     )
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
                     bag.unknown(
                         f"round move type '{nd.move_type}' is unknown",
                         nd.move_type, ("play_to_trick",), nd.span,
+                        code=Code.UNKNOWN_MOVE_TYPE,
                     )
                 elif nd.move_type != "play_to_trick":
                     # The trick form's decision site is hardwired to
@@ -13796,6 +14130,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"the trick round form runs `play_to_trick`; "
                         f"'{nd.move_type}' is not runnable on it (roadmap.md)",
                         nd.span,
+                        code=Code.NOT_YET_SUPPORTED,
                     )
                 if (
                     nd.early_termination is not None
@@ -13808,6 +14143,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.early_termination,
                         _ROUND_QUERY_REGISTRIES[(n.TrickRound, "early_termination")],
                         nd.span,
+                        code=Code.UNKNOWN_ROUND_FUNCTION,
                     )
 
 
@@ -14683,7 +15019,7 @@ class _HiddenReads:
         key = (message, crossing.anchor)
         if key not in self._reported:
             self._reported.add(key)
-            self.bag.error(message, crossing.anchor)
+            self.bag.error(message, crossing.anchor, code=Code.DECIDES_ON_HIDDEN_CARDS)
 
     def _game_spelling(
         self, read: ZoneRead, crossing: _Crossing
@@ -14765,9 +15101,15 @@ class _HiddenReads:
                     head + f". Read the deciding seat's own cards, or have the holder "
                     f"announce or reveal the fact first"
                 )
-                self._tell(message, span, read, for_game=self._for_game(head))
+                self._tell(
+                    message,
+                    span,
+                    read,
+                    for_game=self._for_game(head),
+                    code=Code.DECIDES_ON_HIDDEN_CARDS,
+                )
                 return
-        self._tell(message, span, read)
+        self._tell(message, span, read, code=Code.DECIDES_ON_HIDDEN_CARDS)
 
     def _for_game(self, head: Said) -> Said | None:
         """`head` as the game's author reads it, where the library definition
@@ -14784,11 +15126,13 @@ class _HiddenReads:
         route: Route | None = None,
         for_game: Said | None = None,
         stands_on: tuple[Span, ...] = (),
+        *,
+        code: Code,
     ) -> None:
         key = (message, span, None if route is None else route.at)
         if key not in self._reported:
             self._reported.add(key)
-            self.bag.error(message, span, route=route, for_game=for_game, stands_on=stands_on)
+            self.bag.error(message, span, route=route, for_game=for_game, stands_on=stands_on, code=code)
 
     def _tell(
         self,
@@ -14797,6 +15141,8 @@ class _HiddenReads:
         read: ZoneRead | None = None,
         route: Route | None = None,
         for_game: Said | None = None,
+        *,
+        code: Code,
     ) -> None:
         """A refusal of a decision's seat, carrying the crossing it was
         reached by: `route` where the walk entered library text by a call,
@@ -14807,7 +15153,7 @@ class _HiddenReads:
         if route is None and routes is not None:
             argument = read is not None and any(id(b) in self.run_args[-1] for b in read.bindings)
             route = routes.argument if argument else routes.body
-        self._emit(message, span, route, for_game, self._stands_on(read))
+        self._emit(message, span, route, for_game, self._stands_on(read), code=code)
 
     def _stands_on(self, read: ZoneRead | None) -> tuple[Span, ...]:
         """The library text a refused read reaches: the read itself, or each
@@ -15127,7 +15473,7 @@ class _HiddenReads:
         key = (message, at)
         if key not in self._reported:
             self._reported.add(key)
-            self.bag.error(message, at)
+            self.bag.error(message, at, code=Code.NO_PLAYER_ACTING)
 
     def _report_bare_family(
         self, family: str, route: tuple[Said, ...], span: Span | None, crossing: Route | None
@@ -15151,6 +15497,7 @@ class _HiddenReads:
             span,
             route=crossing,
             for_game=self._for_game(head),
+            code=Code.NO_PLAYER_ACTING,
         )
 
     def _report_no_actor(
@@ -15202,12 +15549,18 @@ class _HiddenReads:
                 what + through + " is written where no player is acting "
                 f"({where}), so no one can make the decision"
             )
-            self._tell(head + f". {fix}", span, route=crossing, for_game=self._for_game(head))
+            self._tell(
+                head + f". {fix}",
+                span,
+                route=crossing,
+                for_game=self._for_game(head),
+                code=Code.NO_PLAYER_ACTING,
+            )
             return
         # An `actor` read is told where it is written, never at a `run`: in a
         # procedure body it shadows `_check_procedures`' call-site pronoun
         # refusal, which tells the procedure's author in every game.
-        self._emit(message, span)
+        self._emit(message, span, code=Code.NO_PLAYER_ACTING)
 
     def _phase(self, phase: n.Phase, scope: _ReadScope) -> None:
         if phase.qualifier is not None:

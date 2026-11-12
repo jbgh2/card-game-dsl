@@ -66,6 +66,7 @@ import pytest
 
 import cardlang.diagnostics as D
 import cardlang.resolve as R
+from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError, LibraryCitation, Sentence, Span
 from cardlang.parse import parse_library, parse_text
@@ -312,9 +313,9 @@ def test_the_census_sees_a_plain_definition_name(monkeypatch: pytest.MonkeyPatch
     census = _Census(definitions=frozenset({"libp"}), found={})
     with monkeypatch.context() as mp:
         _instrumented(mp, census)
-        D.DiagnosticBag().error("procedure 'libp' is never run", None)
-        D.DiagnosticBag().error(LibraryCitation("procedure 'libp'", None) + " is never run", None)
-        D.DiagnosticBag().error("run `libp(0)` here", None)
+        D.DiagnosticBag().error("procedure 'libp' is never run", None, code=Code.UNUSED_DECLARATION)
+        D.DiagnosticBag().error(LibraryCitation("procedure 'libp'", None) + " is never run", None, code=Code.UNUSED_DECLARATION)
+        D.DiagnosticBag().error("run `libp(0)` here", None, code=Code.UNUSED_DECLARATION)
     assert census.found == {"<outside cardlang>": "libp"}
 
 

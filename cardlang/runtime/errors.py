@@ -27,7 +27,9 @@ and a refusal that escapes a game sentence carries that sentence.
 Illegal after this: catching `OwnerGuardError` or `ShadowGuardError` outside
 tests. Harnesses catch the base — the base names what is wrong (this game is
 illegal), the subtypes name which role caught it, and a harness that discovers
-an engine gap must not silently treat it as a bad game. Illegal too: reading
+an engine gap must not silently treat it as a bad game. The one reader of the
+role outside tests is `cardlang.records.refusal_diagnostic`, which names the
+Author and Diagnostic Code a refusal is told with and catches nothing. Illegal too: reading
 `Located` as a classification. It says a failure knows WHERE, never who must
 act, and the trees it spans answer different questions — a catch site asking
 "whose fault" names a tree, never the carrier.

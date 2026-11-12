@@ -1,0 +1,1 @@
+code_answer_reads_beyond_the_card.cardlang:18:34: error: function `is_trump` reads the pronoun 'actor' — the kernel asks `is_trump` from the legality filter, the trick's winner, a hand-rolled body and the end-of-game census under different live frames, so it may read no pronoun (action, active_rules, actor, state, winner); it is a fact of the card and public state alone

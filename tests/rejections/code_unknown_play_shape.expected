@@ -1,0 +1,1 @@
+code_unknown_play_shape.cardlang:66:17: error: `flush` is no row label of this game's catalogue — a play's `.shape` is one of `run`, `single`

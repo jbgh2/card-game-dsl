@@ -1,0 +1,1 @@
+code_no_player_acting.cardlang:15:13: error: `hand` is one zone per player, named bare where no player is acting (outside any `as <player>`, `for each player`, `turns` or offered move, nobody is taking a turn), so it names no player's. Say whose: `hand[<player>]`, or read it under a binder that names who acts (`as <player> { ... }`, `for each player p: ...`)
