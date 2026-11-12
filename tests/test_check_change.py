@@ -10,7 +10,10 @@ property:   each selection rule CLAUDE.md "Verifying changes" and
             `check` job as its `laptop` lane runs it, a lane expression read
             for that lane and a step the reader cannot read refused, `--dev`
             the named development pass, the
-            default leaving the language suite to CI); a run is ok only on
+            default leaving the language suite to CI, running each list of
+            test modules with the gate's worker count, and leaving the
+            readers to CI once more than half the suite's test modules read
+            the diff); a run is ok only on
             its own exit status and a passing summary line, and the results
             name every gate step not run; and `tools/verify.sh` takes its
             interpreter from the checkout.
@@ -62,7 +65,9 @@ does not prove:  that a rule's trigger is the right one -- the expected
             sit under a changed `conftest.py`; a module that reaches a path
             any other way (a glob from the repository root, a name built at
             run time) is outside it, and only the language suite in CI
-            covers it. Nor that the local
+            covers it. Nor that half is the right share to stop at:
+            it is a designed line, and no test times a run under it. Nor
+            that the local
             environment matches CI's: an interpreter without the
             `openspiel` extra skips the readiness proofs, and a venv older
             than `pyproject.toml` can hold a package the spec dropped.
@@ -71,6 +76,7 @@ does not prove:  that a rule's trigger is the right one -- the expected
 from __future__ import annotations
 
 import ast
+import dataclasses
 import os
 import re
 import shutil
@@ -387,9 +393,85 @@ def _run_modules(steps: dict[cc.Check, cc.Step]) -> set[str]:
     return {a for s in steps.values() if s.argv[:1] == ("pytest",) for a in s.argv if a.endswith(".py")}
 
 
+# The anchor paths more than half the suite's test modules read, authored by
+# reading the tree: the default leaves their readers to CI.
+SUITE_WIDE_ANCHORS = frozenset({"docs/authoring.md", "tests/conftest.py"})
+
+
 @pytest.mark.parametrize(("status", "path", "module"), READER_ANCHORS, ids=[p for _, p, _ in READER_ANCHORS])
 def test_a_changed_path_runs_the_modules_that_read_it(status: cc.Status, path: str, module: str) -> None:
-    assert module in _run_modules(_steps(path, cc.Mode.TARGETED, status))
+    steps = _steps(path, cc.Mode.TARGETED, status)
+    assert module in _tree().readers(path)
+    if path in SUITE_WIDE_ANCHORS:
+        assert steps[C.READERS].disposition is cc.Disposition.IN_CI
+    else:
+        assert module in _run_modules(steps)
+
+
+_SUITE_OF = 20
+
+
+def _plan_with_readers(count: int) -> cc.Step:
+    """The readers step where `count` of a suite of `_SUITE_OF` test modules read the changed path."""
+    tree = _tree()
+    suite = tree.test_modules[:_SUITE_OF]
+    change = cc.Change(M, "docs/principles.md", _lane("docs/principles.md"))
+    small = dataclasses.replace(tree, test_modules=suite, readers=lambda path: suite[:count])
+    return {s.check: s for s in cc.plan((change,), small, cc.Mode.TARGETED, str(REPO))}[C.READERS]
+
+
+def test_readers_of_exactly_half_the_suite_run_here() -> None:
+    """Red under: `>=` for `>` in `_is_the_suite`."""
+    step = _plan_with_readers(_SUITE_OF // 2)
+    assert step.disposition is cc.Disposition.RUN
+    assert len([a for a in step.argv if a.endswith(".py")]) == _SUITE_OF // 2
+
+
+def test_readers_past_half_the_suite_are_left_to_ci_and_say_so() -> None:
+    """Red under: `_is_the_suite` returning False."""
+    step = _plan_with_readers(_SUITE_OF // 2 + 1)
+    assert step.disposition is cc.Disposition.IN_CI
+    assert step.argv == ()
+    assert step.reasons == (
+        f"{_SUITE_OF // 2 + 1} of the suite's {_SUITE_OF} test modules read the diff: "
+        "that is the language suite's run, which CI makes",
+        "docs/principles.md",
+    )
+
+
+def test_the_suite_count_is_every_test_module_under_tests() -> None:
+    tracked = {
+        line for line in _git(REPO, "ls-files", "tests").splitlines()
+        if Path(line).name.startswith("test_") and line.endswith(".py")
+    }
+    assert tracked <= set(_tree().test_modules)
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["tests/test_check_change.py", "docs/games/big-two.cardlang", "tools/lane-of.sh", "CLAUDE.md"],
+)
+def test_every_module_list_run_takes_the_gates_worker_count(path: str) -> None:
+    """Red under: dropping `*_workers(tree)` from the module-list argv in `plan`."""
+    steps = _steps(path, cc.Mode.TARGETED)
+    lists = [
+        s for s in steps.values()
+        if s.disposition is cc.Disposition.RUN and s.check not in cc._GATE and s.check is not C.GOLDENS_FULL
+    ]
+    assert lists
+    for step in lists:
+        assert step.argv[-3:] == ("-q", "-n", "8"), step.check
+
+
+def test_a_gate_without_a_worker_count_gives_the_module_lists_none() -> None:
+    tree = _tree()
+    serial = tuple(
+        dataclasses.replace(g, argv=("pytest", "-q")) if g.check is C.LANGUAGE_SUITE else g for g in tree.gate
+    )
+    change = cc.Change(M, "CLAUDE.md", _lane("CLAUDE.md"))
+    steps = cc.plan((change,), dataclasses.replace(tree, gate=serial), cc.Mode.TARGETED, str(REPO))
+    step = {s.check: s for s in steps}[C.READERS]
+    assert step.argv[-1] == "-q"
 
 
 # --- the facts the rules read from the tree ---------------------------------

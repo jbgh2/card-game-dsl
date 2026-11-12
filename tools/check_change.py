@@ -19,7 +19,10 @@ Three modes, one selection:
   diff reaches them, the full-width goldens, the test modules that name a
   changed game, the classifier tables, the census pins, the doc-snippet
   and ADR pins, the changed test modules, and the test modules that read a
-  changed path -- and leaves the language suite to CI;
+  changed path -- and leaves the language suite to CI. Each list of test
+  modules runs with the worker count the gate's suite step names. When
+  more than half the suite's test modules read the diff, that list is the
+  language suite's run under another name and is left to CI with it;
 * `--full` runs every check step of the CI workflow's `check` job as its
   `laptop` lane runs it (a local run is that lane; a lane expression in a
   step is read for it, and the output says so), plus the full-width
@@ -157,6 +160,7 @@ class Tree:
     snippet_docs: frozenset[str]
     classifier_modules: tuple[str, ...]
     census_modules: tuple[str, ...]
+    test_modules: tuple[str, ...]
     tests_naming: Callable[[str], tuple[str, ...]]
     readers: Callable[[str], tuple[str, ...]]
     gate: tuple[GateStep, ...]
@@ -335,6 +339,16 @@ def _gate_argv(check: Check, mode: Mode, tree: Tree) -> tuple[str, ...]:
     raise AssertionError(f"{check} is not a step of the CI workflow's check job")
 
 
+def _workers(tree: Tree) -> tuple[str, ...]:
+    """The `-n N` the gate's suite step names, or nothing when it names none."""
+    argv = _gate_argv(Check.LANGUAGE_SUITE, Mode.TARGETED, tree)
+    return argv[argv.index("-n"):][:2] if "-n" in argv else ()
+
+
+def _is_the_suite(modules: Sequence[str], tree: Tree) -> bool:
+    return len(modules) * 2 > len(tree.test_modules)
+
+
 def plan(changes: tuple[Change, ...], tree: Tree, mode: Mode, root: str) -> tuple[Step, ...]:
     """One `Step` per `Check`, in `Check` order."""
     fired = triggered(changes, tree)
@@ -372,13 +386,20 @@ def plan(changes: tuple[Change, ...], tree: Tree, mode: Mode, root: str) -> tupl
         if not modules:
             steps.append(Step(check, Disposition.NOTHING_NAMED, why))
             continue
+        if check is Check.READERS and _is_the_suite(modules, tree):
+            share = (
+                f"{len(modules)} of the suite's {len(tree.test_modules)} test modules read the diff: "
+                "that is the language suite's run, which CI makes"
+            )
+            steps.append(Step(check, Disposition.IN_CI, (share, *why)))
+            continue
         fresh = tuple(m for m in modules if m not in taken)
         for m in fresh:
             taken[m] = check
         if not fresh:
             steps.append(Step(check, Disposition.COVERED, why))
             continue
-        steps.append(Step(check, Disposition.RUN, why, ("pytest", *fresh, "-q")))
+        steps.append(Step(check, Disposition.RUN, why, ("pytest", *fresh, "-q", *_workers(tree))))
     return tuple(steps)
 
 
@@ -594,6 +615,7 @@ def read_tree(root: str) -> Tree:
         snippet_docs=_snippet_docs(base),
         classifier_modules=_classifier_modules(base),
         census_modules=_census_modules(base),
+        test_modules=test_modules,
         tests_naming=naming,
         readers=readers,
         gate=gate,
