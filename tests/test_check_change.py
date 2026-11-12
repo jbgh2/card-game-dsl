@@ -7,7 +7,9 @@ property:   each selection rule CLAUDE.md "Verifying changes" and
             diff in its path class and stays quiet for a diff outside it;
             a changed path runs the test modules that read it; each mode
             runs what it names (`--full` every check step of ci.yml's
-            `check` job as written, `--dev` the named development pass, the
+            `check` job as its `laptop` lane runs it, a lane expression read
+            for that lane and a step the reader cannot read refused, `--dev`
+            the named development pass, the
             default leaving the language suite to CI); a run is ok only on
             its own exit status and a passing summary line, and the results
             name every gate step not run; and `tools/verify.sh` takes its
@@ -465,42 +467,112 @@ def _steps(path: str, mode: cc.Mode, status: cc.Status = M) -> dict[cc.Check, cc
 
 
 def _ci_runs() -> list[str]:
-    """Every single-line `run:` of the check job, read by a YAML parser, not the module's reader."""
+    """The check job's single-line `run:` lines no other lane owns, read by a YAML parser.
+
+    The parse is independent of `read_gate`; the lane filter is the one
+    fact both read, the step's `if:` naming a lane other than `laptop`.
+    """
     import yaml
 
     workflow = yaml.safe_load((REPO / ".github/workflows/ci.yml").read_text())
-    runs = [step["run"].strip() for step in workflow["jobs"]["check"]["steps"] if "run" in step]
-    return [r for r in runs if "\n" not in r]
+    return [
+        step["run"].strip() for step in workflow["jobs"]["check"]["steps"]
+        if "run" in step and "\n" not in step["run"].strip()
+        and not re.fullmatch(r"needs\.route\.outputs\.lane == '(?!laptop')[^']+'", step.get("if", ""))
+    ]
 
 
 def test_full_runs_every_check_step_ci_writes() -> None:
-    """Red under: `read_gate` skipping the `python -c "import pyspiel"` step."""
+    """Red under: `read_gate` skipping the `python -c "import pyspiel"` step.
+
+    Reads the live workflow, so a check job whose shape the reader cannot
+    read fails here, and at collection, by name.
+    """
     steps = _steps("docs/principles.md", cc.Mode.FULL)
     gate = _tree().gate
     assert [g.ci_text for g in gate] == _ci_runs()
     for g in gate:
         assert steps[g.check].disposition is cc.Disposition.RUN
         assert steps[g.check].argv == g.argv
-    assert ("import", "pyspiel") in [g.argv for g in gate]
-    assert [steps[c].argv for c in (C.TYPECHECK, C.LANGUAGE_SUITE, C.RIGS)] == [
-        ("mypy",), ("pytest", "-q", "-n", "8"), ("pytest", "experiments/llm_eval/tests", "-q"),
+    assert [g.argv for g in gate] == [
+        ("import", "pyspiel"), ("mypy",), ("pytest", "-q", "-n", "8"),
+        ("pytest", "experiments/llm_eval/tests", "-q"),
     ]
 
 
+def test_the_live_suite_step_says_it_was_read_for_the_laptop_lane() -> None:
+    reasons = _steps("docs/principles.md", cc.Mode.FULL)[C.LANGUAGE_SUITE].reasons
+    assert any("for the laptop lane, which a local run is" in r for r in reasons)
+
+
 _CI_HEAD = "jobs:\n  check:\n    runs-on: x\n    steps:\n      - uses: actions/checkout@v4\n"
+_LANE_N = "${{ needs.route.outputs.lane == 'laptop' && '8' || 'auto' }}"
 _CI_GATE = (
     '      - name: Imports\n        run: python -c "import pyspiel"\n'
     "      - name: Types\n        run: mypy\n"
-    "      - name: Suite\n        run: pytest -q -n 8\n"
+    f"      - name: Suite\n        run: pytest -q -n {_LANE_N}\n"
     "      - name: Rigs\n        run: pytest experiments/llm_eval/tests -q\n"
+)
+_HOSTED_SETUP = (
+    "      - uses: actions/setup-python@v5\n        if: needs.route.outputs.lane == 'hosted'\n"
+    "        with:\n          python-version: \"3.11\"\n"
+    "      - name: Install\n        if: needs.route.outputs.lane == 'hosted'\n"
+    '        run: python -m pip install -e ".[dev,openspiel]"\n'
+)
+_GUARD = (
+    "      - name: The route picked a lane\n        if: needs.route.result != 'success'\n"
+    "        run: |\n          echo no lane\n          exit 1\n"
 )
 
 
-def test_the_gate_reader_reads_setup_as_setup() -> None:
-    text = _CI_HEAD + "      - name: Venv\n        run: |\n          pip install x\n          mypy\n" + _CI_GATE
+def test_the_gate_reader_reads_setup_and_other_lanes_as_skipped() -> None:
+    """Red under: `read_gate` without its other-lane branch (the hosted `Install` run is then refused)."""
+    text = (
+        _CI_HEAD + _GUARD
+        + "      - name: Venv\n        if: needs.route.outputs.lane == 'laptop'\n"
+        + "        run: |\n          pip install x\n          mypy\n"
+        + _HOSTED_SETUP + _CI_GATE
+    )
     gate, setup = cc.read_gate(text + "  canary:\n    steps:\n      - run: echo hi\n")
     assert [g.check for g in gate] == [C.GATE_IMPORT, C.TYPECHECK, C.LANGUAGE_SUITE, C.RIGS]
-    assert setup == ("actions/checkout@v4", "Venv")
+    assert setup == (
+        "`actions/checkout@v4` (environment setup)",
+        "`The route picked a lane` (a setup step under `if: needs.route.result != 'success'`)",
+        "`Venv` (environment setup)",
+        "`actions/setup-python@v5` (the hosted lane's step)",
+        "`Install` (the hosted lane's step)",
+    )
+
+
+@pytest.mark.parametrize(
+    ("expression", "argv"),
+    [
+        ("${{ needs.route.outputs.lane == 'laptop' && '8' || 'auto' }}", ("pytest", "-q", "-n", "8")),
+        ("${{ needs.route.outputs.lane == 'hosted' && 'auto' || '4' }}", ("pytest", "-q", "-n", "4")),
+    ],
+    ids=["laptop-branch", "other-lane-branch"],
+)
+def test_a_lane_expression_is_read_for_the_laptop_lane(expression: str, argv: tuple[str, ...]) -> None:
+    """Red under: `_resolve` taking the expression's first value whatever lane it names."""
+    gate, _ = cc.read_gate(_CI_HEAD + _CI_GATE.replace(_LANE_N, expression))
+    step = next(g for g in gate if g.check is C.LANGUAGE_SUITE)
+    assert step.argv == argv
+    assert "for the laptop lane" in step.note
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "${{ matrix.workers }}",
+        "${{ needs.route.outputs.lane == 'laptop' && '' || 'auto' }}",
+        "${{ needs.route.outputs.lane != 'laptop' && 'auto' || '8' }}",
+    ],
+    ids=["other-context", "empty-first-value", "negated-lane"],
+)
+def test_an_expression_shape_the_reader_cannot_read_is_refused_by_name(expression: str) -> None:
+    """Red under: `_resolve` leaving an unread expression in the command for `_gate_step` to judge."""
+    with pytest.raises(cc.SelectionError, match="whose expression"):
+        cc.read_gate(_CI_HEAD + _CI_GATE.replace(_LANE_N, expression))
 
 
 @pytest.mark.parametrize(
@@ -509,12 +581,21 @@ def test_the_gate_reader_reads_setup_as_setup() -> None:
         "      - name: Lint\n        run: ruff check .\n",
         "      - name: Tools\n        run: pytest tools/tests -q\n",
         "      - name: Again\n        run: mypy\n",
+        "      - name: Laptop lint\n        if: needs.route.outputs.lane == 'laptop'\n        run: ruff check .\n",
     ],
-    ids=["unknown-command", "unknown-pytest-target", "doubled-step"],
+    ids=["unknown-command", "unknown-pytest-target", "doubled-step", "unknown-laptop-lane-run"],
 )
 def test_a_check_step_the_reader_cannot_read_is_refused(extra: str) -> None:
     with pytest.raises(cc.SelectionError, match="check job"):
         cc.read_gate(_CI_HEAD + _CI_GATE + extra)
+
+
+def test_a_check_under_a_condition_the_reader_cannot_read_is_refused() -> None:
+    """Red under: `read_gate` reading a single-line run under any `if:` as unconditional."""
+    types = "      - name: Types\n        run: mypy\n"
+    conditioned = "      - name: Types\n        if: github.event_name == 'push'\n        run: mypy\n"
+    with pytest.raises(cc.SelectionError, match="a condition tools/check_change.py cannot read"):
+        cc.read_gate(_CI_HEAD + _CI_GATE.replace(types, conditioned))
 
 
 @pytest.mark.parametrize("mode", list(cc.Mode), ids=[m.value for m in cc.Mode])
@@ -783,7 +864,7 @@ def test_the_results_name_every_gate_step_not_run(mode: cc.Mode) -> None:
     if mode is cc.Mode.FULL:
         assert "NOT a green of the gate" not in block
     else:
-        assert "NOT RUN here: language-suite (CI runs `pytest -q -n 8`)" in block
+        assert "NOT RUN here: language-suite (CI runs `pytest -q -n ${{" in block
         assert "This is NOT a green of the gate" in block
     if mode is cc.Mode.DEV:
         assert "NOT evidence" in block

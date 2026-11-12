@@ -20,9 +20,11 @@ Three modes, one selection:
   changed game, the classifier tables, the census pins, the doc-snippet
   and ADR pins, the changed test modules, and the test modules that read a
   changed path -- and leaves the language suite to CI;
-* `--full` runs every step of the CI workflow's `check` job as it writes
-  them, plus the full-width goldens CI never sweeps; it is the local
-  evidence when CI is unavailable;
+* `--full` runs every check step of the CI workflow's `check` job as its
+  `laptop` lane runs it (a local run is that lane; a lane expression in a
+  step is read for it, and the output says so), plus the full-width
+  goldens CI never sweeps; it is the local evidence when CI is
+  unavailable;
 * `--dev` swaps the language suite for the development pass
   (`-m "not slow"`), and says on every run that it is not evidence.
 
@@ -145,6 +147,7 @@ class GateStep:
     check: Check
     argv: tuple[str, ...]
     ci_text: str
+    note: str = ""
 
 
 @dataclass(frozen=True)
@@ -345,6 +348,9 @@ def plan(changes: tuple[Change, ...], tree: Tree, mode: Mode, root: str) -> tupl
                 steps.append(Step(check, Disposition.IN_CI if changes else Disposition.NOT_SELECTED, why))
             else:
                 reasons = why or ("the gate runs it on every change",)
+                notes = tuple(g.note for g in tree.gate if g.check is check and g.note)
+                if not (check is Check.LANGUAGE_SUITE and mode is Mode.DEV):
+                    reasons += notes
                 steps.append(Step(check, Disposition.RUN, reasons, _gate_argv(check, mode, tree)))
             continue
         if not why:
@@ -598,13 +604,45 @@ def read_tree(root: str) -> Tree:
 
 _IMPORT_STEP = re.compile(r'python -c "import ([A-Za-z_][A-Za-z0-9_.]*)"')
 
+# A local run is the gate's `laptop` lane: the operator's machine, where the
+# self-hosted pool runs (docs/harness.md, "The physical layer").
+LOCAL_LANE = "laptop"
+_LANE_IF = re.compile(r"needs\.route\.outputs\.lane == '([A-Za-z0-9_-]+)'")
+_LANE_EXPR = re.compile(r"needs\.route\.outputs\.lane == '([A-Za-z0-9_-]+)' && '([^']+)' \|\| '([^']*)'")
+_EXPRESSION = re.compile(r"\$\{\{\s*(.*?)\s*\}\}")
 
-def _gate_step(text: str) -> GateStep:
+
+def _resolve(text: str) -> tuple[str, str]:
+    """A `run:` with every expression resolved for `LOCAL_LANE`, and a note saying so.
+
+    The one expression read is the lane choice `needs.route.outputs.lane ==
+    'L' && 'X' || 'Y'` (X on lane L, Y elsewhere); any other is refused by
+    name rather than guessed.
+    """
+    notes: list[str] = []
+
+    def one(m: re.Match[str]) -> str:
+        lane = _LANE_EXPR.fullmatch(m.group(1))
+        if lane is None:
+            raise SelectionError(
+                f"the CI workflow's check job runs `{text}`, whose expression `{m.group(0)}` "
+                f"tools/check_change.py cannot read: it reads only "
+                f"`needs.route.outputs.lane == 'L' && 'X' || 'Y'`; teach `_resolve` the new shape"
+            )
+        value = lane.group(2) if lane.group(1) == LOCAL_LANE else lane.group(3)
+        notes.append(f"`{m.group(0)}` read as `{value}` for the {LOCAL_LANE} lane, which a local run is")
+        return value
+
+    return _EXPRESSION.sub(one, text), "; ".join(notes)
+
+
+def _gate_step(raw: str) -> GateStep:
     """A single-line `run:` of the check job, as the check it is, or refused."""
+    text, note = _resolve(raw)
     if text == "mypy":
-        return GateStep(Check.TYPECHECK, ("mypy",), text)
+        return GateStep(Check.TYPECHECK, ("mypy",), raw, note)
     if m := _IMPORT_STEP.fullmatch(text):
-        return GateStep(Check.GATE_IMPORT, ("import", m.group(1)), text)
+        return GateStep(Check.GATE_IMPORT, ("import", m.group(1)), raw, note)
     words = shlex.split(text)
     if words and words[0] == "pytest":
         positional = [
@@ -612,21 +650,24 @@ def _gate_step(text: str) -> GateStep:
             if not w.startswith("-") and words[i - 1] not in ("-n", "-m", "-k")
         ]
         if not positional:
-            return GateStep(Check.LANGUAGE_SUITE, tuple(words), text)
+            return GateStep(Check.LANGUAGE_SUITE, tuple(words), raw, note)
         if all(w.startswith("experiments/") for w in positional):
-            return GateStep(Check.RIGS, tuple(words), text)
+            return GateStep(Check.RIGS, tuple(words), raw, note)
     raise SelectionError(
-        f"the CI workflow's check job runs `{text}`, a step tools/check_change.py cannot read; "
+        f"the CI workflow's check job runs `{raw}`, a step tools/check_change.py cannot read; "
         "teach `_gate_step` what it checks"
     )
 
 
 def read_gate(text: str) -> tuple[tuple[GateStep, ...], tuple[str, ...]]:
-    """The check job's steps: those that run a check, and the setup steps' names.
+    """The check job's steps: those that run a check, and the steps a local run does not repeat.
 
-    A single-line `run:` is a check and must be one `_gate_step` reads; a
-    `uses:` step or a multi-line `run: |` block is environment setup, which
-    a local run does not repeat and the output names.
+    A step conditioned on another lane (`if: needs.route.outputs.lane ==
+    'hosted'`) is that lane's and is skipped. Of the rest, a `uses:` step or
+    a multi-line `run: |` block is environment setup, and a single-line
+    `run:` is a check that must be one `_gate_step` reads, under no
+    condition or the local lane's. Every skipped step is named in the
+    output; a single-line `run:` under any other condition is refused.
     """
     lines = text.splitlines()
     try:
@@ -655,9 +696,19 @@ def read_gate(text: str) -> tuple[tuple[GateStep, ...], tuple[str, ...]]:
     gate: list[GateStep] = []
     setup: list[str] = []
     for item in items:
-        run = item.get("run")
-        if run is None or run in ("|", ">"):
-            setup.append(item.get("name") or item.get("uses") or "an unnamed step")
+        name = item.get("name") or item.get("uses") or "an unnamed step"
+        run, condition = item.get("run"), item.get("if")
+        lane = _LANE_IF.fullmatch(condition) if condition is not None else None
+        if lane is not None and lane.group(1) != LOCAL_LANE:
+            setup.append(f"`{name}` (the {lane.group(1)} lane's step)")
+        elif run is None or run in ("|", ">"):
+            kind = "environment setup" if condition is None or lane else f"a setup step under `if: {condition}`"
+            setup.append(f"`{name}` ({kind})")
+        elif condition is not None and lane is None:
+            raise SelectionError(
+                f"the CI workflow's check job runs `{run}` under `if: {condition}`, a condition "
+                "tools/check_change.py cannot read; teach `read_gate` the new shape"
+            )
         else:
             gate.append(_gate_step(run.strip('"') if run.startswith('"') and run.endswith('"') else run))
     checks = [g.check for g in gate]
@@ -866,7 +917,7 @@ def render_results(
     for g in missing:
         lines.append(f"  NOT RUN here: {g.check.value} (CI runs `{g.ci_text}`)")
     for name in tree.setup_steps:
-        lines.append(f"  not repeated here: CI's setup step `{name}`")
+        lines.append(f"  not repeated here: CI's step {name}")
     if missing:
         lines.append(
             "This is NOT a green of the gate: it did not run "
@@ -874,7 +925,7 @@ def render_results(
             + ". The gate is CI green on its checks."
         )
     else:
-        lines.append("Every check step of the CI workflow's check job ran here as ci.yml writes it.")
+        lines.append(f"Every check step of the CI workflow's check job ran here, as its {LOCAL_LANE} lane runs it.")
     if mode is Mode.DEV:
         lines.append(_NOT_EVIDENCE)
     lines.append(_AUTHORITY)
