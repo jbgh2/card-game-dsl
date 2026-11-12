@@ -1,4 +1,4 @@
-# ADR-0022: Every refusal carries a Diagnostic Code from a closed registry, required where it is made
+# ADR-0023: Every refusal carries a Diagnostic Code from a closed registry, required where it is made
 
 - **Status:** Accepted
 - **Date:** 2026-11-10

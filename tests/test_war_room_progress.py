@@ -55,9 +55,10 @@ domain:     the derivation's inputs, crossed -- the lock holder
             One thing sits outside, and it is not a gap: every cell is
             Darwin-only. `war-room.sh` is BSD-only by charter (`stat -f`,
             `date -j`, `date -r`) and runs on the operator's Mac under
-            launchd, so the merge gate's self-hosted macOS pool executes the
-            whole module while the weekly Linux canary skips it visibly,
-            with the reason on the mark.
+            launchd, so the merge gate, macOS on both its lanes
+            (docs/harness.md, "The physical layer"), executes the whole
+            module while the weekly Linux canary skips it visibly, with the
+            reason on the mark.
 registry:   `_reasons_the_script_can_emit()` scrapes the reason vocabulary
             from `war-room.sh` itself; `test_every_reason_the_script_can_emit_has_a_cell`
             fails by name when a reason is added without a cell, and when a
@@ -95,7 +96,7 @@ pytestmark = pytest.mark.skipif(
     sys.platform != "darwin",
     reason=(
         "war-room.sh is BSD/macOS-only by charter (stat -f, date -j, date -r); "
-        "the merge gate runs on the self-hosted macOS pool and executes these cells"
+        "the merge gate runs on macOS on both its lanes and executes these cells"
     ),
 )
 
