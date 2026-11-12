@@ -193,8 +193,8 @@ consecutive passes), typed outcome = a contract outcome. Then per game, supplyin
   order, regardless of hand position — which an ordinary demands-intersection
   cannot express (it can narrow a candidate set, never reorder one to the
   end). Both axes were user-approved before implementation, landing as their
-  own red-fixture-to-green commits (`docs/decisions.md`, "Movement `where`
-  filter" / "Rule `exempts:` clause"). `run_tarot_hand` and its post-auction
+  own red-fixture-to-green commits (`docs/decisions.md`, "Transfer `where`
+  filter" / "Rule exemption (`exempts:`)"). `run_tarot_hand` and its post-auction
   `run_tarot_rest` are both gone; byte-identical over 50 seeds against the
   unchanged golden. A follow-up fidelity stage then rerouted the chien
   discard from the taker's public `captured` pile (a wart the byte-identical

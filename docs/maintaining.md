@@ -109,22 +109,34 @@ code to catch up.
 
 ## Open questions vs settled design
 
+**One decision, one file.** The settled spec is the files under
+[decisions/](decisions/), one `##` section each with the `###` sub-sections
+and bold-lead rulings that bound it, and [decisions.md](decisions.md) is
+their generated index. A new decision is a new file `decisions/<slug>.md`
+that opens with its `## ` heading and a first sentence stating the decision,
+which the index quotes; its slug goes into `decisions/_order.txt` at its
+place in reading order. A refinement edits the file that holds the section.
+Either way, `python -m tools.decisions_index --write` regenerates the index,
+and `tests/test_decisions_index.py` fails on a stale one. A citation keeps
+naming the index by quoted title (`decisions.md, "Surface totality"`), and
+the title resolves in the file that holds it.
+
 When an open question gets resolved, **move its content from
-[open-questions/](open-questions/) to [decisions.md](decisions.md)**,
-retitling as needed. The open-question file's title is a useful
+[open-questions/](open-questions/) to a decision file under
+[decisions/](decisions/)**, retitling as needed. The open-question file's title is a useful
 starting point for the decisions section heading, though the spec
 form often warrants a longer, more descriptive title. Don't leave a
 "RESOLVED" stub behind — that's a journal entry. The decisions entry
 should read as spec; the question framing from the open-questions
 file gets rewritten into the spec voice. Delete the open-questions
-file once its content has landed in `decisions.md`, and update
+file once its content has landed in its decision file, and update
 [open-questions/_index.md](open-questions/_index.md) to remove the
 entry.
 
 When a settled design is *reopened* (genuinely uncertain again,
 not just being refined), move it back to [open-questions/](open-questions/)
 with a clear question framing. This should be rare. Most design
-refinement is editing [decisions.md](decisions.md) in place.
+refinement is editing the decision's file in place.
 
 ## Cross-references
 
