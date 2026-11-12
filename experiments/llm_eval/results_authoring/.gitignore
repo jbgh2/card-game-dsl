@@ -1,0 +1,5 @@
+# The spend log is operational, never evidence (`spend.py`); a run's own
+# directory (`runs/<UTC stamp>/`: `run.json`, `attempts.jsonl`) is the
+# record, and committing it is the operator's deliberate act, since it holds
+# real model replies that no rerun reproduces.
+spend/
