@@ -22,11 +22,10 @@ property:        a refusal of a name absent from the set the checker looked
                  measure is one function, shared with the parse layer's
                  ranking of what the grammar expected; a refusal the
                  attribution step retells keeps its Near Misses.
-                 Where a check's set is wider than what resolves at the
-                 position -- game-wide state at a phase's position, the
-                 call-site pronouns in a function body, a literal where a
-                 zone is wanted -- a Near Miss can name a name refused there
-                 (issue #1063).
+                 A bare name's Near Misses are the names that resolve where
+                 it stands (tests/test_near_miss_positions.py); one of the
+                 wrong type for its position can still be offered (issue
+                 #1088).
 domain:          every refusal site in the resolve, typecheck and catalogue
                  passes that refuses a designer-written spelling because the
                  set it was looked up in lacks it, each witnessed by one slip
