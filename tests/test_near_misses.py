@@ -38,11 +38,11 @@ domain:          every refusal site in the resolve, typecheck and catalogue
                  word) or that resolves to the wrong kind or the wrong scope
                  refuse what the name denotes, not its spelling, and are
                  told their own sentence. The parse layer's syntax errors
-                 rank the grammar's expected words by the same measure and
-                 are the grammar's to word (issue #1045 for statement
-                 keywords). Command-line and play-session arguments list
-                 their whole set already, and runtime refusals speak the
-                 runtime channel.
+                 rank the grammar's expected words by the same measure, and
+                 offer a misspelled keyword the keywords it nearly spells
+                 (tests/test_keyword_near_misses.py). Command-line and
+                 play-session arguments list their whole set already, and
+                 runtime refusals speak the runtime channel.
 registry:        sites: `_owner_sites` (an AST scrape of every
                  `DiagnosticBag.unknown` call in `_SCRAPED`) against
                  `WITNESSES`; re-spelled refusals: `_respelled_sites` over
