@@ -82,10 +82,12 @@ Held by:      a `connected` argument holding anything but the board's cells
               (tests/test_boards_registry.py), anchored on OpenSpiel's `hex`
               for its cell order and each seat's borders. Which misuse a
               `BoardRefusal` refuses is Unrepresentable as unsaid: `misuse`
-              is a required field, and the one teller
-              (`resolve.declared._tell_board_refusal`) matches every
-              `BoardMisuse` exhaustively, so a misuse with no Diagnostic
-              Code is a type error.
+              is a required field. The check-time teller
+              (`resolve.declared._tell_board_refusal`) is the one place a
+              misuse is matched, exhaustively, so a misuse it gives no
+              Diagnostic Code is a type error; a refusal raised at play is
+              told by the record layer (`records.refusal_diagnostic`) under
+              that layer's own code, whatever its misuse.
 """
 
 from __future__ import annotations

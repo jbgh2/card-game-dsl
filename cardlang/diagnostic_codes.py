@@ -52,7 +52,7 @@ class Code(Enum):
     FILE_NAME_READS_AS_COMMAND_LINE_OPTION = ("file-name-reads-as-command-line-option", "a file's name begins with a dash, so it reads as a command-line option; spell it as a path")
     EXTRA_WORD = ("extra-word", "the command reads one game file and no other word; drop the word")
     MISSING_GAME_FILE = ("missing-game-file", "the command needs a game file and the line names none; name one")
-    COMMAND_LINE_USAGE = ("command-line-usage", "the command line's fallback, where its reader can say no more than that the line does not read as the command's; write what the message says it expects")
+    COMMAND_LINE_USAGE = ("command-line-usage", "the command line does not read as the command's; write what the message says it expects")
 
     # --- names ------------------------------------------------------------
     UNKNOWN_NAME = ("unknown-name", "a name nothing in scope declares, refused where the checker cannot tell which sort of name was meant; read the suggestions, spell a declared name, or declare it")
@@ -75,6 +75,7 @@ class Code(Enum):
     UNKNOWN_ZONE_OWNER = ("unknown-zone-owner", "a zone type's `<...>` owner names nothing the game can own a zone by; name one the message lists")
     UNKNOWN_QUANTIFIABLE_DOMAIN = ("unknown-quantifiable-domain", "a `for each` names nothing it can range over; name a quantifiable domain or position domain the message lists")
     UNKNOWN_POSITION_DOMAIN = ("unknown-position-domain", "a query ranges over a position domain, or a collection noun, the game does not have; name one it has")
+    UNKNOWN_PARAMETER_DOMAIN = ("unknown-parameter-domain", "a move type's parameter names a parameter domain the language does not have; write one the message lists")
     UNKNOWN_FIELD = ("unknown-field", "a field the value does not have; read one of its fields, or read it another way")
     UNKNOWN_TURN_DIRECTION = ("unknown-turn-direction", "a turn direction the language does not have; write one it has")
     UNKNOWN_TRICK_ROUND_FUNCTION = ("unknown-trick-round-function", "a trick round names a winner function or an early-termination predicate the language does not have; name one it has")
@@ -135,8 +136,8 @@ class Code(Enum):
     # --- the game's structure ---------------------------------------------
     GAME_RULE_NEVER_CONSULTED = ("game-rule-never-consulted", "a game rule no decision ever asks, so it would never apply; write the condition where a decision reads it, or delete the game rule")
     MODES_MUST_PAIR_UP = ("modes-must-pair-up", "modes whose transitions do not pair one condition with its far side; give each condition its own pair of modes")
-    CLIMB_ROUND_LEAD_AND_FOLLOWS_MISMATCH = ("climb-round-lead-and-follows-mismatch", "a climbing round's lead query and `follows` query do not belong together; name one climb engine's pair")
-    NUMBER_CHOICE_NEEDS_FIXED_CEILING = ("number-choice-needs-fixed-ceiling", "a `choose integer` has no upper bound known before play; give it a literal upper bound, or an `up to N` ceiling")
+    CLIMB_ROUND_LEAD_AND_FOLLOWS_MISMATCH = ("climb-round-lead-and-follows-mismatch", "a climbing round's lead and `follows` slots name no one engine; name a Registered Engine's lead query and its own follows query, or a Declared Engine's combination catalogue and the game's follows function")
+    CHOOSE_INTEGER_NEEDS_FIXED_CEILING = ("choose-integer-needs-fixed-ceiling", "a `choose integer` has no upper bound known before play; give it a literal upper bound, or an `up to N` ceiling")
     CHOICE_OFFERS_NO_CANDIDATE = ("choice-offers-no-candidate", "a `choose integer` whose bounds or `excluding` leave no number to choose; widen what it offers")
     TEAMS_MUST_PARTITION_SEATS = ("teams-must-partition-seats", "`teams:` must put every seat on exactly one team")
     USE_WINNER_NOT_LOSER = ("use-winner-not-loser", "`loser:` cannot decide this game's result; rank a score with `winner:`")
@@ -145,7 +146,7 @@ class Code(Enum):
     CATALOGUE_ROW_NAMES_NO_PLAY = ("catalogue-row-names-no-play", "a combination catalogue row no cards of the deck can make")
     AMBIGUOUS_PLAY_SHAPE = ("ambiguous-play-shape", "one play fits two rows of the catalogue; settle it in the rows")
     CARD_PLAYS_LOOK_ALIKE = ("card-plays-look-alike", "a card play's parameters or offering would make two plays look alike; fold them into one move type")
-    WHOLE_DEAL_NEEDS_EVEN_SPLIT = ("whole-deal-needs-even-split", "`deal all ... to each` says no way to split the cards among the zones; write `as-equally-as-possible`")
+    DEAL_ALL_TO_EACH_NEEDS_AS_EQUALLY_AS_POSSIBLE = ("deal-all-to-each-needs-as-equally-as-possible", "`deal all ... to each` says no way to split the cards among the zones; write `as-equally-as-possible`")
     WRONG_ZONE_SHAPE = ("wrong-zone-shape", "a single zone where a zone per player is needed, or the reverse")
     WRONG_PRIMITIVE_CHECKER_TYPE = ("wrong-primitive-checker-type", "a `primitives` entry spells a checker type no Primitive implementation takes")
     MISSING_OUTCOME_ARM = ("missing-outcome-arm", "a `produces:` block leaves an outcome case unhandled")

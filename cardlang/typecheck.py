@@ -4336,7 +4336,7 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
             "`deal all ... to each` would give the whole source to the first "
             "player; use `as-equally-as-possible` to distribute it",
             stmt.span,
-            code=Code.WHOLE_DEAL_NEEDS_EVEN_SPLIT,
+            code=Code.DEAL_ALL_TO_EACH_NEEDS_AS_EQUALLY_AS_POSSIBLE,
         )
 
 

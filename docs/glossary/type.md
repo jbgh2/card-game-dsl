@@ -4,6 +4,7 @@ definition: zone type · collection type · move type (not a type) · checker ty
 layer: kernel
 status: reserved
 reserved: true
+compounds: [zone type, collection type, move type, checker type]
 home:
 see: []
 retired_spellings: []

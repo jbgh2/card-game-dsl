@@ -4,6 +4,7 @@ definition: the shared proof harness (`tests/openspiel_ready/`) · the LLM harne
 layer: kernel
 status: reserved
 reserved: true
+compounds: [proof harness, LLM harness, operating harness]
 home:
 see: []
 retired_spellings: []

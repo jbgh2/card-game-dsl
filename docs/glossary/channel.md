@@ -4,6 +4,7 @@ definition: failure channel · scoring channel · observation channel · communi
 layer: check
 status: reserved
 reserved: true
+compounds: [failure channel, scoring channel, observation channel, communication channel, feeding channel]
 home:
 see: []
 retired_spellings: []

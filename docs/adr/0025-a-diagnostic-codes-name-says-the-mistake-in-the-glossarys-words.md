@@ -31,14 +31,18 @@ five sites of `unknown-index-domain` judge four different slots.
   glossary an agent reading the error codes and the glossary can make an
   informed guess about where to look". The proposed names were confirmed:
   "Proposed code names look good".
-- `name-taken` and `written-twice` both stay, "name-taken preferred over
-  written-twice": a site that could be either is `name-taken`.
-- `needs-a-trick-round` retires into `rule-never-consulted` (now
-  `game-rule-never-consulted`); its one site that is not about a rule joins
-  `unused-declaration`.
-- Codes named after a construct are respelled: "each code says the mistake,
-  and a refusal an existing code already names joins that code". The ruling
-  covers the registry's other codes of that shape.
+- On `name-taken` against `written-twice`, the operator: "name-taken
+  preferred over written-twice". The desk's reading, put to the operator and
+  not corrected: both stay, and a site that could be either is `name-taken`.
+- On `rule-never-consulted` against `needs-a-trick-round`, the operator:
+  "rule-never-consulted". The desk's reading, put to the operator and not
+  corrected: `needs-a-trick-round` retires into `rule-never-consulted` (now
+  `game-rule-never-consulted`), and its one site that is not about a rule
+  joins `unused-declaration`.
+- On codes named after a construct, the operator: "Respell them". As the desk
+  put it to the operator: each code says the mistake, and a refusal an
+  existing code already names joins that code. The desk applied the ruling to
+  the registry's other codes of that shape.
 - Where the measurements split a code, it splits by the slot judged
   (`unknown-zone-index`, `unknown-zone-owner`, the `for each` domain, the
   query's position domain) and by the sort of library (a family library's
@@ -58,17 +62,38 @@ five sites of `unknown-index-domain` judge four different slots.
 
 ## Consequences
 
-- A test reads the glossary's reserved-words table and refuses a code name
-  using a reserved word outside an approved compound; "checker type" and the
-  round forms' names joined their rows' approved compounds, and a row whose
-  compounds open "one meaning only" (the Outcome row) approves its bare word.
+- Each reserved glossary entry marks its approved compounds, and a test
+  reads them through the glossary index generator: a code name uses a
+  reserved word, singular or plural, only inside a compound its own row
+  marks. "checker type", "round state" and the round forms' names joined
+  their rows, and the Outcome row marks its own word.
+- `unknown-checker-type` keeps the sites that judge a checker type; a move
+  type parameter's domain takes `unknown-parameter-domain`.
+- `trick-order-function-reads-beyond-the-card` is told for every function
+  that answers a Kernel Definition Contract, Card Points included, which is
+  wider than its name; its meaning line says so.
+- Where standard-library text takes a standard-library code, its sentence
+  speaks of the standard library; a family library's sentences are unchanged.
 - The same ruling respells `unknown-round-function`, whose sites judge a trick
   round's winner function and early-termination predicate, as
   `unknown-trick-round-function`.
 - Every `name-taken` and `written-twice` site is classified by the act its
   sentence asks for, over a scraped axis, so a misfiled site reddens.
-- The board registry's refusals carry which misuse they are, and the one
-  teller matches them exhaustively.
+- The board registry's refusals carry which misuse they are; the check-time
+  teller is the one place a misuse is matched, exhaustively, and a refusal
+  raised at play keeps the record layer's own code.
 - From here ADR-0023's rule holds again: a shipped code is never renamed.
 - The names minted for split and dissolved codes are proposals the operator
-  may adjust; each is spelled once in the registry.
+  may adjust, spelled where they can be with the language's own keywords
+  (`choose-integer-needs-fixed-ceiling`,
+  `deal-all-to-each-needs-as-equally-as-possible`); each is spelled once in
+  the registry.
+- A refusal joining an existing code restates that code's meaning line to
+  cover it. Restated: `wrong-argument-count` (a board, a game rule and a
+  checker type join a call and a zone type), `wrong-signature` (a `requires`
+  row joins a definition), `checker-type-not-allowed-here` (a word of a type
+  slot joins a checker type) and `game-rule-never-consulted` (a game rule no
+  trick round asks joins one no decision asks). Joined with their lines
+  unchanged: `out-of-range`, `conflicting-clauses`, `unused-declaration`,
+  `missing-declaration`, `wrong-spelling`, `wrong-subscript` and
+  `name-taken`.

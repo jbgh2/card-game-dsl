@@ -4,6 +4,7 @@ definition: A `library { }` file: a family library (`docs/libraries/`, imported 
 layer: kernel
 status: canonical
 reserved: true
+compounds: [family library, standard library]
 home: `n.Library`
 see: []
 retired_spellings: []

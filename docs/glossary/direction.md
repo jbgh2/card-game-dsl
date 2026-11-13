@@ -4,6 +4,7 @@ definition: turn direction (the `direction:` clause, `clockwise`) · **seat dire
 layer: kernel
 status: reserved
 reserved: true
+compounds: [turn direction, seat direction, board direction]
 home:
 see: []
 retired_spellings: []
