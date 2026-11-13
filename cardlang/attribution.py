@@ -38,7 +38,9 @@ Establishes:  `raise_if_errors` is the only way a pass after the splice raises
               `raise_where_written` tells each to the Author its caller
               names. The words
               naming a library or its definitions in any sentence are made
-              here. A refusal carrying a route is told
+              here, and so is a library's sort (`library_sort`) and the
+              Diagnostic Codes a refusal of its text takes by that sort
+              (`library_text_codes`). A refusal carrying a route is told
               at the route's game text, with its crossing kind's sentence
               (`FIX_TABLE`) or its `for_game` sentence. A refusal with no
               route, standing in a library definition some Library Witness
@@ -84,7 +86,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, fields, is_dataclass, replace
 from pathlib import Path
-from typing import TYPE_CHECKING
+from enum import Enum
+from typing import TYPE_CHECKING, assert_never
 
 from cardlang.diagnostic_codes import Code
 from cardlang.diagnostics import (
@@ -350,10 +353,49 @@ def _where(origin: n.LibraryOrigin) -> str:
     return origin.where if origin.provided is None else f"provided state `{origin.provided}`"
 
 
-def _library_words(library: str) -> str:
+class LibrarySort(Enum):
+    """The sort of a library: a family library a game's `uses` line imports,
+    or the standard library every game's `active_rules:` reads."""
+
+    FAMILY = "family library"
+    STANDARD = "standard library"
+
+
+def library_sort(library: str) -> LibrarySort:
     from cardlang.stdlib.rules import STDLIB_NAME
 
-    return "the standard library" if library == STDLIB_NAME else f"library '{library}'"
+    return LibrarySort.STANDARD if library == STDLIB_NAME else LibrarySort.FAMILY
+
+
+@dataclass(frozen=True)
+class LibraryTextCodes:
+    """The Diagnostic Codes of a refusal of one sort of library's text."""
+
+    reads_undefined_name: Code
+    reaches_one_game: Code
+
+
+def library_text_codes(library: str) -> LibraryTextCodes:
+    """The codes a refusal of `library`'s text takes, by the library's sort."""
+    sort = library_sort(library)
+    match sort:
+        case LibrarySort.FAMILY:
+            return LibraryTextCodes(Code.OUTSIDE_FAMILY_LIBRARY_CONTRACT, Code.FAMILY_LIBRARY_REACHES_ONE_GAME)
+        case LibrarySort.STANDARD:
+            return LibraryTextCodes(Code.STANDARD_LIBRARY_READS_UNDEFINED_NAME, Code.STANDARD_LIBRARY_REACHES_ONE_GAME)
+        case _:
+            assert_never(sort)
+
+
+def _library_words(library: str) -> str:
+    sort = library_sort(library)
+    match sort:
+        case LibrarySort.STANDARD:
+            return "the standard library"
+        case LibrarySort.FAMILY:
+            return f"library '{library}'"
+        case _:
+            assert_never(sort)
 
 
 # --- the words a sentence names library text by -----------------------------------

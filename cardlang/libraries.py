@@ -41,7 +41,7 @@ _LIBRARIES_DIR = Path(__file__).resolve().parent.parent / "docs" / "libraries"
 def _libraries_dir() -> Path:
     if not _LIBRARIES_DIR.is_dir():
         # Loud rather than "zero libraries available", which would degrade every
-        # `uses` line into the unknown-library diagnostic and read as an author
+        # `uses` line into the unknown-family-library diagnostic and read as an author
         # typo instead of a missing checkout (registry.py takes the same line).
         raise InstallationError(
             f"family-library directory not found: {_LIBRARIES_DIR}. Libraries "

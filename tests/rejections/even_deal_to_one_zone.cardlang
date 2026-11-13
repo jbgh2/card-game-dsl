@@ -1,4 +1,4 @@
-// Guard: typecheck's deal-distribution check. `as-equally-as-possible`
+// Guard: typecheck's even-deal check. `as-equally-as-possible`
 // splits a deal among the zones of `to each`; one destination has nothing
 // to split among.
 game EvenDealToOneZone {

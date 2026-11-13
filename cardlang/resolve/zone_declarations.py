@@ -60,7 +60,7 @@ def _resolve_zone(
             zone.index or "",
             (*role_names(_KNOWN_ROLES), *positions),
             zone.span,
-            code=Code.UNKNOWN_INDEX_DOMAIN,
+            code=Code.UNKNOWN_ZONE_INDEX,
         )
 
     ref = zone.type_ref
@@ -98,7 +98,7 @@ def _resolve_zone(
                 arg.name,
                 (*role_names(_KNOWN_ROLES), *positions),
                 arg.span,
-                code=Code.UNKNOWN_INDEX_DOMAIN,
+                code=Code.UNKNOWN_ZONE_OWNER,
             )
         elif takes_owner and zone.index is None:
             # An owned zone type has no index to key its owner by. The runtime

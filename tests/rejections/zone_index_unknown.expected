@@ -1,0 +1,3 @@
+zone_index_unknown.cardlang:8:24: error: unknown index role 'seat'
+zone_index_unknown.cardlang:8:24: error: unknown index role 'seat'
+zone_index_unknown.cardlang:8:42: error: zone 'hand' is indexed by 'seat' but typed 'Hand<player>' — the owner argument must name the same domain as the index (the runtime keys the family by the index, so '<player>' would be silently ignored); write 'Hand<seat>'

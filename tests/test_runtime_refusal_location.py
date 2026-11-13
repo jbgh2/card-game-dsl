@@ -382,7 +382,7 @@ def engine_exception_classes() -> Mapping[str, type[BaseException]]:
 
 # A game sentence can raise these, and a designer is the one who must act.
 _REFUSALS: frozenset[str] = frozenset(
-    {"GameDescriptionError", "OwnerGuardError", "ShadowGuardError", "IllegalMove"}
+    {"GameDescriptionError", "OwnerGuardError", "ShadowGuardError", "BoardRefusal", "IllegalMove"}
 )
 
 # Unwinding, not failing: `produce`, `continue to`, `skip to next hand`, a

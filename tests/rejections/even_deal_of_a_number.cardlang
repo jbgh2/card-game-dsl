@@ -1,4 +1,4 @@
-// Guard: typecheck's deal-distribution check. An even deal splits the whole
+// Guard: typecheck's even-deal check. An even deal splits the whole
 // source, so its amount is `all`, never a number.
 game EvenDealOfANumber {
   players: 2

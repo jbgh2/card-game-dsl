@@ -1203,6 +1203,9 @@ def _spellings(source: str) -> list[str]:
 
 
 _THE_STEP = frozenset({"attribution.py", "diagnostics.py"})
+# The Diagnostic Code registry names the sort of library in its codes' names
+# and meanings, which are no sentence a refusal tells.
+_NO_SENTENCE = frozenset({"diagnostic_codes.py"})
 
 
 def test_no_check_spells_library_text_into_a_sentence() -> None:
@@ -1213,7 +1216,7 @@ def test_no_check_spells_library_text_into_a_sentence() -> None:
     spelled = [
         f"{path.relative_to(_ROOT).as_posix()}:{at}"
         for path in sorted(_PACKAGE.rglob("*.py"))
-        if path.relative_to(_PACKAGE).as_posix() not in _THE_STEP
+        if path.relative_to(_PACKAGE).as_posix() not in _THE_STEP | _NO_SENTENCE
         for at in _spellings(path.read_text())
     ]
     assert spelled == []

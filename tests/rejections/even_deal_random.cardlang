@@ -1,4 +1,4 @@
-// Guard: typecheck's deal-distribution check. An even deal goes round the
+// Guard: typecheck's even-deal check. An even deal goes round the
 // zones in turn, so it cannot also be a random selection.
 game EvenDealRandom {
   players: 2

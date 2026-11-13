@@ -35,8 +35,8 @@ Establishes:  every built entry's cells are nonempty, unique and within the
               once and reads only the declared adjacency and its three
               arguments. A
               registry-bug refusal is a `ValueError`; a game author's misuse
-              of a board (`board_entry`'s arguments, an undeclared `k`) is an
-              `OwnerGuardError`.
+              of a board (`board_entry`'s arguments, an undeclared `k`) is a
+              `BoardRefusal`, an `OwnerGuardError` carrying its `BoardMisuse`.
 Now illegal:  a frameless entry answering a frame verb or minting a
               direction; a frame step landing on a square of the rectangle
               that is not a cell; lines read off a frame whose cells do not
@@ -80,7 +80,12 @@ Held by:      a `connected` argument holding anything but the board's cells
               oracle agrees on) as its executed witness. The hex rhombus's edges and borders are a Born-Green
               Pin against an independent re-derivation from coordinates
               (tests/test_boards_registry.py), anchored on OpenSpiel's `hex`
-              for its cell order and each seat's borders.
+              for its cell order and each seat's borders. Which misuse a
+              `BoardRefusal` refuses is Unrepresentable as unsaid: `misuse`
+              is a required field, and the one teller
+              (`resolve.declared._tell_board_refusal`) matches every
+              `BoardMisuse` exhaustively, so a misuse with no Diagnostic
+              Code is a type error.
 """
 
 from __future__ import annotations
@@ -88,10 +93,29 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from enum import Enum
 from functools import cached_property
 
 from cardlang.builtins.functions import BoardNeed
 from cardlang.runtime.errors import OwnerGuardError
+
+class BoardMisuse(Enum):
+    """Which misuse of a board a `BoardRefusal` refuses."""
+
+    UNKNOWN_FAMILY = "unknown family"
+    WRONG_ARGUMENT_COUNT = "wrong argument count"
+    ARGUMENT_OUT_OF_RANGE = "argument out of range"
+    NO_LINES = "no lines"
+    UNDECLARED_LINE_LENGTH = "undeclared line length"
+
+
+class BoardRefusal(OwnerGuardError):
+    """A game author's misuse of a board, carrying which misuse it is."""
+
+    def __init__(self, misuse: BoardMisuse, message: str) -> None:
+        super().__init__(message)
+        self.misuse = misuse
+
 
 _FILES = "abcdefghijklmnop"  # grid's declared arg ceiling is 16
 
@@ -346,9 +370,10 @@ class BoardEntry:
         """The board's lines of `k` cells. A `k` the family does not declare is
         the game author's to fix, refused naming the lengths it does."""
         if not self.line_lengths:
-            raise OwnerGuardError(f"lines(k) reads lines, but {self.spelling} declares none")
+            raise BoardRefusal(BoardMisuse.NO_LINES, f"lines(k) reads lines, but {self.spelling} declares none")
         if k not in self.line_lengths:
-            raise OwnerGuardError(
+            raise BoardRefusal(
+                BoardMisuse.UNDECLARED_LINE_LENGTH,
                 f"lines(k) requires {_lengths_phrase(self.line_lengths)} for "
                 f"{self.spelling}, got {k}"
             )
@@ -832,23 +857,26 @@ BOARD_FAMILIES: dict[str, BoardFamily] = {
 
 def board_entry(family: str, args: tuple[int, ...]) -> BoardEntry:
     """Instantiate a board by family name and arguments. Refuses any misuse
-    — an unknown family, a wrong arity, an out-of-bounds argument — with an
-    `OwnerGuardError` naming the violated bound: the `board:` arguments are
+    — an unknown family, a wrong arity, an out-of-bounds argument — with a
+    `BoardRefusal` naming the violated bound and carrying which misuse it is: the `board:` arguments are
     the game author's to fix, and resolve converts exactly that type into a
     diagnostic at the clause. `BoardEntry.__post_init__`'s registry
     invariants stay outside it, addressed to the registry's maintainer."""
     declared = BOARD_FAMILIES.get(family)
     if declared is None:
-        raise OwnerGuardError(
+        raise BoardRefusal(
+            BoardMisuse.UNKNOWN_FAMILY,
             f"unknown board family {family!r} (registered families: {sorted(BOARD_FAMILIES)})"
         )
     if len(args) != declared.arity:
-        raise OwnerGuardError(
+        raise BoardRefusal(
+            BoardMisuse.WRONG_ARGUMENT_COUNT,
             f"board family {family!r} takes {declared.arity} argument(s), got {len(args)}"
         )
     for param, value in zip(declared.params, args):
         if not (param.lo <= value <= param.hi):
-            raise OwnerGuardError(
+            raise BoardRefusal(
+                BoardMisuse.ARGUMENT_OUT_OF_RANGE,
                 f"board family {family!r} takes a {param.name} in "
                 f"{param.lo}..{param.hi}, got {value}"
             )

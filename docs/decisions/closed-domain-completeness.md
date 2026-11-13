@@ -403,9 +403,16 @@ site is shared. A code derived from the message or the site is rejected,
 because it would change exactly when wording improves or a pass is split,
 which is the breakage a code exists to end. A refusal whose fix cannot be
 stated in designer words is a finding about that refusal, never a reason
-for a vague code. A shipped code is never renamed, removed or given a second
-meaning, and a refusal's code does not move silently: the blessed list holds
-every code's spelling and meaning, a witness per code holds that each is
+for a vague code. A code's name says the mistake, never the construct it is
+found in, and uses a word the glossary reserves only inside one of that
+word's approved compounds (`unknown-game-rule`, `checker-type-mismatch`), so
+a reader holding the glossary can tell from a code where to look. Of the
+refusals about a name, one asking the author to rename one of two things is
+`name-taken`, one asking to delete or merge a repeat is `written-twice`, and
+one that could be either is `name-taken`. ADR-0025 records the names. A
+shipped code is never renamed, removed or given a second meaning, and a
+refusal's code does not move silently: the blessed list holds every code's
+spelling and meaning, a witness per code holds that each is
 told, and every rejection case's ordered codes are a golden beside its text
 (tests/test_diagnostic_codes.py). A site no rejection case reaches can move
 to another code with no test reddening; the grid module's ledger says how

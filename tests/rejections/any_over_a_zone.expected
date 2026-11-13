@@ -1,0 +1,1 @@
+any_over_a_zone.cardlang:13:8: error: `any column in …` ranges over a position domain's members, and `column` is no position domain of this game; `pile` is a zone -- the cards in it satisfying a predicate are `cards in pile where <pred>`

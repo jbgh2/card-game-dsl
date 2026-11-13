@@ -111,6 +111,9 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     "GameDescriptionError": {"in_game_description_tree": True, "is_runtime_error": False},
     "OwnerGuardError": {"in_game_description_tree": True, "is_runtime_error": False},
     "ShadowGuardError": {"in_game_description_tree": True, "is_runtime_error": False},
+    # An OwnerGuardError that carries which misuse of a board it refuses, so
+    # resolve tells its code by that misuse.
+    "BoardRefusal": {"in_game_description_tree": True, "is_runtime_error": False},
     # --- Author: the primitive-module maintainer ---------------------------
     # Disjoint from the tree BY ROOT, not by a list anyone maintains.
     "PrimitiveReadError": {"in_game_description_tree": False, "is_runtime_error": True},

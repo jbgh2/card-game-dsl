@@ -1122,7 +1122,7 @@ def _check_domain_query(
                     nd.spelled,
                     _nouns_a_query_takes(nd, game, cats.flavor),
                     nd.span,
-                    code=Code.UNKNOWN_INDEX_DOMAIN,
+                    code=Code.UNKNOWN_POSITION_DOMAIN,
                 )
                 return True
     if not target_ok:
@@ -1153,7 +1153,7 @@ def _check_domain_query(
         nd.spelled,
         _nouns_a_query_takes(nd, game, cats.flavor),
         nd.span,
-        code=Code.UNKNOWN_INDEX_DOMAIN,
+        code=Code.UNKNOWN_POSITION_DOMAIN,
     )
     return True
 

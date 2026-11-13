@@ -75,9 +75,8 @@ from cardlang.domains import (
 )
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
-from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import content_kind_clause
-from cardlang.stdlib.boards import board_entry
+from cardlang.stdlib.boards import BoardRefusal, board_entry
 from cardlang.stdlib.moves import CLIMB_DECISION_MOVE_TYPE, LIBRARY_MOVE_TYPES
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, identity_to_all
 from cardlang.resolve.walk import _walk
@@ -604,7 +603,7 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
     if nd.func == "lines" and len(args) == 1 and isinstance(args[0], n.IntLit):
         try:
             board_entry(game.board.family, game.board.args).lines(args[0].value)
-        except OwnerGuardError as exc:
+        except BoardRefusal as exc:
             _tell_board_refusal(exc, game.board.family, nd.span, bag)
 
 
@@ -871,7 +870,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.role,
                     (*role_names(_ITERATION_ROLES), *iterable_positions),
                     nd.span,
-                    code=Code.UNKNOWN_INDEX_DOMAIN,
+                    code=Code.UNKNOWN_QUANTIFIABLE_DOMAIN,
                 )
             case (n.ForEach() | n.Quantifier()) if (
                 game.content_flavor == "piece" and role_of(nd.role) in CARD_AXIS_ROLES

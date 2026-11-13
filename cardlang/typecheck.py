@@ -133,6 +133,7 @@ from cardlang.attribution import (
     cite_named,
     cite_origin,
     cite_where,
+    library_text_codes,
     naming_library,
     raise_if_errors,
 )
@@ -1818,7 +1819,7 @@ def _check_enum_literal(
     message and span, which the refusal leads with; a comparison has none."""
     origin = env.origins.get(id(lit))
     if origin is not None and enum.name in env.axis_enums:
-        bag.error(_library_axis_refusal(origin, enum, lit.value, env, lit.span), lit.span, code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME)
+        bag.error(_library_axis_refusal(origin, enum, lit.value, env, lit.span), lit.span, code=library_text_codes(origin.library).reaches_one_game)
         return
     domain = _enum_domain(env, enum.name)
     if lit.value not in domain:
@@ -2947,7 +2948,7 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
         return
     origin = env.origins.get(id(index))
     if origin is not None and isinstance(bare, (TPlayer, TTeam)):
-        bag.error(_library_role_refusal(origin, index.value, bare, index.span), index.span, code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME)
+        bag.error(_library_role_refusal(origin, index.value, bare, index.span), index.span, code=library_text_codes(origin.library).reaches_one_game)
         return
     if isinstance(bare, TPlayer):
         # A game always declares `players:`, so `max_players` is the real seat
@@ -4314,28 +4315,28 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
                 "`as-equally-as-possible` distributes a `to each` deal; it has "
                 "no meaning with a single destination",
                 stmt.span,
-                code=Code.DEAL_DISTRIBUTION,
+                code=Code.CONFLICTING_CLAUSES,
             )
         if stmt.amount != "all":
             bag.error(
                 "an `as-equally-as-possible` deal distributes the whole source "
                 "(or the whole `where` pool): the amount must be `all`",
                 stmt.span,
-                code=Code.DEAL_DISTRIBUTION,
+                code=Code.CONFLICTING_CLAUSES,
             )
         if stmt.selection_mode is not None:
             bag.error(
                 f"`as-equally-as-possible` deals round-robin; a `{stmt.selection_mode}` "
                 "selection cannot combine with it",
                 stmt.span,
-                code=Code.DEAL_DISTRIBUTION,
+                code=Code.CONFLICTING_CLAUSES,
             )
     elif stmt.dest_each and stmt.amount == "all":
         bag.error(
             "`deal all ... to each` would give the whole source to the first "
             "player; use `as-equally-as-possible` to distribute it",
             stmt.span,
-            code=Code.DEAL_DISTRIBUTION,
+            code=Code.WHOLE_DEAL_NEEDS_EVEN_SPLIT,
         )
 
 

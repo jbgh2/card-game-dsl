@@ -253,7 +253,7 @@ _GATE_REFUSALS: tuple[tuple[str, str], ...] = (
     # unreachable for the spellings the grammar refuses in its own voice.
     ("a collection is never optional", "collection-optional"),
     ("syntax error", "syntax"),
-    ("unknown type", "unknown-type"),
+    ("unknown type", "unknown-checker-type"),
     ("domain", "domain"),
     ("may not spell", "unspellable"),
     ("is spellable in a `primitives { }` entry only", "collection-elsewhere"),

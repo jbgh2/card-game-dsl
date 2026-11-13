@@ -31,7 +31,7 @@ from cardlang.ast import nodes as n
 from cardlang.builtins.functions import BUILTIN_CALL_FUNCS, PRIMITIVE_CALL_FUNCS, VALUE_NAMES
 from cardlang import kernel_contracts as K
 from cardlang.primitives_block import COLLECTION_TYPE_CONSTRUCTOR, walled_namespace_of
-from cardlang.attribution import cite_library, cite_named, cite_where
+from cardlang.attribution import cite_library, cite_named, cite_where, library_text_codes
 from cardlang.diagnostics import Diagnostic, DiagnosticBag, Said, Span, listed
 from cardlang.domains import ZONE_INDEX_ROLES, role_names, role_of
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES
@@ -896,7 +896,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 ref.name,
                 reach.unresolved_near.get(ref.span, ()),
                 ref.span,
-                code=Code.OUTSIDE_FAMILY_LIBRARY_CONTRACT,
+                code=library_text_codes(library.name).reads_undefined_name,
             )
         else:
             call_it: Said = (
@@ -925,7 +925,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 f"fact each game answers for itself — contract for it with "
                 f"`{K.CONTRACTS[call.func].spelled}` in `requires {{ }}`",
                 call.span,
-                code=Code.OUTSIDE_FAMILY_LIBRARY_CONTRACT,
+                code=library_text_codes(library.name).reads_undefined_name,
             )
         elif what is None:
             bag.unknown(
@@ -937,10 +937,10 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 call.func,
                 _library_slot_names(library)["function"],
                 call.span,
-                code=Code.OUTSIDE_FAMILY_LIBRARY_CONTRACT,
+                code=library_text_codes(library.name).reads_undefined_name,
             )
         elif what.kind == "primitive":
-            bag.error(_primitive_in_library(library, "call", call.func, call.span), call.span, code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME)
+            bag.error(_primitive_in_library(library, "call", call.func, call.span), call.span, code=library_text_codes(library.name).reaches_one_game)
         else:
             bag.error(
                 cite_library(library.name, call.span) + " calls "
@@ -951,7 +951,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             )
     for node, name in _round_slot_primitives(library):
         at = getattr(node, "span", None)
-        bag.error(_primitive_in_library(library, "round slot", name, at), at, code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME)
+        bag.error(_primitive_in_library(library, "round slot", name, at), at, code=library_text_codes(library.name).reaches_one_game)
     for card in reach.card_literals:
         bag.error(
             cite_library(library.name, card.span) + f" names the card `{card.rank} of "
@@ -959,7 +959,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             f"do not share a deck, and Kuhn's holds three cards. Take the card "
             f"as a parameter, or keep the definition that needs it in the game",
             card.span,
-            code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME,
+            code=library_text_codes(library.name).reaches_one_game,
         )
     for leak in reach.slot_leaks:
         # A `run` or an offering naming one of the library's own definitions
@@ -989,7 +989,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 f"function and the helpers it passes one to hold — keep the "
                 f"definition in the game",
                 getattr(leak.node, "span", None),
-                code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME,
+                code=library_text_codes(library.name).reaches_one_game,
             )
             continue
         bag.unknown(
@@ -1001,7 +1001,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             leak.name.removesuffix("?"),
             _library_slot_names(library).get(leak.namespace, frozenset()),
             getattr(leak.node, "span", None),
-            code=Code.OUTSIDE_FAMILY_LIBRARY_CONTRACT,
+            code=library_text_codes(library.name).reads_undefined_name,
         )
     # A PROVIDED default reaching the contract is in scope for the general
     # declare-order Owner Guard too (`_check_state_default_scope`), which would refuse
@@ -1126,7 +1126,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                     f"'{want.type_name}' is a state type and takes no type "
                     f"argument — the `<…>` form belongs to zone types",
                     want.span,
-                    code=Code.BAD_REQUIRES_ROW,
+                    code=Code.WRONG_ARGUMENT_COUNT,
                 )
             continue
         takes_owner = LIBRARY_ZONE_TYPES[want.type_name]
@@ -1184,18 +1184,21 @@ def _refuse_kind_word(library: n.Library, want: n.RequireDecl, bag: DiagnosticBa
             head + f", but {why} — write `" + cite_named(want, want.name)
             + f" : {n.MOVE_CONTRACT_TYPE}`"
         )
+        code = Code.WRONG_SPELLING
     elif field == "functions":
         message = (
             head + f", but a function the game defines is contracted by its "
             f"signature, not by a kind word — write `" + cite_named(want, want.name)
             + "(<parameter> : <type>, …) : <result type>`"
         )
+        code = Code.WRONG_SPELLING
     elif field == "procedures":
         message = (
             head + f", but a procedure the game defines is contracted by its "
             f"signature, not by a kind word — write `" + cite_named(want, want.name)
             + f"(<parameter> : <type>, …) : {n.PROCEDURE_CONTRACT_TYPE}`"
         )
+        code = Code.WRONG_SPELLING
     else:
         message = (
             head + f", but a rule cannot be contracted: only a game's "
@@ -1203,7 +1206,8 @@ def _refuse_kind_word(library: n.Library, want: n.RequireDecl, bag: DiagnosticBa
             f"so no library text could use one — keep the definition that needs "
             f"it in the game"
         )
-    bag.error(message, want.span, code=Code.BAD_REQUIRES_ROW)
+        code = Code.FAMILY_LIBRARY_CANNOT_REQUIRE_A_GAME_RULE
+    bag.error(message, want.span, code=code)
 
 
 def _check_signature_row(
@@ -1234,7 +1238,7 @@ def _check_signature_row(
                     f"the game answers the kernel's row, so write the row as "
                     f"the kernel states it",
                     want.span,
-                    code=Code.BAD_REQUIRES_ROW,
+                    code=Code.WRONG_SIGNATURE,
                 )
         elif want.name in _ROUND_QUERY_NAMES:
             bag.error(
@@ -1285,7 +1289,7 @@ def _check_signature_row(
                 head + f", whose parameter `{p.name} : {p.type_name}` no {noun} "
                 f"could declare — a {noun} parameter is {domains}",
                 want.span,
-                code=Code.BAD_REQUIRES_ROW,
+                code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE,
             )
 
 
@@ -1304,30 +1308,35 @@ def _check_signature_result(
             head + f", but a procedure returns no value, so its row carries no "
             f"`?` — write `" + cite_named(want, want.name) + f"(…) : {n.PROCEDURE_CONTRACT_TYPE}`"
         )
+        code = Code.WRONG_SPELLING
     elif bare == n.MOVE_CONTRACT_TYPE:
         message = (
             head + f", but a move type is offered by name and passed no "
             f"arguments — write `" + cite_named(want, want.name) + f" : {n.MOVE_CONTRACT_TYPE}`"
         )
+        code = Code.WRONG_SPELLING
     elif bare in _DEFINITION_KIND_WORDS:
         message = (
             head + f", but '{want.result_type}' names a kind of definition, not "
             f"the type the function returns — write the result's type"
         )
+        code = Code.CHECKER_TYPE_NOT_ALLOWED_HERE
     elif bare in LIBRARY_ZONE_TYPES:
         message = (
             head + f", but '{bare}' is a zone type — a function returns a value, "
             f"and a zone the game declares is contracted as a keyed row"
         )
+        code = Code.CHECKER_TYPE_NOT_ALLOWED_HERE
     elif bare == POSITIVE_PARAM_DOMAIN:
         message = (
             head + f", but `{POSITIVE_PARAM_DOMAIN}` is a procedure parameter's "
             f"domain, a number written at the `run`, not the type a function "
             f"returns — write `Integer`"
         )
+        code = Code.CHECKER_TYPE_NOT_ALLOWED_HERE
     else:
         return
-    bag.error(message, want.span, code=Code.BAD_REQUIRES_ROW)
+    bag.error(message, want.span, code=code)
 
 
 def _check_contract_names(library: n.Library, bag: DiagnosticBag) -> None:

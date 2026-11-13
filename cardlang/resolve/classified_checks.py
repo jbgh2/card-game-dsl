@@ -518,7 +518,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 "with `up to N` (`0 .. hand_size up to 10`) — the OpenSpiel "
                 "action space reserves that many ids up front",
                 node.span,
-                code=Code.CHOOSE_INTEGER_BOUNDS,
+                code=Code.NUMBER_CHOICE_NEEDS_FIXED_CEILING,
             )
             continue
         if ceiling < 0:
@@ -527,7 +527,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"start at 0, so the range reserves no action id and no value "
                 f"can ever be chosen — raise the upper bound to 0 or more",
                 node.span,
-                code=Code.CHOOSE_INTEGER_BOUNDS,
+                code=Code.CHOICE_OFFERS_NO_CANDIDATE,
             )
             continue
         if node.ceiling is not None and isinstance(node.hi, n.IntLit):
@@ -552,7 +552,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"value would fall outside the reserved action block), so no "
                 f"value can ever be chosen — lower the start or raise the bound",
                 node.span,
-                code=Code.CHOOSE_INTEGER_BOUNDS,
+                code=Code.CHOICE_OFFERS_NO_CANDIDATE,
             )
             continue
         if isinstance(node.lo, n.IntLit) and node.lo.value < 0:
@@ -561,7 +561,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"reserved block: values start at 0, and every legal value must "
                 f"have an OpenSpiel action id in 0 .. {ceiling} — raise the start",
                 node.span,
-                code=Code.CHOOSE_INTEGER_BOUNDS,
+                code=Code.OUT_OF_RANGE,
             )
             continue
         if isinstance(node.excluding, n.IntLit):
@@ -583,7 +583,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                     f"would always empty the choice — a choice must offer at "
                     f"least one candidate",
                     node.excluding.span or node.span,
-                    code=Code.CHOOSE_INTEGER_BOUNDS,
+                    code=Code.CHOICE_OFFERS_NO_CANDIDATE,
                 )
 
 
@@ -795,7 +795,7 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
                 f"the routing to reach — a game with no trick round cannot use "
                 + cite_library(origin.library, helpers[0].span)
             ),
-            code=Code.NEEDS_A_TRICK_ROUND,
+            code=Code.UNUSED_DECLARATION,
         )
 
 
@@ -1148,7 +1148,7 @@ def _check_play_source(
                 f"never apply — play the hand with a trick round, or delete rule "
                 + cite_named(rule, f"'{rule.name}'"),
                 rule.span,
-                code=Code.NEEDS_A_TRICK_ROUND,
+                code=Code.GAME_RULE_NEVER_CONSULTED,
             )
 
 

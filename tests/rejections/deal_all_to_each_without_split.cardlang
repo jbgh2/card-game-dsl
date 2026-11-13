@@ -1,4 +1,4 @@
-// Guard: typecheck's deal-distribution check. `deal all ... to each` with
+// Guard: typecheck's even-deal check. `deal all ... to each` with
 // no way to split the cards would give the whole source to the first zone.
 game DealAllToEachWithoutSplit {
   players: 2
