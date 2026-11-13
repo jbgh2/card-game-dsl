@@ -189,7 +189,7 @@ to, so a divergence is a defect against that document ("this file does not
 play these rules") rather than against the game's name. The line is a
 pointer and claims nothing more: the link between a file and its source
 cannot be proven, and whether a game has been read against its source is
-recorded on the tracker, not on the line (ADR-0023). Prose qualifying the
+recorded on the tracker, not on the line (ADR-0024). Prose qualifying the
 source, such as which account on the page or which house variants are
 excluded, follows the closing bracket.
 

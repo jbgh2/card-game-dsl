@@ -1,4 +1,4 @@
-# ADR-0023: A rulebook names the written rules its game is held to, and claims nothing more
+# ADR-0024: A rulebook names the written rules its game is held to, and claims nothing more
 
 - **Status:** Accepted
 - **Date:** 2026-11-12
