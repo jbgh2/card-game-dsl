@@ -576,8 +576,8 @@ _OFFER = re.compile(r"; did you mean .*\?$")
 
 
 def _unoffered(lines: list[str]) -> list[str]:
-    """`lines` without their Near Misses, which the pipeline narrows only for
-    a check's one refusal (`cardlang.pipeline._judged`)."""
+    """`lines` without their Near Misses: these rows pin which refusals are
+    told, never what a refusal offers."""
     return [_OFFER.sub("", line) for line in lines]
 
 
@@ -662,7 +662,7 @@ def test_a_card_no_deck_holds_is_told_beside_a_refused_content_kind() -> None:
 
 
 
-def test_a_card_literal_s_rank_and_suit_are_judged_apart_under_a_refused_deck() -> None:
+def test_a_card_literal_s_rank_and_suit_are_told_apart_under_a_refused_deck() -> None:
     """A rank no deck holds is told; the suit beside it, which a fix holds,
     is not. red under: the unknown-suit arm's `Unless` reading the whole
     literal (`sets_holding(nd.rank, nd.suit)`)."""
@@ -785,7 +785,7 @@ UNJOINED: dict[str, tuple[str, tuple[str, str], str, type[BaseException]]] = {
     [
         pytest.param(
             name,
-            marks=pytest.mark.xfail(strict=True, raises=UNJOINED[name][3], reason="issue #TBD-consequences"),
+            marks=pytest.mark.xfail(strict=True, raises=UNJOINED[name][3], reason="issue #1131"),
         )
         for name in sorted(UNJOINED)
     ],
@@ -817,7 +817,7 @@ WAITS_FOR_THE_FIX: dict[str, tuple[str, tuple[tuple[str, str], ...], str]] = {
 @pytest.mark.parametrize(
     "cell",
     [
-        pytest.param(name, marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #TBD-consequences"))
+        pytest.param(name, marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1131"))
         for name in sorted(WAITS_FOR_THE_FIX)
     ],
 )

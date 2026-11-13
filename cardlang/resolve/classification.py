@@ -20,12 +20,11 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
               guards refusing a round's winner dispatch on); no name is
               offered where a `Positive` parameter's argument stands
               (``positive_arguments``). Held by Derived and Pinned
-              (tests/test_near_miss_positions.py). The type a Near Miss
-              takes where it stands is typecheck's, and this pass derives
-              none: the bare-name and round `trump` refusals carry their
-              whole ranking (``Diagnostic.ranked_near_misses``), which the
-              pipeline narrows by checking, through parse, resolve and
-              typecheck, the text each Near Miss makes (``pipeline._judged``).
+              (tests/test_near_miss_positions.py). Not established: the
+              alias-comparison and hidden-read guards judge by walk state the
+              record does not hold (issue #1089), and no Near Miss is judged by
+              its Type (issue #1088), so one can be refused there still, or be
+              a Pronoun the checker gives no Type (issue #1125).
               Asked for one (``resolve(scopes=...)``), the pass fills the
               Scope Record: at every node the classifying walk visits, keyed by
               ``n.node_key``, the names a bare name written there classifies
