@@ -829,14 +829,42 @@ class _Telling:
         self.as_json = as_json
         self.told: list[Told] = []
         self.out: TextIO = sys.stderr if as_json else sys.stdout
-        # Nothing more is printed once a reader has gone.
-        self.silent = False
+        # The standard streams that could not be written; nothing more goes
+        # to one once it has failed.
+        self.gone: set[str] = set()
 
     def refuse(self, told: Told, show: Callable[[Told], None]) -> None:
         """Tell `told`, printed by `show` in text."""
         self.told.append(told)
-        if not self.as_json and not self.silent:
-            show(told)
+        if not self.as_json and not self.gone:
+            self.printing(lambda: show(told))
+
+    def printing(self, write: Callable[[], object]) -> None:
+        """Run `write`, which prints to a standard stream; a stream that
+        cannot be written is told, and the run goes on to whatever the other
+        stream still holds -- under `--json`, the envelope."""
+        try:
+            write()
+        except _StreamFailed as failed:
+            self.stream_failed(failed)
+
+    def stream_failed(self, failed: _StreamFailed) -> None:
+        """A standard stream the caller set up that cannot be written, told
+        to whoever ran the command. An encoding stdout cannot spell is said on
+        stderr in text; a broken pipe says nothing."""
+        failed.silence()
+        self.gone.add(failed.name)
+        self.told.append(failed.told)
+        if failed.name == "stdout" and not failed.broken and not self.as_json and "stderr" not in self.gone:
+            self.printing(lambda: _print_line(failed.told))
+
+    def crashed(self, exc: Exception) -> None:
+        """An engine failure: its record, and its traceback on stderr, from
+        the frame that carried the command out down to the failure, as
+        `traceback.print_exception` prints it."""
+        self.told.append(_engine_record(exc))
+        if "stderr" not in self.gone:
+            self.printing(lambda: traceback.print_exception(exc))
 
     def cannot(self, message: str, code: Code) -> None:
         """A refusal of the command's own, told to whoever ran it."""
@@ -863,24 +891,20 @@ def _carried_out(
     command out, so a failure there is an engine failure like any other; a
     stream the caller cannot be written to is the caller's."""
     try:
-        try:
-            _commanded(args, path, refusal, at, telling)
-        except _StreamFailed:
-            raise
-        except Exception as exc:
-            telling.refuse(_engine_gap(exc), _unprinted)
-        if telling.as_json and not telling.silent:
-            try:
-                print(json.dumps(envelope(telling.told), indent=2))
-            except _StreamFailed:
-                raise
-            except Exception as exc:
-                telling.refuse(_engine_gap(exc), _unprinted)
-        sys.stdout.flush()
+        _commanded(args, path, refusal, at, telling)
     except _StreamFailed as failed:
-        failed.silence()
-        telling.silent = telling.silent or failed.broken
-        telling.refuse(failed.told, _unprinted if failed.broken or failed.name == "stderr" else _print_line)
+        telling.stream_failed(failed)
+    except Exception as exc:
+        telling.crashed(exc)
+    if telling.as_json and "stdout" not in telling.gone:
+        try:
+            document = json.dumps(envelope(telling.told), indent=2)
+        except Exception as exc:
+            telling.crashed(exc)
+        else:
+            telling.printing(lambda: print(document))
+    if "stdout" not in telling.gone:
+        telling.printing(sys.stdout.flush)
 
 
 def _commanded(
@@ -1048,6 +1072,12 @@ def _engine_gap(exc: Exception) -> Told:
     command out down to the failure, without `main`'s frame or the console
     script's above it."""
     traceback.print_exc()
+    return _engine_record(exc)
+
+
+def _engine_record(exc: Exception) -> Told:
+    """An exception outside the typed Failure Channel, as a record told to the
+    engine."""
     return Told(
         Diagnostic(Severity.ERROR, str(exc) or type(exc).__name__, code=Code.ENGINE_GAP),
         Author.ENGINE,

@@ -28,9 +28,14 @@ domain:          the authors, crossed with the status each names; every
                  the table and a decision a table cannot number are reached
                  by no input on disk, so their rows plant the raise where it
                  is met. The command line's own streams -- a reader that has
-                 gone, a stdout that cannot encode what is printed -- are run
-                 as real processes, and so is a name a Primitive module reads
-                 renamed in the game. The lines are
+                 gone, on stdout or, under `--json`, on the transcript's
+                 stderr, and a stdout that cannot encode what is printed --
+                 are run as real processes, and so is a name a Primitive
+                 module reads renamed in the game; a strict stderr, which no
+                 environment variable sets, is set up in the process. Under
+                 `--json` a failure of the transcript's stream, or of the
+                 stderr an engine failure's traceback goes to, is a record in
+                 the envelope, which stdout still holds. The lines are
                  hand-written, and every Diagnostic Code `cardlang/cli.py`
                  names is either a code a row of `_LINES` tells, a refusal of
                  the line's words (`_LINE_REFUSALS`, refused before the line
@@ -302,28 +307,33 @@ def test_a_crash_printing_the_envelope_is_an_engine_failure(
 # --- the caller's own streams --------------------------------------------------
 
 
-def _cardlang(argv: list[str], *, closed_stdout: bool = False, env: dict[str, str] | None = None) -> _Ran:
-    """`python -m cardlang`, as a real process: stdout a pipe whose reader has
-    already gone where `closed_stdout`, so the first write meets a broken pipe."""
+def _cardlang(
+    argv: list[str],
+    *,
+    closed_stdout: bool = False,
+    closed_stderr: bool = False,
+    env: dict[str, str] | None = None,
+) -> _Ran:
+    """`python -m cardlang`, as a real process: stdout, or stderr, a pipe
+    whose reader has already gone where `closed_stdout` or `closed_stderr`
+    says, so the first write to it meets a broken pipe."""
     read, write = os.pipe()
-    if closed_stdout:
-        os.close(read)
+    os.close(read)
     try:
         done = subprocess.run(
             [sys.executable, "-m", "cardlang", *argv],
             stdin=subprocess.DEVNULL,
             stdout=write if closed_stdout else subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=write if closed_stderr else subprocess.PIPE,
             env={**os.environ, "PYTHONPATH": str(_ROOT), **(env or {})},
             cwd=_ROOT,
             check=False,
         )
     finally:
         os.close(write)
-        if not closed_stdout:
-            os.close(read)
     out = "" if closed_stdout else done.stdout.decode("utf-8", "replace")
-    return _Ran(done.returncode, out, done.stderr.decode("utf-8", "replace"))
+    err = "" if closed_stderr else done.stderr.decode("utf-8", "replace")
+    return _Ran(done.returncode, out, err)
 
 
 @pytest.mark.parametrize(
@@ -362,6 +372,60 @@ def test_under_json_an_ascii_stdout_still_holds_the_envelope() -> None:
     ran = _cardlang(["demo", KUHN, "--seed", "1", "--json"], env={"PYTHONIOENCODING": "ascii"})
     assert ran.status == 0
     assert _records(ran) == []
+
+
+_TRANSCRIPTS = [
+    ["demo", KUHN, "--seed", "1", "--json"],
+    ["play", KUHN, "--seed", "1", "--vs", "all=random", "--json"],
+]
+
+
+@pytest.mark.parametrize("argv", _TRANSCRIPTS, ids=lambda argv: argv[0])
+def test_a_transcript_whose_reader_has_gone_still_leaves_the_envelope(argv: list[str]) -> None:
+    """Under `--json` the transcript goes to stderr: when that stream fails,
+    stdout can still be written, so the envelope holds the refusal beside
+    whatever else the run told. red under: `_carried_out` printing no
+    envelope once any stream has failed."""
+    ran = _cardlang(argv, closed_stderr=True)
+    assert ran.status == STATUS[Author.INVOCATION]
+    (record,) = _records(ran)
+    assert (record["code"], record["author"]) == ("unwritable-output", "invocation")
+    assert "stderr" in str(record["message"])
+
+
+@pytest.mark.parametrize("argv", _TRANSCRIPTS, ids=lambda argv: argv[0])
+def test_a_transcript_stream_that_cannot_encode_still_leaves_the_envelope(
+    argv: list[str], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A strict stderr that cannot spell the transcript's card glyphs and
+    dashes. No environment variable reaches it -- Python's own stderr escapes
+    what it cannot encode -- so the stream is set up in the process, as a
+    host embedding the command line could."""
+    strict = io.TextIOWrapper(io.BytesIO(), encoding="ascii", errors="strict")
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+    monkeypatch.setattr(sys, "stderr", strict)
+    status = cli.main(argv)
+    out = capsys.readouterr().out
+    assert status == STATUS[Author.INVOCATION]
+    document = json.loads(out)
+    read_envelope(document)
+    (record,) = document["diagnostics"]
+    assert (record["code"], record["author"]) == ("unwritable-output", "invocation")
+
+
+def test_an_engine_failure_whose_traceback_cannot_be_printed_is_in_the_envelope(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The engine fails, and the stderr its traceback goes to cannot spell the
+    exception's message: both are recorded, and the status is the
+    engine's."""
+    strict = io.TextIOWrapper(io.BytesIO(), encoding="ascii", errors="strict")
+    monkeypatch.setattr(sys, "stderr", strict)
+    monkeypatch.setattr(cli, "check_source", _raising(AssertionError("an engine invariant — broken")))
+    status = cli.main(["demo", KUHN, "--seed", "1", "--json"])
+    document = json.loads(capsys.readouterr().out)
+    assert [r["code"] for r in document["diagnostics"]] == ["engine-gap", "unwritable-output"]
+    assert status == STATUS[Author.ENGINE]
 
 
 # --- a name a Primitive module reads, renamed in the game ---------------------

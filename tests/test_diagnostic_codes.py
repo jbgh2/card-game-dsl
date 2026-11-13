@@ -95,7 +95,7 @@ import cardlang.resolve as resolve
 from cardlang import cli, libraries, pipeline, query
 from cardlang.ast.nodes import Game, NodeKey
 from cardlang.diagnostic_codes import Code
-from cardlang.diagnostics import Diagnostic, DiagnosticBag, DiagnosticError, Told
+from cardlang.diagnostics import Diagnostic, DiagnosticBag, DiagnosticError
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl, check_markdown, check_source
 from cardlang.records import RuntimeRefusal, refusal_diagnostic
@@ -493,18 +493,18 @@ def _table_cannot_number(mp: pytest.MonkeyPatch, tmp: Path) -> frozenset[Code]:
 
 
 def _ascii_stdout(mp: pytest.MonkeyPatch, _tmp: Path) -> frozenset[Code]:
-    """A playout printed to a stdout that cannot encode its em dashes, the
-    refusal caught where the command tells it: under `--json` stdout holds
-    only the envelope, which is ASCII, so the text form is the one that
-    meets it."""
+    """A playout printed to a stdout that cannot encode its em dashes, every
+    refusal the run told read where its status is computed from them: under
+    `--json` stdout holds only the envelope, which is ASCII, so the text form
+    is the one that meets it."""
     told: list[Code] = []
-    tell = cli._Telling.refuse
+    status = cli._Telling.status
 
-    def recording(self: cli._Telling, refusal: Told, show: Callable[[Told], None]) -> None:
-        told.append(refusal.diagnostic.code)
-        tell(self, refusal, show)
+    def recording(self: cli._Telling) -> int:
+        told.extend(t.diagnostic.code for t in self.told)
+        return status(self)
 
-    mp.setattr(cli._Telling, "refuse", recording)
+    mp.setattr(cli._Telling, "status", recording)
     mp.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="ascii"))
     cli.main(["demo", _KUHN, "--seed", "1"])
     return frozenset(told)
