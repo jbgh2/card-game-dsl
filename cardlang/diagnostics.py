@@ -279,10 +279,16 @@ class Told:
     """A diagnostic as told: in the file the attribution step decided, to
     the author who must act on it. Made only where a refusal is told --
     `cardlang.attribution`, the parser's and the extract step's own raises,
-    the command line, and `cardlang.records.refusal_diagnostic`."""
+    the command line, and `cardlang.records.refusal_diagnostic`.
+
+    `lines` are what the command line prints beside the diagnostic and no
+    place in a file holds -- its heading, a runtime refusal's phase and zone,
+    its advice, a hint -- in the order they print; only the command line
+    tells any."""
 
     diagnostic: Diagnostic
     author: Author
+    lines: tuple[str, ...] = ()
 
 
 class DiagnosticError(Exception):

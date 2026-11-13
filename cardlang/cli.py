@@ -94,7 +94,7 @@ import shlex
 import sys
 import traceback
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, NoReturn, assert_never, cast
 
@@ -144,7 +144,12 @@ from cardlang.records import (
     query_envelope,
     refusal_diagnostic,
 )
-from cardlang.runtime.errors import GameDescriptionError, GameRegistrationError, InstallationError
+from cardlang.runtime.errors import (
+    GameDescriptionError,
+    GameRegistrationError,
+    InstallationError,
+    Located,
+)
 from cardlang.runtime.observe import render
 from cardlang.runtime.state import IllegalMove, RuntimeState
 from cardlang.runtime.values import Player
@@ -677,7 +682,8 @@ def main(argv: list[str] | None = None) -> int:
     implicit = line.implicit
 
     path = Path(args.file)
-    refusal = _unreadable(args.file)
+    unreadable = _unreadable(args.file)
+    refusal = None if unreadable is None else _unreadable_told(unreadable, implicit)
     if args.command == "check" and args.json:
         return _check_json(path, refusal)
     at = _position(args.at) if args.command == "query" else None
@@ -690,15 +696,8 @@ def main(argv: list[str] | None = None) -> int:
         assert at is not None and not isinstance(at, str)
         return _query_json(path, refusal, at)
     if refusal is not None:
-        print(f"cardlang: {refusal}", file=sys.stderr)
-        if implicit:
-            # The token stands where a command may also stand, so the refusal
-            # answers both readings rather than picking one.
-            print(
-                f"cardlang: if you meant a command, they are: {', '.join(COMMANDS)}",
-                file=sys.stderr,
-            )
-        return _EXIT_CANNOT_PROCEED
+        _print_line(refusal)
+        return _status(refusal.author)
     if isinstance(at, str):
         # The path is refused first, as under every command; then the position.
         print(f"cardlang: {at}", file=sys.stderr)
@@ -720,84 +719,125 @@ def main(argv: list[str] | None = None) -> int:
         for note in getattr(exc, "__notes__", []):
             print(note, file=sys.stderr)
         return _told_status(exc.told)
-    except GameDescriptionError as exc:
-        print(f"cardlang: playing {path} failed", file=sys.stderr)
-        _print_refusal(exc)
-        print(
-            "  the static checks passed — this is a rule only a playout "
-            "reaches, and the line played was uniform-random",
-            file=sys.stderr,
-        )
-        return _status(refusal_diagnostic(exc).author)
-    except IllegalMove as exc:
-        print(f"cardlang: playing {path} failed", file=sys.stderr)
-        _print_refusal(exc)
-        # `error(...)` is writable in any expression the engine evaluates, so
-        # the message names the position it most often guards without claiming
-        # the refusal came from there.
-        print(
-            "  this is your game's own `error(...)` refusing, and a playout "
-            "has no player to tell",
-            file=sys.stderr,
-        )
-        print(
-            "  from a rule's `if_impossible:` it means no card satisfied that "
-            "rule: widen its `demands:`, or give it a card set to fall back on",
-            file=sys.stderr,
-        )
-        return _status(refusal_diagnostic(exc).author)
-    except InstallationError as exc:
-        print("cardlang: this checkout of cardlang is incomplete", file=sys.stderr)
-        print(f"  {exc}", file=sys.stderr)
-        print("  reinstall the package, or restore what the message names", file=sys.stderr)
-        return _status(refusal_diagnostic(exc).author)
-    except GameRegistrationError as exc:
-        print(f"cardlang: {exc}", file=sys.stderr)
-        return _status(refusal_diagnostic(exc).author)
+    except RUNTIME_REFUSALS as exc:
+        in_play, show = _refused_in_play(path, cast(RuntimeRefusal, exc))
+        show(in_play)
+        return _status(in_play.author)
     except Exception:
         traceback.print_exc()
         return _EXIT_ENGINE_FAILED
 
 
-def _print_refusal(exc: GameDescriptionError | IllegalMove) -> None:
-    """A refusal, at the sentence that refused.
+def _unreadable_told(refusal: str, implicit: bool) -> Told:
+    """A path the front end cannot read, told to whoever ran the command. A
+    first word standing where a command may also stand is answered in both
+    readings, the commands told beside it, rather than read as one."""
+    hint = (f"if you meant a command, they are: {', '.join(COMMANDS)}",) if implicit else ()
+    return _with_lines(
+        Told(Diagnostic(Severity.ERROR, refusal, code=Code.UNREADABLE_FILE), Author.INVOCATION), *hint
+    )
 
-    Rendered through the checker's own `Diagnostic`, so the two halves of the
-    [[failure-channel]] print one shape and cannot drift into two spellings of
-    a file position. A refusal that reached no stamping site prints without a
-    locator — the engine's own guards, which refuse a world rather than a
-    sentence — and an invented span would point the reader at a line where
-    nothing happened.
-    """
-    if exc.span is None:
-        print(f"  {exc}", file=sys.stderr)
-    else:
-        print(refusal_diagnostic(exc).diagnostic.format(), file=sys.stderr)
+
+def _with_lines(told: Told, *lines: str) -> Told:
+    """`told`, with the lines the command line prints beside it, in the order
+    they print."""
+    return replace(told, lines=(*told.lines, *lines))
+
+
+def _place(exc: RuntimeRefusal) -> str | None:
+    """Where in play a refusal happened, as its line prints it."""
+    if not isinstance(exc, Located):
+        return None
     where = [w for w in (
         None if exc.phase is None else f"in phase {exc.phase}",
         None if exc.zone is None else f"moving from {exc.zone}",
     ) if w is not None]
-    if where:
-        print(f"  {', '.join(where)}", file=sys.stderr)
+    return ", ".join(where) if where else None
 
 
-def _checked(path: Path, unreadable: str | None) -> tuple[tuple[Told, ...], int]:
+def _in_play(path: Path, exc: GameDescriptionError | IllegalMove, *advice: str) -> Told:
+    """A refusal met loading or playing a game: led by the line that says so,
+    then where in play it happened, then `advice`."""
+    where = _place(exc)
+    return _with_lines(
+        refusal_diagnostic(exc), f"playing {path} failed", *([] if where is None else [where]), *advice
+    )
+
+
+# What a refusal the game's own `error(...)` raised means. `error(...)` is
+# writable in any expression the engine evaluates, so the advice names the
+# position it most often guards without claiming the refusal came from there.
+_IF_IMPOSSIBLE = (
+    "from a rule's `if_impossible:` it means no card satisfied that rule: widen "
+    "its `demands:`, or give it a card set to fall back on"
+)
+
+
+def _refused_in_play(path: Path, exc: RuntimeRefusal) -> tuple[Told, Callable[[Told], None]]:
+    """A runtime refusal as the command line tells it outside a table: the
+    told refusal, and how its text prints."""
+    match exc:
+        case GameDescriptionError():
+            advice = (
+                "the static checks passed — this is a rule only a playout reaches, "
+                "and the line played was uniform-random"
+            )
+            return _in_play(path, exc, advice), _print_playout
+        case IllegalMove():
+            advice = "this is your game's own `error(...)` refusing, and a playout has no player to tell"
+            return _in_play(path, exc, advice, _IF_IMPOSSIBLE), _print_playout
+        case InstallationError():
+            told = _with_lines(
+                refusal_diagnostic(exc),
+                "this checkout of cardlang is incomplete",
+                "reinstall the package, or restore what the message names",
+            )
+            return told, _print_playout
+        case GameRegistrationError():
+            return refusal_diagnostic(exc), _print_line
+        case _:
+            assert_never(exc)
+
+
+def _print_line(told: Told) -> None:
+    """A refusal of the command's own: its message, then each line told beside
+    it, every one led by `cardlang: `."""
+    for line in (told.diagnostic.message, *told.lines):
+        print(f"cardlang: {line}", file=sys.stderr)
+
+
+def _print_playout(told: Told) -> None:
+    """A refusal met loading or playing a game: its first line leads, then
+    the refusal at the sentence that refused, then the rest of its lines,
+    indented.
+
+    The refusal renders through the checker's own `Diagnostic`, so the two
+    halves of the [[failure-channel]] print one shape and cannot drift into
+    two spellings of a file position. A refusal that reached no stamping site
+    prints without a locator -- the engine's own guards, which refuse a world
+    rather than a sentence -- since an invented span would point the reader
+    at a line where nothing happened."""
+    heading, *rest = told.lines
+    d = told.diagnostic
+    print(f"cardlang: {heading}", file=sys.stderr)
+    print(d.format() if d.span is not None else f"  {d.message}", file=sys.stderr)
+    for line in rest:
+        print(f"  {line}", file=sys.stderr)
+
+
+def _checked(path: Path, unreadable: Told | None) -> tuple[tuple[Told, ...], int]:
     """What `check --json` and `query --json` record of the check: every
     refusal it told, and the exit code the text output would give. An engine
     failure outside the typed channels is an `engine-gap` record told to the
     engine, its traceback printed on stderr as the text output prints it."""
     if unreadable is not None:
-        told = Told(
-            Diagnostic(Severity.ERROR, unreadable, code=Code.UNREADABLE_FILE),
-            Author.INVOCATION,
-        )
-        return (told,), _EXIT_CANNOT_PROCEED
+        return (unreadable,), _status(unreadable.author)
     try:
         check_source(path)
     except DiagnosticError as exc:
         return exc.told, _told_status(exc.told)
     except RUNTIME_REFUSALS as exc:
-        refused = refusal_diagnostic(cast(RuntimeRefusal, exc))
+        refused, _shown = _refused_in_play(path, cast(RuntimeRefusal, exc))
         return (refused,), _status(refused.author)
     except Exception as exc:
         return (_engine_gap(exc),), _EXIT_ENGINE_FAILED
@@ -814,7 +854,7 @@ def _engine_gap(exc: Exception) -> Told:
     )
 
 
-def _check_json(path: Path, unreadable: str | None) -> int:
+def _check_json(path: Path, unreadable: Told | None) -> int:
     """`check --json`: one Record Envelope on stdout, whatever the outcome,
     and the exit code the text output would give."""
     told, exit_code = _checked(path, unreadable)
@@ -832,7 +872,7 @@ def _query(path: Path, at: tuple[int, int]) -> int:
     return answer.exit_code
 
 
-def _query_json(path: Path, unreadable: str | None, at: tuple[int, int]) -> int:
+def _query_json(path: Path, unreadable: Told | None, at: tuple[int, int]) -> int:
     """`query --json`: one Record Envelope on stdout, whatever the outcome,
     with the exit code the text output would give; an engine failure, in
     the check or in the query's own run of the passes, as `check --json`
@@ -980,24 +1020,14 @@ def _play(
             raise
         return _cannot(f"cannot resume {resume}: its picks no longer replay in {path} ({exc})")
     except GameDescriptionError as exc:
-        print(f"cardlang: playing {path} failed", file=sys.stderr)
-        _print_refusal(exc)
-        print(
-            "  the static checks passed — this is a rule only play reaches; "
-            f"{session.who_played()}",
-            file=sys.stderr,
-        )
-        return _status(refusal_diagnostic(exc).author)
+        advice = f"the static checks passed — this is a rule only play reaches; {session.who_played()}"
+        told = _in_play(path, exc, advice)
+        _print_playout(told)
+        return _status(told.author)
     except IllegalMove as exc:
-        print(f"cardlang: playing {path} failed", file=sys.stderr)
-        _print_refusal(exc)
-        print("  this is your game's own `error(...)` refusing", file=sys.stderr)
-        print(
-            "  from a rule's `if_impossible:` it means no card satisfied that "
-            "rule: widen its `demands:`, or give it a card set to fall back on",
-            file=sys.stderr,
-        )
-        return _status(refusal_diagnostic(exc).author)
+        told = _in_play(path, exc, "this is your game's own `error(...)` refusing", _IF_IMPOSSIBLE)
+        _print_playout(told)
+        return _status(told.author)
     return _EXIT_OK
 
 

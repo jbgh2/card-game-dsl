@@ -5,11 +5,12 @@ document carrying its format's version (`schema`), what it holds (`kind`),
 and, for a check, one Diagnostic Record per told diagnostic. A record holds
 what `Diagnostic.format` prints, as fields: the [[diagnostic-code]], the
 severity, the author who must act, the span, the message, the notes, and the
-Near Misses as suggestions marked `offered`. The words are the diagnostic's
-own; this module composes none and decides no author. The lines the command
-line prints around a diagnostic -- a runtime refusal's phase and zone, the
-hint that a mistyped path may have meant a command -- are not carried
-(issue #1103). A `cardlang query --json` envelope holds one
+Near Misses as suggestions marked `offered`. The lines the command line
+prints beside a diagnostic, which no place in a file holds -- its heading, a
+runtime refusal's phase and zone, its advice, the hint that a mistyped path
+may have meant a command -- follow its notes, each a note with no place, in
+the order they print. The words are the diagnostic's own and the command
+line's; this module composes none and decides no author. A `cardlang query --json` envelope holds one
 [[checker-query]]'s answer, with any refusal as Diagnostic Records of the
 same shape.
 
@@ -22,7 +23,9 @@ Establishes:  `envelope` (a check's) and `query_envelope` (a Checker
               Query's, from the one `query.Answer` its text is rendered from)
               are the producers of a Record Envelope, and
               `span_record` the one encoding of a place in it; a record's
-              `message` is `Diagnostic.message`, and its suggestions are
+              `message` is `Diagnostic.message`, its notes are the
+              diagnostic's notes and then the told diagnostic's `lines`,
+              each with no place, and its suggestions are
               `Diagnostic.near_misses`, each `offered`; `refusal_diagnostic`
               is the one way a runtime refusal becomes a told diagnostic, by
               an exhaustive match over the refusal types the command line
@@ -35,7 +38,10 @@ Establishes:  `envelope` (a check's) and `query_envelope` (a Checker
 Now illegal:  a second JSON spelling of a diagnostic or a place; a record
               whose words differ from the text a designer reads
               (tests/test_records.py, the round trip over the rejection
-              corpus); a suggestion marked mechanically applicable.
+              corpus), or that lacks a line the command line prints beside
+              its refusal (tests/test_check_json.py, the text
+              re-rendered from the record); a suggestion marked
+              mechanically applicable.
 Held by:      Derived and Pinned throughout. The match ends in
               `assert_never`, so the type checker holds its arms against
               `RuntimeRefusal`, but `RuntimeRefusal` is a hand-written union:
@@ -106,7 +112,10 @@ def diagnostic_record(told: Told) -> Record:
         "author": told.author.value,
         "span": span_record(d.span),
         "message": d.message,
-        "notes": [{"span": span_record(nt.span), "message": nt.message} for nt in d.notes],
+        "notes": [
+            *({"span": span_record(nt.span), "message": nt.message} for nt in d.notes),
+            *({"span": None, "message": line} for line in told.lines),
+        ],
         "suggestions": [
             {"text": name, "applicability": Applicability.OFFERED.value} for name in d.near_misses
         ],
