@@ -39,6 +39,7 @@ from cardlang.attribution import cite_named
 from cardlang.diagnostics import DiagnosticBag, SlotKind, Unless
 from cardlang.resolve.slots import _REFERENCE_SLOTS
 from cardlang.resolve.crossings import _definition_closure
+from cardlang.resolve.declared import type_slot
 from cardlang.resolve.ranking_slots import _result_rankings, ranking_slot
 
 
@@ -299,6 +300,7 @@ def _ranking_target_role(
             f"the game's OpenSpiel returns",
             ranking.span,
             code=Code.UNRANKABLE_WINNER_TARGET,
+            unless=Unless(SlotKind.TYPE, _RANKABLE_TYPES, frozenset({type_slot("state", decl.name).name})),
         )
         return None
     return decl.index

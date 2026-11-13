@@ -28,7 +28,7 @@ from cardlang.catalogue import ENUMERATED_UNIVERSE_BOUND, SHAPE_QUALIFIERS, Shap
 from cardlang.diagnostics import DiagnosticBag
 from cardlang.runtime import declared
 from cardlang.stdlib.enums import rank_names
-from cardlang.runtime.values import RANKS, SUITS, Card, build_deck
+from cardlang.runtime.values import RANKS, SUITS, Card, build_deck, component_set
 
 _PHRASE = {
     "shape_card": "{n} card",
@@ -68,13 +68,17 @@ def check_catalogues(
     """Judge every catalogue and the Rank Sequence. `names(label)` says what
     else of the game a label's spelling names, or None."""
     reading = [row for c in game.catalogues for row in c.rows if _reads_sequence(row)]
-    sequence = _check_sequence(game, reading, bag)
+    # A set the registry does not hold has no ranks or cards to judge a
+    # sequence or a row against: those facts wait for its refusal's fix
+    # (`DECK_SLOT`), and the facts no card decides are judged here.
+    known = component_set(game.deck) is not None
+    sequence = _check_sequence(game, reading, bag) if known else None
     named = {
         nd.engine.catalogue
         for nd in _walk_rounds(game)
         if isinstance(nd.engine, n.DeclaredEngine)
     }
-    deck = build_deck(game.deck)
+    deck = build_deck(game.deck) if known else []
     widest = max(Counter(c.rank for c in deck).values(), default=0)
     for cat in game.catalogues:
         if cat.name not in named:
@@ -96,7 +100,7 @@ def check_catalogues(
             if other is not None:
                 bag.error(f"row label `{row.label}` is already {other} of this game — a row's label names its shape and nothing else", row.span, code=Code.NAME_TAKEN)
                 admissible = False
-            if not _check_row(row, game.deck, widest, sequence, bag):
+            if known and not _check_row(row, game.deck, widest, sequence, bag):
                 admissible = False
         beyond = sorted({
             c.rank if c.rank not in RANKS else str(c)
@@ -116,7 +120,7 @@ def check_catalogues(
                 code=Code.NOT_YET_SUPPORTED,
             )
             admissible = False
-        if admissible and (sequence is not None or not any(_reads_sequence(r) for r in cat.rows)):
+        if known and admissible and (sequence is not None or not any(_reads_sequence(r) for r in cat.rows)):
             _check_universe(cat, game.deck, sequence or (), bag)
 
 

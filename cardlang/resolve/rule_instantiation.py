@@ -841,6 +841,8 @@ def _resolve_phase_item(
                     ref.span,
                     code=Code.UNKNOWN_GAME_RULE,
                     slot=Slot(SlotKind.RULE, ref.name),
+                    # A reference names a rule taking as many arguments.
+                    fixes=(r for r, rule in known_rule_names.items() if len(rule.params) == len(ref.args)),
                 )
             if ref.delta == "override":
                 overridden = known_rule_names.get(ref.name)

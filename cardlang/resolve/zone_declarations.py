@@ -21,7 +21,7 @@ from cardlang.resolve.declared import board_mints, index_slot
 def step(game: n.Game, bag: DiagnosticBag, position_names: frozenset[str]) -> None:
     """The zone declarations step, against every position domain's name."""
     for zone in game.zones:
-        _resolve_zone(zone, bag, position_names)
+        _resolve_zone(zone, bag, position_names, teams=bool(game.teams))
 
 # Roles a zone may be indexed by or owned by — the `zone_key_of` column of the
 # domain table, not a hand-written local list.
@@ -48,7 +48,7 @@ assert ZONE_INDEX_ROLES == {Role.PLAYER, Role.TEAM}, (
 
 
 def _resolve_zone(
-    zone: n.ZoneDecl, bag: DiagnosticBag, positions: frozenset[str]
+    zone: n.ZoneDecl, bag: DiagnosticBag, positions: frozenset[str], *, teams: bool = True
 ) -> None:
     index_known = (
         zone.index is None
@@ -63,6 +63,8 @@ def _resolve_zone(
             zone.span,
             code=Code.UNKNOWN_ZONE_INDEX,
             slot=index_slot(zone.name),
+            # A game declaring no `teams:` keys no family by team.
+            fixes=(r for r in (*role_names(_KNOWN_ROLES), *positions) if teams or role_of(r) is not Role.TEAM),
             unless=board_mints(zone.index or ""),
         )
 

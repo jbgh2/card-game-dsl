@@ -35,8 +35,11 @@ Establishes:  `resemblance` is the one measure of how alike two spellings
               of fixes, a member of each cause's set (`Refused`), clears every
               marked refusal those causes reach, and told otherwise; a refusal
               no member of a cause's set clears is told, and so is every cause
-              no other cause clears. `cardlang.attribution` settles a bag
-              before it tells it, so no told diagnostic carries a mark.
+              no other cause clears. A refusal is withheld only through a
+              cause that is told, so a check never passes while one is
+              withheld, and a withheld refusal is told on the check after its
+              cause is fixed. `cardlang.attribution` settles a bag before it
+              tells it, so no told diagnostic carries a mark.
 Now illegal:  a check composing an unknown-name refusal with
               `DiagnosticBag.error` (tests/test_near_misses.py census), a
               second resemblance measure, and a Near Miss applied to a
@@ -44,7 +47,14 @@ Now illegal:  a check composing an unknown-name refusal with
               thing, so it is only ever offered; a diagnostic made without a
               code, and a `DiagnosticError` raised without an author; a check
               withholding a refusal of its own because another refusal
-              exists, rather than marking what clears it.
+              exists, rather than marking what clears it. Two checks decide
+              without the owner, each because the text it would refuse is
+              not a reference another refusal leaves undecided: the
+              classifier leaves unrefused a name a refused binder source's
+              fix would bind (`_Categories.withheld`), which binds or not by
+              lexical scope, and `_check_unread_clauses` says nothing of a
+              clause its own guard refused (its `refused` set), which would
+              tell the one refused clause twice.
 Held by:      Derived and Pinned for the routing -- a refusal's sentence is a
               `str`, which no union tells apart, so the census holds it;
               Unrepresentable for the code and the author, required fields.
@@ -269,6 +279,7 @@ class SlotKind(Enum):
     FUNCTION = "function"
     MODE = "mode"
     SIMULTANEOUS_ROLE = "simultaneous role"
+    TYPE = "type"
     TEXT = "text"
 
 
@@ -462,6 +473,7 @@ class DiagnosticBag:
         written: Callable[[str], str] | None = None,
         in_place: bool = False,
         slot: Slot | None = None,
+        fixes: Iterable[str] | None = None,
         unless: Unless | tuple[Unless, ...] = (),
     ) -> None:
         """Refuse `spelled`, absent from `among`, the set it was looked up in:
@@ -471,8 +483,9 @@ class DiagnosticBag:
         at `span`, each Near Miss a name written in its place, and carries
         the whole ranking (`Diagnostic.ranked_near_misses`). `slot` is where
         `spelled` stands, and marks the refusal a cause whose fixes are
-        `among`; `unless` is as for `error`."""
-        fixes = frozenset(among)
+        `fixes`, the members of `among` that may stand there, `among` itself
+        where the check names none; `unless` is as for `error`."""
+        among = frozenset(among)
         self.error(
             message,
             span,
@@ -480,10 +493,10 @@ class DiagnosticBag:
             route=route,
             for_game=for_game,
             stands_on=stands_on,
-            refuses=None if slot is None else Refused(slot, fixes),
+            refuses=None if slot is None else Refused(slot, among if fixes is None else frozenset(fixes)),
             unless=unless,
         )
-        ranked = near_misses(spelled, fixes, limit=None)
+        ranked = near_misses(spelled, among, limit=None)
         near = ranked[:NEAR_MISS_LIMIT]
         if written is not None:
             near = tuple(written(name) for name in near)

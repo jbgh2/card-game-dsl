@@ -19,7 +19,7 @@ from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.board_domains import LINE_NOUN, BOARD_DOMAIN, DIRECTION_DOMAIN, board_directions
 from cardlang.primitives_block import COLLECTION_TYPE_CONSTRUCTOR
-from cardlang.diagnostics import DiagnosticBag
+from cardlang.diagnostics import DiagnosticBag, SlotKind, Unless
 from cardlang.domains import SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES, role_names
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.stdlib.boards import BoardEntry, BoardRefusal, board_entry
@@ -264,6 +264,7 @@ def _resolve_board(
             f"needing both)",
             game.board.span,
             code=Code.MISSING_DECLARATION,
+            unless=Unless(SlotKind.CONTENT_KIND, frozenset({"piece"})),
         )
         return game
     # Collision: the minted `cell` may shadow neither a declared `positions { }`

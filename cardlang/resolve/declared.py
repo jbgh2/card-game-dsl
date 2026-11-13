@@ -126,10 +126,13 @@ CONTENT_KIND_SLOT = Slot(SlotKind.CONTENT_KIND, "")
 BOARD_SLOT = Slot(SlotKind.BOARD, "")
 
 
-def board_mints(name: str) -> Unless:
+def board_mints(name: str) -> tuple[Unless, ...]:
     """What clears a refusal of a position name a board mints: the game's
     refused `board:` fixed to a family that mints it, `cell` by every family
-    and `dir` by every family with a movement frame."""
+    and `dir` by every family with a movement frame, or its set declared as
+    pieces, which a board needs; nothing for any other name."""
+    if name not in (BOARD_DOMAIN, DIRECTION_DOMAIN):
+        return ()
     if name == BOARD_DOMAIN:
         families = frozenset(BOARD_FAMILIES)
     elif name == DIRECTION_DOMAIN:
@@ -137,9 +140,7 @@ def board_mints(name: str) -> Unless:
             f for f, family in BOARD_FAMILIES.items()
             if family.build(tuple(p.lo for p in family.params)).frame is not None
         )
-    else:
-        families = frozenset()
-    return Unless(SlotKind.BOARD, families)
+    return (Unless(SlotKind.BOARD, families), Unless(SlotKind.CONTENT_KIND, frozenset({"piece"})))
 
 
 def index_slot(zone: str) -> Slot:
@@ -163,6 +164,23 @@ def content_kind_unless(game: n.Game) -> Unless:
     """What clears a refusal of a game's card content in a piece game: its
     set declared as cards."""
     return Unless(SlotKind.CONTENT_KIND, frozenset({"card"}) - {game.content_flavor})
+
+
+def type_slot(where: str, name: str) -> Slot:
+    """The slot of a declared type: a state variable's (`where` "state") or a
+    function parameter's (`where` the function)."""
+    return Slot(SlotKind.TYPE, f"{where}:{name}")
+
+
+def content_nouns_naming(name: str) -> frozenset[str]:
+    """The content kinds whose noun `name` is: what clears its refusal under
+    a set declared with the other kind's keyword."""
+    from cardlang.runtime.values import content_noun
+
+    return frozenset(
+        flavor for flavor in ("card", "piece")
+        if name in (content_noun(flavor, plural=False), content_noun(flavor, plural=True))
+    )
 
 
 def sets_naming(name: str) -> frozenset[str]:

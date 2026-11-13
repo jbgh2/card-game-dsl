@@ -82,6 +82,7 @@ from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, identity_to_all
 from cardlang.resolve.walk import _walk
 from cardlang.resolve.slots import _NAME_SLOTS, _ROUND_QUERY_REGISTRIES, _slot_root
 from cardlang.resolve.declared import (
+    type_slot,
     board_mints,
     content_kind_unless,
     kept_per_player,
@@ -499,6 +500,7 @@ def _check_card_offering(
             f"which enumerates the actor's `{family}[player]` zone — this game "
             f"declares none",
             span,
+            unless=kept_per_player(family),
             for_game=(
                 cite_origin(origin, span) + f" offers {whose}move type "
                 + cite_named(move, f"`{move.name}`")
@@ -532,6 +534,7 @@ def _check_card_offering(
         f"declares none",
         span,
         code=Code.MISSING_DECLARATION,
+        unless=kept_per_player(family),
     )
 
 
@@ -799,6 +802,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         state_types,
                         nd.span,
                         code=Code.UNKNOWN_CHECKER_TYPE,
+                        slot=type_slot("state", nd.name),
+                        unless=board_mints(nd.type_name),
                     )
                 if nd.index is not None and role_of(nd.index) not in ZONE_INDEX_ROLES:
                     # Same guard as a zone's index role, same registry. Before

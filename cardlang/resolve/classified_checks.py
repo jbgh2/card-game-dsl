@@ -147,6 +147,8 @@ from cardlang.resolve.slots import (
     slot_strings,
 )
 from cardlang.resolve.declared import (
+    board_mints,
+    type_slot,
     positive_arguments,
     kept_per_player,
     CARD_PARAMETER_FAMILY,
@@ -1329,6 +1331,12 @@ def _check_kernel_answers(game: n.Game, bag: DiagnosticBag) -> set[str]:
             f"`function {answer.name}(card : Card) = …`",
             answer.span or game.span,
             code=Code.WRONG_SIGNATURE,
+            # One parameter of a misspelled type, fixed to `Card`.
+            unless=Unless(
+                SlotKind.TYPE,
+                frozenset({"Card"}) if len(answer.params) == 1 else frozenset(),
+                frozenset(type_slot(answer.name, p.name).name for p in answer.params),
+            ),
         )
         refused.add("card_points" if answer.name == "card_points" else "trick_order")
     return refused
@@ -2051,6 +2059,8 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                     parameter_known,
                     fn.span,
                     code=Code.UNKNOWN_CHECKER_TYPE,
+                    slot=type_slot(fn.name, p.name),
+                    unless=board_mints(base_of(p.type_name)),
                 )
     for phase in _walk(game):
         if not isinstance(phase, n.Phase) or not phase.outcome_cases:
@@ -2074,6 +2084,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                         known,
                         case.span or phase.span,
                         code=Code.UNKNOWN_CHECKER_TYPE,
+                        unless=board_mints(base_of(payload)),
                     )
 
 
@@ -2396,6 +2407,8 @@ def _check_procedures(
                 bag.unknown(
                     f"run of unknown procedure '{nd.name}'", nd.name, known, nd.span,
                     code=Code.UNKNOWN_PROCEDURE, slot=Slot(SlotKind.PROCEDURE, f"{nd.span}"),
+                    # A `run` names a procedure taking as many arguments.
+                    fixes=(p for p, proc in known.items() if len(proc.params) == len(nd.args)),
                 )
             else:
                 _check_positive_arguments(known[nd.name], nd, bag)

@@ -27,8 +27,13 @@ domain:          (a) the binders a node introduces from designer text a check
                  text elsewhere: the mode-role invariant and `MEMBERS`, each
                  with its whole ordered list, its fix applied, and an
                  independent mistake of the kind it withholds planted beside
-                 it; the members whose checks mark nothing yet are
-                 `UNJOINED`, each a strict xfail.
+                 it; `WIDTH`, a slip with no consequence of its own beside a
+                 real mistake each clearing set leaves told and a wider one
+                 would withhold, one row per clearing set or cause set a
+                 member narrows; the members whose checks mark nothing yet
+                 are `UNJOINED`, and the mistakes only a fix the slip's site
+                 refuses would clear are `WAITS_FOR_THE_FIX`, each a strict
+                 xfail.
 registry:        axis (a) is `cardlang.resolve._BINDER_SCOPE_FIELDS`,
                  pinned equal to `BINDER_SOURCES`'s keys; axis (b) has no
                  defining registry -- a fact computed from references is a
@@ -43,17 +48,31 @@ held by:         Derived and Pinned: the decision has one owner
                  unresolved-name arm. Which fixes clear a marked refusal is
                  a fact of the marking check's body, held by its member's
                  rows, which apply the fix and plant the independent
-                 mistake; the overshoot rows are Born-Green Pins, each
-                 naming its reddening mutation. Not higher: what a check
+                 mistake, and by its `WIDTH` row, which reddens under the
+                 widening its last column names; the overshoot rows are
+                 Born-Green Pins, each naming its reddening mutation. A
+                 clearing set holding the mistake's own name, which every
+                 slip of that kind may be fixed to (an offer's move type, a
+                 reader call's clause, a library's contract row), has no
+                 width a row can show. Not higher: what a check
                  reads is a property of its body, which no union states.
-does not prove:  that a withheld refusal is a consequence in fact: a
-                 refusal one fix clears may stand for a mistake under
-                 another, as a `ranking:` clause withheld under a `pieces:`
-                 written for a card deck can be wrong as cards too, and in
-                 the body of a refused query or simultaneous block an
-                 unresolved name spelled as a binder some fix would bind is
-                 withheld although it may be a mistake of its own; each is
-                 told once the refused spelling is fixed. Nor that a joined
+does not prove:  that a withheld refusal is a consequence in fact. A refusal
+                 some fix of a refused spelling clears is withheld beside
+                 that spelling though it is a real mistake whenever the
+                 designer meant another fix: any one procedure never run
+                 beside a `run` slip of its arity, any one move type never
+                 offered beside an offer slip, any one clause read by
+                 nothing beside a call slip, a card literal another deck
+                 holds beside a deck slip, a `ranking:` clause wrong as cards
+                 too beside a `pieces:` written for a card deck, a name some
+                 fix of a refused binder source would bind. Each is told on
+                 the check after the slip is fixed, and the check fails
+                 meanwhile. Measured 2026-11-12 by an independent review: 105
+                 of 1,500 sampled (slip, real mistake) pairs lost the real
+                 mistake's refusal until the slip was fixed. A fix the
+                 slip's own site would refuse is counted as a fix wherever
+                 the cause's set is not narrowed to what may stand there
+                 (`WAITS_FOR_THE_FIX`). Nor that a joined
                  check's clearing set is exact where no member plants a
                  mistake against it. Nor that axis (b) is complete: a check
                  reading references as written that no cell here executes,
@@ -295,8 +314,9 @@ class Withheld:
 
 # Where each binder-scoping node kind's binder comes from: a name the designer
 # chooses, a fixed keyword the grammar spells, the content noun of the game's
-# `cards:` or `pieces:` clause, or derived text (a `Withheld`). A refused
-# `cards:`/`pieces:` clause is `RESIDUAL`'s.
+# `cards:` or `pieces:` clause, or derived text (a `Withheld`). A content
+# noun refused under a `cards:`/`pieces:` clause written for the other kind is
+# a member of `MEMBERS`.
 BINDER_SOURCES: dict[str, str | Withheld] = {
     "Quantifier": "fixed",
     "Comprehension": "fixed",
@@ -477,6 +497,69 @@ MEMBERS: dict[str, Member] = {
          "`<name> : Move` in `requires { }` so the including game defines it, or keep this definition in the game",),
         (("    fold              : Move", "    fold              : Move\n    muck              : Move"),),
         library="poker_betting"),
+    "a `pieces:` written for a card deck leaves its card binder unresolved": Member(
+        "docs/games/belote.cardlang", ("cards: skat32", "pieces: skat32"),
+        ("docs/games/belote.cardlang:40:1: error: 'skat32' is a card deck — declare it with "
+         "`cards: skat32`, not `pieces:`",),
+        (("reveal one card from hand[bp] where is_royal(card)", "reveal one card from hand[bp] where is_royal(cardd)"),)),
+    "a `cards:` written for a piece set leaves its board unminted": Member(
+        _TTT, ("pieces: xo_marks", "cards: xo_marks"),
+        ("docs/games/tic-tac-toe.cardlang:14:1: error: 'xo_marks' is a piece set — declare it with "
+         "`pieces: xo_marks`, not `cards:`",),
+        (("    square[cell]    : Cell<cell>", "    square[cell]    : Cell<cell>\n    other[cel]      : Cell<cel>"),)),
+    "a misspelled board leaves its minted types unknown": Member(
+        "docs/games/english-draughts.cardlang", ("board: draughts(8, 8)", "board: draugcts(8, 8)"),
+        ("docs/games/english-draughts.cardlang:35:3: error: unknown board family 'draugcts' "
+         "(registered families: ['draughts', 'grid', 'hex_rhombus', 'morris9'])",),
+        (("function mine(c : cell, p : Player) =", "function mine(c : cel, p : Player) ="),)),
+    "a misspelled hex board leaves its minted type unknown": Member(
+        "docs/games/hex.cardlang", ("board: hex_rhombus(11)", "board: hex_rhmbus(11)"),
+        ("docs/games/hex.cardlang:26:3: error: unknown board family 'hex_rhmbus' "
+         "(registered families: ['draughts', 'grid', 'hex_rhombus', 'morris9'])",),
+        (("    tile[cell]      : Cell<cell>", "    tile[cell]      : Cell<cell>\n    other[cel]      : Cell<cel>"),)),
+    "a zone index misspelled leaves a Card parameter's hand undeclared": Member(
+        "docs/games/schnapsen.cardlang", ("hand[player]", "hand[playeb]"),
+        ("docs/games/schnapsen.cardlang:33:5: error: unknown index role 'playeb'",),
+        (("    phase scoring {", "    phase scoring {\n      for each player q:\n        as q {\n"
+          "          move chosen one card from hand[q offset_by left] to trick_pile\n        }"),)),
+    "an offer misspelled leaves a move type's scope unestablished": Member(
+        "docs/games/canasta.cardlang", ("[stage_card, close_meld]", "[stagk_card, close_meld]"),
+        ("docs/games/canasta.cardlang:253:17: error: offer names unknown move type 'stagk_card'",),
+        (("move_type stage_card {", "move_type xyz {\n  effect {\n  }\n}\n\nmove_type stage_card {"),)),
+    "a misspelled subscript in a function a `when:` reads leaves its read unseen": Member(
+        "docs/games/canasta.cardlang",
+        ("  and ((number of cards in hand[p] where canasta_is_black3(card)) is 3",
+         "  and ((number of cards in hand[pq] where canasta_is_black3(card)) is 3"),
+        ("docs/games/canasta.cardlang:464:33: error: unresolved name 'pq'",),
+        (("       or (number of cards in hand[p] where canasta_is_black3(card)) is 4",
+          "       or (number of cards in hand[p offset_by left] where canasta_is_black3(card)) is 4"),)),
+    "a deck misspelled in a game with a combination catalogue": Member(
+        "docs/games/big-two.cardlang", ("cards: standard52", "cards: standard53"),
+        ("docs/games/big-two.cardlang:29:1: error: unknown deck 'standard53' — known decks: canasta108, coup15, doppelkopf48, five_hundred43, kuhn3, leduc6, pinochle48, schnapsen20, scopa40, skat32, standard52, standard54, tarot78, tichu56",),
+        (("any player where score[player] >= 100", "any player where scor[player] >= 100"),)),
+    "a deck misspelled in a climbing game": Member(
+        "docs/games/president.cardlang", ("cards: standard52", "cards: standard53"),
+        ("docs/games/president.cardlang:30:1: error: unknown deck 'standard53' — known decks: canasta108, coup15, doppelkopf48, five_hundred43, kuhn3, leduc6, pinochle48, schnapsen20, scopa40, skat32, standard52, standard54, tarot78, tichu56",),
+        (("any player where score[player] >= 11", "any player where scor[player] >= 11"),)),
+    "a suit ranking misspelled leaves its suit left out": Member(
+        _BRIDGE, ("suit ranking: spades hearts diamonds clubs", "suit ranking: spades hearts diamonds clbs"),
+        ("docs/games/bridge.cardlang:37:3: error: suit ranking: 'clbs' is not a suit of deck 'standard52' — "
+         "list the deck's suits (clubs, diamonds, hearts, spades) strongest first",),
+        (("suit ranking: spades hearts diamonds", "suit ranking: spades hearts"),)),
+    "a ranking convention misspelled refuses its correct word": Member(
+        _HEARTS, ("ranking: aces high", "ranking: aces hgih"),
+        ("docs/games/hearts.cardlang:22:1: error: ranking: names unknown rank 'hgih' — not a rank of deck "
+         "'standard52' (known ranks: 10, 2, 3, 4, 5, 6, 7, 8, 9, A, J, K, Q)",),
+        (("elif card is Q of spades", "elif card is Z of spades"),)),
+    "a state type misspelled leaves the `winner:` target unrankable": Member(
+        _HEARTS, ("    cumulative_score[player] : Integer = 0", "    cumulative_score[player] : Integr = 0"),
+        ("docs/games/hearts.cardlang:40:5: error: unknown type 'Integr' in declaration of 'cumulative_score'",),
+        (("offset_by pass_direction]", "offset_by pass_dirction]"),)),
+    "a parameter type misspelled leaves a kernel answer's signature wrong": Member(
+        "docs/games/belote.cardlang",
+        ("function is_trump(card : Card) = card.suit is trump_suit", "function is_trump(card : Crad) = card.suit is trump_suit"),
+        ("docs/games/belote.cardlang:345:1: error: unknown type 'Crad' in parameter 'card' of function 'is_trump'",),
+        (("reveal one card from hand[bp] where is_royal(card)", "reveal one card from hand[bp] where is_royal(cardd)"),)),
 }
 
 # The edits each member's host needs before its slip.
@@ -691,22 +774,9 @@ def test_two_refusals_of_one_text_with_no_other_cause_are_both_told() -> None:
 # The members the framing check listed whose consequence checks mark nothing
 # yet: each slip, its cause, and the failure its cell is designed to meet.
 UNJOINED: dict[str, tuple[str, tuple[str, str], str, type[BaseException]]] = {
-    "a deck misspelled in a game with a combination catalogue": (
-        "docs/games/big-two.cardlang", ("cards: standard52", "cards: standard53"),
-        "unknown deck 'standard53'", NotImplementedError),
-    "a suit ranking misspelled leaves its suit left out": (
-        _BRIDGE, ("suit ranking: spades hearts diamonds clubs", "suit ranking: spades hearts diamonds clbs"),
-        "suit ranking: 'clbs' is not a suit of deck", AssertionError),
-    "a state type misspelled leaves the `winner:` target unrankable": (
-        _HEARTS, ("    cumulative_score[player] : Integer = 0", "    cumulative_score[player] : Integr = 0"),
-        "unknown type 'Integr' in declaration of 'cumulative_score'", AssertionError),
-    "a parameter type misspelled leaves a kernel answer's signature wrong": (
-        "docs/games/belote.cardlang",
-        ("function is_trump(card : Card) = card.suit is trump_suit", "function is_trump(card : Crad) = card.suit is trump_suit"),
-        "unknown type 'Crad' in parameter 'card' of function 'is_trump'", AssertionError),
-    "a ranking convention misspelled refuses its correct word": (
-        _HEARTS, ("ranking: aces high", "ranking: aces hgih"),
-        "ranking: names unknown rank 'hgih'", AssertionError),
+    "a `pieces:` written for a card deck in a game its splice refuses first": (
+        "docs/games/five-card-stud.cardlang", ("cards: standard52", "pieces: standard52"),
+        "is a card deck", AssertionError),
 }
 
 
@@ -715,7 +785,7 @@ UNJOINED: dict[str, tuple[str, tuple[str, str], str, type[BaseException]]] = {
     [
         pytest.param(
             name,
-            marks=pytest.mark.xfail(strict=True, raises=UNJOINED[name][3], reason="unfiled: " + name),
+            marks=pytest.mark.xfail(strict=True, raises=UNJOINED[name][3], reason="issue #TBD-consequences"),
         )
         for name in sorted(UNJOINED)
     ],
@@ -725,3 +795,159 @@ def test_an_unjoined_member_tells_its_cause_alone(member: str) -> None:
     got = errors(source, slip)
     assert got and cause in got[0], got
     assert got == [got[0]], got
+
+
+# A real mistake a fix of the refused spelling beside it would clear, where
+# that fix is one the spelling's own site refuses: the cause's set is not
+# narrowed to what may stand there, so the mistake waits for the cause's fix.
+WAITS_FOR_THE_FIX: dict[str, tuple[str, tuple[tuple[str, str], ...], str]] = {
+    "a call misspelled beside a table whose reader takes a Card": (
+        _BRIDGE,
+        (("  when: next_level(strain) <= 7", "  when: next_levl(strain) <= 7"),
+         ("  suit ranking: spades hearts diamonds clubs",
+          "  suit ranking: spades hearts diamonds clubs\n  card_points {\n    A: 4\n  }")),
+        "card_points { } is read by nothing"),
+    "a deck misspelled beside a card only a deck its `ranking:` refuses holds": (
+        _HEARTS,
+        (("cards: standard52", "cards: standard53"), ("elif card is Q of spades", "elif card is Joker of spades")),
+        "Joker"),
+}
+
+
+@pytest.mark.parametrize(
+    "cell",
+    [
+        pytest.param(name, marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #TBD-consequences"))
+        for name in sorted(WAITS_FOR_THE_FIX)
+    ],
+)
+def test_a_mistake_only_a_refused_fix_clears_is_told(cell: str) -> None:
+    source, edits, mistake = WAITS_FOR_THE_FIX[cell]
+    got = errors(source, *edits)
+    assert any(mistake in line for line in got[1:]), got
+
+
+def test_a_check_with_a_withheld_refusal_never_passes() -> None:
+    """A group is withheld only through a cause that is told, so settling
+    leaves a bag holding an error whenever it held one. red under: `settle`
+    withholding the roots of every group it withholds."""
+    from cardlang.diagnostic_codes import Code
+    from cardlang.diagnostics import DiagnosticBag, Slot, SlotKind, Span, Unless
+
+    at = Span("g.cardlang", 0, 4, 1, 1)
+    bag = DiagnosticBag()
+    bag.unknown("unknown deck 'x'", "x", ("standard52",), at, code=Code.UNKNOWN_DECK, slot=Slot(SlotKind.DECK, ""))
+    bag.error("a consequence", at, code=Code.UNKNOWN_NAME, unless=Unless(SlotKind.DECK, frozenset({"standard52"})))
+    bag.settle()
+    assert bag.has_errors and [d.message for d in bag.items] == ["unknown deck 'x'"]
+    for name in sorted(MEMBERS):
+        member = MEMBERS[name]
+        if member.library is None:
+            assert errors(member.source, *_HOSTED.get(name, ()), member.slip), name
+
+
+
+# --------------------------------------------------------------------------
+# Width: a slip with no consequence of its own, beside a real mistake that a
+# member's clearing set leaves told and a wider one would withhold.
+# --------------------------------------------------------------------------
+
+_FCS = "docs/games/five-card-stud.cardlang"
+_FCS_RUN = ("          run betting_street(best_showing_seat(), 20, 0)", "          run betting_streat(best_showing_seat(), 20, 0)")
+_PASS_DIRCTION = ("offset_by pass_direction]", "offset_by pass_dirction]")
+
+# Each row: the host, its edits (the slip first), the refusal of the real
+# mistake, and the widening that withholds it.
+WIDTH: dict[str, tuple[str, tuple[tuple[str, str], ...], str, str]] = {
+    "a `run` misspelled beside a procedure of another arity never run": (
+        _FCS, (_FCS_RUN, ("move_type fold {", "procedure zzz(who : Player) {\n  who := who\n}\n\nmove_type fold {")),
+        "procedure 'zzz' is never run", "the `run` cause's fixes taken from every procedure"),
+    "a `run` misspelled beside a move type no procedure offers": (
+        _FCS, (_FCS_RUN, ("move_type fold {", "move_type xyz {\n  effect {\n  }\n}\n\nmove_type fold {")),
+        "move type `xyz` is never offered", "the never-offered arm's procedures taken as every procedure"),
+    "a template argument misspelled beside an unrelated unresolved name": (
+        _HEARTS, (("NoLeadingSuitUntilBroken(hearts)", "NoLeadingSuitUntilBroken(heart)"), _PASS_DIRCTION),
+        "unresolved name 'pass_dirction'", "the unresolved-name arm's text `Unless` reaching every text slot"),
+    "a deck misspelled beside a name no deck holds": (
+        _HEARTS, (("cards: standard52", "cards: standard53"), ("where action.card.suit is hearts", "where action.card.suit is heartz")),
+        "unresolved name 'heartz'", "the deck `Unless` of an unresolved name reaching every set"),
+    "a zone index misspelled beside a round source of another family": (
+        _HEARTS, (("hand[player]     : Hand<player>", "hand[playr]     : Hand<player>"), ("source hand", "source trick_pile")),
+        "a round's `source` names the zone each player plays from", "`kept_per_player` naming every zone"),
+    "a zone index misspelled beside an owner no role of the game names": (
+        _HEARTS, (("captured[player]", "captured[playr]"), ("PlayerPile<player>", "PlayerPile<team>")),
+        "typed 'PlayerPile<team>'", "the index cause's fixes keeping `team` in a game with no `teams:`"),
+    "a subscript misspelled in a function another seat's instance is passed to": (
+        "docs/games/canasta.cardlang",
+        (("  and ((number of cards in hand[p] where canasta_is_black3(card)) is 3",
+          "  and ((number of cards in hand[pq] where canasta_is_black3(card)) is 3"),
+         ("  when: canasta_black3_ok(actor)", "  when: canasta_black3_ok(actor offset_by left)")),
+        "reads the cards in `hand[pq]`", "`_seat_names` taking every name in scope unjudged"),
+    "a rule misspelled beside a removal in another phase": (
+        _HEARTS, (("[MustFollowSuit, MustLeadTwoOfClubs]", "[MustFollowSuit, MustLeadTwoOfClub]"),
+                  (_SCORING, _SCORING + "\n      active_rules: [- MustFollowSuit]")),
+        "`-MustFollowSuit` removes a rule that is never added", "the removal's `Unless` reaching every rule slot"),
+    "a `+X` misspelled beside a removal in another phase": (
+        _HEARTS, (("[MustFollowSuit, MustLeadTwoOfClubs]", "[MustFollowSuit, + MustLeadTwoOfClub]"),
+                  (_SCORING, _SCORING + "\n      active_rules: [- MustFollowSuit]")),
+        "`-MustFollowSuit` removes a rule that is never added", "the removal's `Unless` reaching every rule slot"),
+    "a rule misspelled beside the removal of a template it cannot name": (
+        _HEARTS, (("[MustFollowSuit, MustLeadTwoOfClubs]", "[MustFollowSuit, MustLeadTwoOfClub]"),
+                  ("mode hearts_broken { }", "mode hearts_broken { active_rules: [- NoLeadingSuitUntilBroken] }")),
+        "`-NoLeadingSuitUntilBroken` removes a rule that is never added", "the rule cause's fixes taken from every rule"),
+    "a rule misspelled beside a template of another arity never instantiated": (
+        _HEARTS, (("[MustFollowSuit, MustLeadTwoOfClubs]", "[MustFollowSuit, MustLeadTwoOfClub]"), _LOCAL_TEMPLATE_UNUSED),
+        "rule 'NoLead2' is parameterized but never instantiated", "the rule cause's fixes taken from every rule"),
+    "an unresolved name beside a template whose arguments no slip refused": (
+        _HEARTS, (_PASS_DIRCTION, _LOCAL_TEMPLATE_UNUSED),
+        "rule 'NoLead2' is parameterized but never instantiated", "the never-instantiated text `Unless` reaching every text slot"),
+    "a simultaneous role misspelled beside a decision outside its block": (
+        _HEARTS, (("each player simultaneously:", "each playr simultaneously:"),
+                  (_SCORING, _SCORING + "\n      move chosen 1 cards from deck to trick_pile")),
+        "a chosen movement is written where no player is acting", "the block's mark left on after the block"),
+    "a board misspelled beside a zone of a domain no board mints": (
+        _TTT, (("board: grid(3, 3)", "board: gird(3, 3)"),
+               ("    square[cell]    : Cell<cell>", "    square[cell]    : Cell<cell>\n    other[cel]      : Cell<cel>")),
+        "unknown index role 'cel'", "`board_mints` answering for every name"),
+    "a board misspelled beside a parameter type no board mints": (
+        "docs/games/english-draughts.cardlang", (("board: draughts(8, 8)", "board: draugcts(8, 8)"),
+                                                 ("function mine(c : cell, p : Player) =", "function mine(c : cel, p : Player) =")),
+        "unknown type 'cel' in parameter 'c' of function 'mine'", "`board_mints` answering for every name"),
+    "a `pieces:` written for a card deck beside a name no content kind spells": (
+        "docs/games/belote.cardlang", (("cards: skat32", "pieces: skat32"),
+                                       ("reveal one card from hand[bp] where is_royal(card)", "reveal one card from hand[bp] where is_royal(cardd)")),
+        "unresolved name 'cardd'", "`content_nouns_naming` answering every content kind"),
+    "a `pieces:` written for a card deck beside a card the deck lacks": (
+        _HEARTS, (("cards: standard52", "pieces: standard52"), ("elif card is Q of spades", "elif card is Z of spades")),
+        "`Z of spades`", "the piece-literal arm marking every literal cleared by `cards:`"),
+    "an unresolved name beside a suit really left out": (
+        _BRIDGE, (("let required = 6 + contract_level", "let required = 6 + contract_levl"),
+                  ("suit ranking: spades hearts diamonds clubs", "suit ranking: spades hearts diamonds")),
+        "suit ranking: leaves out clubs", "the left-out arm's text `Unless` reaching every text slot"),
+    "a `cards:` written for a piece set beside a zone of a domain no board mints": (
+        _TTT, (("pieces: xo_marks", "cards: xo_marks"),
+               ("    square[cell]    : Cell<cell>", "    square[cell]    : Cell<cell>\n    other[cel]      : Cell<cel>")),
+        "unknown index role 'cel'", "`board_mints` answering for every name"),
+    "a state type misspelled beside a `winner:` target of a known unrankable type": (
+        _HEARTS, (("      pass_direction : SeatDirection = hold", "      pass_direction : SeatDirecton = hold"),
+                  ("    cumulative_score[player] : Integer = 0", "    cumulative_score[player] : Player = 0")),
+        "`winner:` ranks the game on state variable 'cumulative_score', declared `Player`",
+        "the winner arm's type `Unless` reaching every type slot"),
+    "a parameter type misspelled beside a kernel answer of a known wrong type": (
+        "docs/games/belote.cardlang", (("function bel_card_points(c : Card) =", "function bel_card_points(c : Crad) ="),
+                                       ("function is_trump(card : Card) = card.suit is trump_suit",
+                                        "function is_trump(card : Rank) = card.suit is trump_suit")),
+        "answers the kernel's `is_trump(card : Card) : Boolean`, so it takes exactly one Card",
+        "the kernel-answer arm's type `Unless` reaching every type slot"),
+}
+
+
+@pytest.mark.parametrize("cell", sorted(WIDTH))
+def test_a_mistake_a_wider_clearing_set_would_withhold_is_told(cell: str) -> None:
+    """Each row reddens under its own widening (`WIDTH`'s last column),
+    planted and run per row."""
+    source, edits, mistake, _widening = WIDTH[cell]
+    slip_alone = errors(source, edits[0])
+    assert len(slip_alone) >= 1 and mistake not in " ".join(slip_alone), slip_alone
+    got = errors(source, *edits)
+    assert any(mistake in line for line in got), got

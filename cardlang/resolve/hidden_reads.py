@@ -984,6 +984,17 @@ class _HiddenReads:
                 self._report(position, read, seat, to_owner, span or read.span, source and not in_choose)
             self.read_marks = ()
 
+    def _seat_names(self, read: ZoneRead) -> frozenset[str]:
+        """The names which, written as `read`'s subscript, make it the
+        acting seat's own instance: each name in scope there, and `actor`,
+        judged by the same own-instance test."""
+        scope = read.index_scope
+        candidates: list[n.NameRef] = [n.NameRef("actor", ref_kind="pronoun")]
+        candidates += [n.NameRef(name, ref_kind="local") for name in {*(nm for nm, _ in scope.names), *scope.aliases.names}]
+        return frozenset(
+            c.name for c in candidates if self._own_reason(replace(read, index=c)) is not None
+        )
+
     def _undecided_by(self, read: ZoneRead) -> tuple[Unless, ...]:
         """What clears a read refused at one seat, whose projection shows the
         owner what it reads, where the read rests on a refused spelling: the
@@ -1005,8 +1016,9 @@ class _HiddenReads:
         bare = [s for s, _scope in self._spellings(read.index, read.index_scope) if isinstance(s, n.NameRef)]
         for name in bare:
             if name.ref_kind is None and name.span is not None:
-                acting = read.index_scope.aliases.names | {"actor"}
-                marks.append(Unless(SlotKind.TEXT, frozenset(acting), frozenset({text_slot(name.span).name})))
+                marks.append(
+                    Unless(SlotKind.TEXT, self._seat_names(read), frozenset({text_slot(name.span).name}))
+                )
         seats = frozenset(
             slot for mark in self.undecided_seats if mark.kind is SlotKind.TEXT for slot in mark.names or ()
         )

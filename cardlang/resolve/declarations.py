@@ -39,7 +39,7 @@ from cardlang.builtins.functions import (
 )
 from cardlang import kernel_contracts as K
 from cardlang.attribution import cite_library, cite_named, cite_origin
-from cardlang.diagnostics import DiagnosticBag, Said, Span, near_misses
+from cardlang.diagnostics import DiagnosticBag, Said, Slot, SlotKind, Span, Unless, near_misses
 from cardlang.runtime.values import content_kind_clause
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES, rank_names, suit_names
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
@@ -752,6 +752,10 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
     # "Aces High", "ace ten") is offered the convention, not a rank.
     phrase = " ".join(game.ranking)
     meant_a_convention = bool(near_misses(phrase, RANKING_CONVENTIONS))
+    # The clause's words, refused as one misspelled convention: a word no
+    # convention spells is the cause, and a convention's own word refused
+    # beside it is cleared by the convention its fix names.
+    phrase_slot = Slot(SlotKind.TEXT, f"ranking:{game.span}")
     seen: dict[str, None] = {}
     for rank in game.ranking:
         if rank in seen:
@@ -797,6 +801,12 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
                 RANKING_CONVENTIONS if meant_a_convention else known,
                 game.span,
                 code=Code.UNKNOWN_RANK,
+                slot=phrase_slot if meant_a_convention and rank.lower() not in conv_words else None,
+                unless=(
+                    Unless(SlotKind.TEXT, frozenset(RANKING_CONVENTIONS), frozenset({phrase_slot.name}))
+                    if meant_a_convention and rank.lower() in conv_words
+                    else ()
+                ),
             )
 
 
@@ -918,6 +928,7 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag, refused: set[str]) -
         return
     ranks = set(deck_ranks(game.deck))
     seen: set[str] = set()
+    misspelled: set[str] = set()
     for name in ranking.suits:
         if name in seen:
             bag.error(
@@ -939,6 +950,7 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag, refused: set[str]) -
                 code=Code.WRONG_SPELLING,
             )
         else:
+            misspelled.add(f"suit ranking:{span}:{name}")
             bag.unknown(
                 f"suit ranking: '{name}' is not a suit of deck '{game.deck}' — "
                 f"list {_declared_suits_phrase(game.deck)} strongest first",
@@ -946,6 +958,7 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag, refused: set[str]) -
                 DECKS[game.deck].suits,
                 span,
                 code=Code.UNKNOWN_SUIT,
+                slot=Slot(SlotKind.TEXT, f"suit ranking:{span}:{name}"),
             )
     for declared in DECKS[game.deck].suits:
         if declared not in seen:
@@ -954,6 +967,8 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag, refused: set[str]) -
                 f"{_declared_suits_phrase(game.deck)} strongest first",
                 span,
                 code=Code.RANKING_INCOMPLETE,
+                # A misspelled suit of the clause, fixed to this one.
+                unless=Unless(SlotKind.TEXT, frozenset({declared}), frozenset(misspelled)),
             )
     if len(bag.items) > before:
         refused.add("suit_ranking")

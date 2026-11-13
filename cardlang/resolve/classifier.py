@@ -35,7 +35,7 @@ from cardlang.resolve.walk import _traverse, _walk
 from cardlang.resolve.binders import _BINDER_SCOPE_FIELDS, _introduced_binders
 from cardlang.resolve.reserved import PLAY_SOURCE_NAME, _PRONOUNS, _SUBSCRIPTED_PLAY_SOURCE
 from cardlang.resolve.slots import _ROUND_QUERY_SLOT_SPELLINGS
-from cardlang.resolve.declared import _component_known, sets_naming, board_mints
+from cardlang.resolve.declared import _component_known, sets_naming, board_mints, content_nouns_naming
 from cardlang.resolve.reaches import (
     _ReadLimits,
     _answer_read_refusal,
@@ -527,6 +527,7 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
                 unless=(
                     *(() if slot is None else (Unless(SlotKind.TEXT, frozenset(here), frozenset({slot.name})),)),
                     Unless(SlotKind.DECK, sets_naming(node.name)),
+                    Unless(SlotKind.CONTENT_KIND, content_nouns_naming(node.name)),
                 ),
             )
         return replace(node, ref_kind=kind)

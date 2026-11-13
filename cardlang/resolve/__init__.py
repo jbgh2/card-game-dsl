@@ -61,7 +61,9 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               spelling marks the slot it stands in (``Refused``), a check
               refusing on a fact read from a slot as written marks what clears
               it (``Unless``), and ``DiagnosticBag.settle`` decides, at each
-              raise, which are told.
+              raise, which are told: a withheld refusal is told on the check
+              after its cause is fixed, and a check never passes while one is
+              withheld.
               A refusal of spliced library text that a game declaration its
               contract does not name decides -- a ``Card`` parameter's
               ``CARD_PARAMETER_FAMILY`` absent, not kept per player, or
