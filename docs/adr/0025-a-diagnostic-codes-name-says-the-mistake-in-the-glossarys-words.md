@@ -31,14 +31,18 @@ five sites of `unknown-index-domain` judge four different slots.
   glossary an agent reading the error codes and the glossary can make an
   informed guess about where to look". The proposed names were confirmed:
   "Proposed code names look good".
-- `name-taken` and `written-twice` both stay, "name-taken preferred over
-  written-twice": a site that could be either is `name-taken`.
-- `needs-a-trick-round` retires into `rule-never-consulted` (now
-  `game-rule-never-consulted`); its one site that is not about a rule joins
-  `unused-declaration`.
-- Codes named after a construct are respelled: "each code says the mistake,
-  and a refusal an existing code already names joins that code". The ruling
-  covers the registry's other codes of that shape.
+- On `name-taken` against `written-twice`, the operator: "name-taken
+  preferred over written-twice". The desk's reading, put to the operator and
+  not corrected: both stay, and a site that could be either is `name-taken`.
+- On `rule-never-consulted` against `needs-a-trick-round`, the operator:
+  "rule-never-consulted". The desk's reading, put to the operator and not
+  corrected: `needs-a-trick-round` retires into `rule-never-consulted` (now
+  `game-rule-never-consulted`), and its one site that is not about a rule
+  joins `unused-declaration`.
+- On codes named after a construct, the operator: "Respell them". As the desk
+  put it to the operator: each code says the mistake, and a refusal an
+  existing code already names joins that code. The desk applied the ruling to
+  the registry's other codes of that shape.
 - Where the measurements split a code, it splits by the slot judged
   (`unknown-zone-index`, `unknown-zone-owner`, the `for each` domain, the
   query's position domain) and by the sort of library (a family library's
@@ -58,10 +62,18 @@ five sites of `unknown-index-domain` judge four different slots.
 
 ## Consequences
 
-- A test reads the glossary's reserved-words table and refuses a code name
-  using a reserved word outside an approved compound; "checker type" and the
-  round forms' names joined their rows' approved compounds, and a row whose
-  compounds open "one meaning only" (the Outcome row) approves its bare word.
+- Each reserved glossary entry marks its approved compounds, and a test
+  reads them through the glossary index generator: a code name uses a
+  reserved word, singular or plural, only inside a compound its own row
+  marks. "checker type", "round state" and the round forms' names joined
+  their rows, and the Outcome row marks its own word.
+- `unknown-checker-type` keeps the sites that judge a checker type; a move
+  type parameter's domain takes `unknown-parameter-domain`.
+- `trick-order-function-reads-beyond-the-card` is told for every function
+  that answers a Kernel Definition Contract, Card Points included, which is
+  wider than its name; its meaning line says so.
+- Where standard-library text takes a standard-library code, its sentence
+  speaks of the standard library; a family library's sentences are unchanged.
 - The same ruling respells `unknown-round-function`, whose sites judge a trick
   round's winner function and early-termination predicate, as
   `unknown-trick-round-function`.
