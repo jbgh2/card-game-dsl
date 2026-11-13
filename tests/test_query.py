@@ -22,7 +22,11 @@ domain:          Two axes. The node axis is every member of the `Node` union,
                  phase's body the scope's State Variables are the game's and
                  its enclosing phases', read off their declarations, and a
                  State Variable read is listed around the read
-                 (`test_scope_in_a_phase_is_its_phases_state`). The position axis is
+                 (`test_scope_in_a_phase_is_its_phases_state`); a definition
+                 body's scope lists no Pronoun its body may not read, and a
+                 `state { }` default's lists no `actor` and the State
+                 Variables declared before it and around it
+                 (`_body_and_default_scopes`). The position axis is
                  `POSITION_CELLS`: the places in a file that are in no node or
                  in no game -- a comment, a blank line, past a line's end or
                  the file's, line or column 0, a Markdown file's prose and
@@ -48,10 +52,9 @@ does not prove:  that an answer is the RIGHT one at a position no corpus game
                  a site's clause) is the one `cardlang.query.seats_at` reads by, so a
                  wrong rule passes here; that each answer is what the engine
                  shows a seat is tests/test_query_seats.py's claim. The
-                 State Variables listed in a callable body or a `state { }`
-                 default are held only by the read-is-listed half: no scope
-                 rule judges a callable body (issue #242), and a default's
-                 rule is `_default_reads`'.
+                 State Variables listed in a callable body are held only by
+                 the read-is-listed half: no scope rule judges a callable body
+                 (issue #242).
 """
 
 from __future__ import annotations
@@ -68,7 +71,7 @@ from typing import get_args
 
 import pytest
 
-from cardlang import cli, query
+from cardlang import cli, query, resolve
 from cardlang.ast import nodes as n
 from cardlang.diagnostic_codes import Code
 from cardlang.diagnostics import Span, Told
@@ -410,6 +413,68 @@ def _phase_scope_mismatches() -> list[str]:
                 if p.node.name not in {s.name for s in around.names}:
                     out.append(f"{where}: reads {p.node.name}, unlisted around it")
     return out
+
+
+@cache
+def _body_and_default_scopes() -> tuple[list[str], list[str], int, int]:
+    """At every position that is no name in a game definition's body, the
+    Pronouns it may not read (`_refused_call_site_pronouns`) are not listed;
+    at every one in a `state { }` default, `actor` is not listed and the State
+    Variables listed are those declared before it in its block and those of
+    every enclosing block, read off the declarations. With how many positions
+    of each kind the corpus holds."""
+    bodies: list[str] = []
+    defaults: list[str] = []
+    in_bodies = in_defaults = 0
+    for checked, placed in _corpus():
+        game_state = _declared_state(checked.game.state)
+        for p in placed:
+            if isinstance(p.node, n.NameRef):
+                continue
+            scope = scope_at(checked, p.chain)
+            assert not isinstance(scope, Told)
+            pronouns = {s.name for s in scope.names if s.sort == "pronoun"}
+            listed = {s.name for s in scope.names if s.sort == "state-variable"}
+            span = getattr(p.node, "span")
+            where = f"{span.source_name}:{span.line}:{span.column} {type(p.node).__name__}"
+            for i, holder in enumerate(p.chain[:-1]):
+                if isinstance(holder, (n.FunctionDef, n.ProcedureDef)):
+                    body = holder.body if isinstance(holder.body, tuple) else (holder.body,)
+                    if any(part is p.chain[i + 1] for part in body):
+                        in_bodies += 1
+                        refused = resolve._refused_call_site_pronouns(holder)
+                        if pronouns & refused:
+                            bodies.append(f"{where}: lists {sorted(pronouns & refused)}")
+                if isinstance(holder, n.StateBlock) and i + 2 < len(p.chain):
+                    decl = p.chain[i + 1]
+                    assert isinstance(decl, n.StateDecl)
+                    if p.chain[i + 2] is not decl.default:
+                        continue
+                    in_defaults += 1
+                    earlier = frozenset(d.name for d in holder.decls[: holder.decls.index(decl)])
+                    phases = [x for x in p.chain[:i] if isinstance(x, n.Phase)]
+                    enclosing = frozenset() if holder is checked.game.state else game_state.union(
+                        *(_declared_state(next((it for it in ph.items if isinstance(it, n.StateBlock)), None)) for ph in phases[:-1])
+                    )
+                    if "actor" in pronouns or listed != earlier | enclosing:
+                        defaults.append(f"{where}: lists {sorted(listed ^ (earlier | enclosing))}, actor {'actor' in pronouns}")
+    return bodies, defaults, in_bodies, in_defaults
+
+
+def test_scope_in_a_definition_body_lists_no_refused_pronoun() -> None:
+    """red under: record `_ScopeFacts.refused_pronouns` at `NameRef` nodes
+    alone in `classification._scope_facts`."""
+    bodies, _defaults, in_bodies, _ = _body_and_default_scopes()
+    assert in_bodies, "no corpus game defines a function or procedure"
+    assert not bodies, "\n".join(bodies[:8])
+
+
+def test_scope_in_a_state_default_is_what_a_default_reads() -> None:
+    """red under: record a default's live state at `NameRef` nodes alone in
+    `classification._scope_facts`."""
+    _bodies, defaults, _, in_defaults = _body_and_default_scopes()
+    assert in_defaults, "no corpus game writes a `state { }` default"
+    assert not defaults, "\n".join(defaults[:8])
 
 
 def test_scope_in_a_phase_is_its_phases_state() -> None:
