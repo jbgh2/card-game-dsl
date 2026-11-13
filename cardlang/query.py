@@ -941,8 +941,8 @@ def _render_scope(scope: Scope | Told | None) -> list[str]:
             out.append(f"  {words}: {', '.join(names)}")
     if not scope.at_a_name:
         out.append(
-            "  (every State Variable is listed; which are live here is judged at a "
-            "name, so point at one to see)"
+            "  (which of these a name may be also depends on the slot it is written "
+            "in; point at a name to see)"
         )
     return out
 

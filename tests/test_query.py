@@ -18,7 +18,11 @@ domain:          Two axes. The node axis is every member of the `Node` union,
                  from the language's own partitions: every node has a scope,
                  an expression has a Type and nothing else does, and a site
                  (`SITE_KINDS`) or an expression in a site's clause has an
-                 answer for what each seat sees. The position axis is
+                 answer for what each seat sees; at every position of a
+                 phase's body the scope's State Variables are the game's and
+                 its enclosing phases', read off their declarations, and a
+                 State Variable read is listed around the read
+                 (`test_scope_in_a_phase_is_its_phases_state`). The position axis is
                  `POSITION_CELLS`: the places in a file that are in no node or
                  in no game -- a comment, a blank line, past a line's end or
                  the file's, line or column 0, a Markdown file's prose and
@@ -43,7 +47,11 @@ does not prove:  that an answer is the RIGHT one at a position no corpus game
                  for which enclosing part answers (a site, or an expression in
                  a site's clause) is the one `cardlang.query.seats_at` reads by, so a
                  wrong rule passes here; that each answer is what the engine
-                 shows a seat is tests/test_query_seats.py's claim.
+                 shows a seat is tests/test_query_seats.py's claim. The
+                 State Variables listed in a callable body or a `state { }`
+                 default are held only by the read-is-listed half: no scope
+                 rule judges a callable body (issue #242), and a default's
+                 rule is `_default_reads`'.
 """
 
 from __future__ import annotations
@@ -357,12 +365,61 @@ def test_a_markdown_answer_counts_the_file_s_lines() -> None:
     assert (answer.located.span.line, answer.located.span.column) == (15, 5)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1108")
 def test_scope_lists_only_live_state_at_a_statement() -> None:
     """Hearts' `passing` phase cannot read `play`'s `leader`."""
     answer = ask_path(HEARTS, 65, 9)
     assert answer.scope is not None and not isinstance(answer.scope, Told)
     assert "leader" not in {s.name for s in answer.scope.names}
+
+
+def _declared_state(block: n.StateBlock | None) -> frozenset[str]:
+    return frozenset(d.name for d in block.decls) if block is not None else frozenset()
+
+
+_OUTSIDE_A_PHASE_BODY = (n.StateBlock, n.FunctionDef, n.ProcedureDef, n.MoveTypeDef, n.RuleDef)
+
+
+@cache
+def _phase_scope_mismatches() -> list[str]:
+    """Every position in a phase's body, a name or not, whose listed State
+    Variables are not the game's and those of each phase enclosing it, read
+    off the declarations; and every State Variable a corpus game reads that
+    is not listed at the part of the game holding the read."""
+    out: list[str] = []
+    for checked, placed in _corpus():
+        game_state = _declared_state(checked.game.state)
+        for p in placed:
+            scope = scope_at(checked, p.chain)
+            assert not isinstance(scope, Told)
+            listed = {s.name for s in scope.names if s.sort == "state-variable"}
+            span = getattr(p.node, "span")
+            where = f"{span.source_name}:{span.line}:{span.column} {type(p.node).__name__}"
+            phases = [x for x in p.chain if isinstance(x, n.Phase)]
+            slot_takes_state = not isinstance(p.node, n.NameRef) or "state-variable" in {
+                s.sort for s in scope.names
+            }
+            if phases and slot_takes_state and not any(isinstance(x, _OUTSIDE_A_PHASE_BODY) for x in p.chain):
+                live = game_state.union(
+                    *(_declared_state(next((i for i in ph.items if isinstance(i, n.StateBlock)), None)) for ph in phases)
+                )
+                if listed != live:
+                    out.append(f"{where}: lists {sorted(listed ^ live)} wrongly")
+            if isinstance(p.node, n.NameRef) and p.node.ref_kind == "state_var" and len(p.chain) > 1:
+                around = scope_at(checked, p.chain[:-1])
+                assert not isinstance(around, Told)
+                if p.node.name not in {s.name for s in around.names}:
+                    out.append(f"{where}: reads {p.node.name}, unlisted around it")
+    return out
+
+
+def test_scope_in_a_phase_is_its_phases_state() -> None:
+    """At every position of a phase's body, the State Variables listed are
+    the game's and its enclosing phases', as a name written there reads
+    them; and a State Variable the game reads is listed around the read.
+    red under: record `_ScopeFacts` at `NameRef` nodes alone in
+    `classification._scope_facts`."""
+    wrong = _phase_scope_mismatches()
+    assert not wrong, "\n".join(wrong[:8])
 
 
 def test_scope_at_a_name_lists_only_what_may_stand_there() -> None:

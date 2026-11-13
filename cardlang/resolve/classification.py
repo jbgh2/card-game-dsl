@@ -22,9 +22,12 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
               Asked for one (``resolve(scopes=...)``), the pass fills the
               Scope Record: at every node the classifying walk visits, keyed by
               ``n.node_key``, the names a bare name written there classifies
-              as, by ``_classify`` under that node's categories, less those a
-              positional Owner Guard refuses where the node is a name
-              (``_record_scope``). It is the one source of "what is in scope
+              as, by ``_classify`` under that node's categories, less those
+              the scope rules refuse at the node (``_scope_facts``, recorded
+              at every node from the walks the rules refuse by, and
+              ``_scope_refuses``) and, where the node is a name, those every
+              positional Owner Guard refuses (``_position_refuses``) --
+              ``_record_scope``. It is the one source of "what is in scope
               here" outside this pass (``cardlang.query``), and recording it
               changes nothing the pass decides.
               The step returns the categories it classified against, for the
@@ -33,6 +36,7 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
 from cardlang.ast import nodes as n
 from cardlang.builtins.functions import BUILTIN_IMPLICIT_READS
@@ -44,10 +48,10 @@ from cardlang.resolve.scope import (
     _DEFAULT_REFUSED_PRONOUNS,
     _default_reads,
     _keyed_ids,
-    _phase_scoped_names,
+    _phase_scoped_nodes,
     _refused_call_site_pronouns,
 )
-from cardlang.resolve.classifier import _Categories, _NamePosition, _rewrite
+from cardlang.resolve.classifier import _Categories, _NamePosition, _ScopeFacts, _rewrite
 from cardlang.resolve.classifier import NamesInScope, _categories
 
 
@@ -124,26 +128,42 @@ def _stamp_follows_reads(game: n.Game) -> n.Game:
     return stamped
 
 
-def _name_positions(game: n.Game) -> dict[int, _NamePosition]:
-    """Every bare name of `game`, by its node, with what may denote it where
-    it stands. Read off the tree's shape and declarations alone, never its
-    classification, so the record over a tree before classification is the
-    record over it after."""
+def _scope_facts(game: n.Game) -> dict[int, _ScopeFacts]:
+    """Every node of `game` with what a name written there may read, whatever
+    slot it fills. Read off the tree's shape and declarations alone, never
+    its classification."""
     live: dict[int, frozenset[str]] = {}
-    for ref, in_scope in _phase_scoped_names(game):
-        live[id(ref)] = in_scope
+    for node, in_scope in _phase_scoped_nodes(game):
+        live[id(node)] = in_scope
     in_default: set[int] = set()
     for _decl, node, in_scope in _default_reads(game):
-        if isinstance(node, n.NameRef):
-            live[id(node)] = in_scope
-            in_default.add(id(node))
+        live[id(node)] = in_scope
+        in_default.add(id(node))
     pronouns: dict[int, frozenset[str]] = {}
     definitions: tuple[n.FunctionDef | n.ProcedureDef, ...] = (*game.functions, *game.procedures)
     for definition in definitions:
         refused = _refused_call_site_pronouns(definition)
         for node in _child_nodes(definition.body):
-            if isinstance(node, n.NameRef):
-                pronouns[id(node)] = refused
+            pronouns[id(node)] = refused
+    return {
+        id(node): _ScopeFacts(
+            live_state=live.get(id(node)),
+            refused_pronouns=(
+                _DEFAULT_REFUSED_PRONOUNS if id(node) in in_default else pronouns.get(id(node), frozenset())
+            ),
+            in_default=id(node) in in_default,
+        )
+        for node in _walk(game)
+    }
+
+
+def _name_positions(game: n.Game, facts: Mapping[int, _ScopeFacts] | None = None) -> dict[int, _NamePosition]:
+    """Every bare name of `game`, by its node, with what may denote it where
+    it stands: what any name there may read (`facts`, `_scope_facts` of the
+    game where not given) and the slot the name fills. Read off the tree's
+    shape and declarations alone, never its classification, so the record
+    over a tree before classification is the record over it after."""
+    scope = _scope_facts(game) if facts is None else facts
     slots: dict[int, frozenset[n.RefKind]] = {}
     each: set[int] = set()
     for node in _walk(game):
@@ -155,14 +175,10 @@ def _name_positions(game: n.Game) -> dict[int, _NamePosition]:
     keyed = _keyed_ids(game)
     return {
         id(ref): _NamePosition(
-            live_state=live.get(id(ref)),
-            refused_pronouns=(
-                _DEFAULT_REFUSED_PRONOUNS if id(ref) in in_default else pronouns.get(id(ref), frozenset())
-            ),
+            scope=scope[id(ref)],
             slot=slots.get(id(ref)),
             each_destination=id(ref) in each,
             keyed=id(ref) in keyed,
-            in_default=id(ref) in in_default,
         )
         for ref in _walk(game)
         if isinstance(ref, n.NameRef)
@@ -172,6 +188,9 @@ def _name_positions(game: n.Game) -> dict[int, _NamePosition]:
 def _classify_names(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> n.Game:
     """Immutably rewrite every NameRef with its classification, recording an
     error for any name that resolves to nothing."""
-    result = _rewrite(game, replace(cats, positions=_name_positions(game)), bag)
+    facts = _scope_facts(game)
+    result = _rewrite(
+        game, replace(cats, positions=_name_positions(game, facts), scope_facts=facts), bag
+    )
     assert isinstance(result, n.Game)
     return result
