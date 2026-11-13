@@ -5,6 +5,11 @@ tests all run the exact same path:
 
     (extract) -> parse -> resolve -> typecheck -> expand -> deck-capacity (-> emit IR)
 
+A refusal of a bare name that is the check's only one offers only the Near
+Misses with which the text, each written in the name's place, passes parse,
+resolve and typecheck (`_judged`): the type a name takes where it stands is
+typecheck's, which never runs on a game resolve refuses.
+
 `expand` [[splice]]s every procedure body into its `run` sites. It sits after
 typecheck because a procedure's parameter types can only be enforced while the
 call site still exists (cardlang/expand.py), and before deck-capacity because
@@ -26,6 +31,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable
+from dataclasses import replace
 from functools import cache
 from pathlib import Path
 
@@ -33,7 +39,7 @@ from cardlang.diagnostic_codes import Code
 from cardlang.ast.nodes import Game
 from cardlang.attribution import raise_where_written
 from cardlang.deckcheck import check_capacity
-from cardlang.diagnostics import Author, DiagnosticBag, listed
+from cardlang.diagnostics import NEAR_MISS_LIMIT, Author, DiagnosticBag, DiagnosticError, listed
 from cardlang.expand import expand
 from cardlang.extract import extract_single_block
 from cardlang.ir import IRValue, emit
@@ -63,7 +69,51 @@ def _check(game: Game) -> Game:
 
 def check_dsl(text: str, source_name: str) -> Game:
     """Check raw DSL text (a `.cardlang` source): parse -> resolve -> typecheck."""
-    return _check(parse_text(text, source_name))
+    return _judging(text, source_name, lambda written: parse_text(written, source_name))
+
+
+def _judging(text: str, source_name: str, parse: Callable[[str], Game]) -> Game:
+    """`_check` over the game `parse` reads from `text`, a refusal's Near
+    Misses narrowed by `_judged`."""
+    try:
+        return _check(parse(text))
+    except DiagnosticError as error:
+        judged = _judged(error, text, source_name, parse)
+        if judged is error:
+            raise
+        raise judged from None
+
+
+def _judged(
+    error: DiagnosticError, text: str, source_name: str, parse: Callable[[str], Game]
+) -> DiagnosticError:
+    """`error`, its one refusal offering only the Near Misses with which the
+    game passes parse, resolve and typecheck, each written in turn in place of
+    the refused bare name in `text`, in rank order, until `NEAR_MISS_LIMIT`
+    pass. The type a Near Miss takes where it stands is typecheck's, and
+    resolve refuses before typecheck runs, so an offer is judged by checking
+    the text it makes. Judged where the refusal is the check's only one and
+    refuses a bare name written in `text` (`Diagnostic.ranked_near_misses`);
+    `error` as it is otherwise."""
+    if len(error.told) != 1:
+        return error
+    told = error.told[0]
+    refused = told.diagnostic
+    at = refused.span
+    if not refused.ranked_near_misses or at is None or at.source_name != source_name:
+        return error
+    if not text[at.start:at.end].isidentifier():
+        return error
+    kept: list[str] = []
+    for name in refused.ranked_near_misses:
+        if len(kept) == NEAR_MISS_LIMIT:
+            break
+        try:
+            typecheck(resolve(parse(text[: at.start] + name + text[at.end :])))
+        except DiagnosticError:
+            continue
+        kept.append(name)
+    return DiagnosticError(replace(told, diagnostic=replace(refused, near_misses=tuple(kept))))
 
 
 def check_markdown(markdown: str, source_name: str) -> Game:
@@ -86,7 +136,9 @@ def check_markdown(markdown: str, source_name: str) -> Game:
             f"or rename the file {renamed}"
         )
     block = extract_single_block(markdown, source_name, unfenced=unfenced)
-    return _check(parse_block(block))
+    return _judging(
+        block.text, block.source_name, lambda written: parse_block(replace(block, text=written))
+    )
 
 
 # The game file shapes the checker reads, keyed by the extension that names

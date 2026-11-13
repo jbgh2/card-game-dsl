@@ -7,7 +7,11 @@ refused where the misspelling stands -- a phase's state outside that phase, a
 call-site pronoun in a function, a literal where a zone is wanted -- so the
 bare-name and round `trump` refusals offer only the names every positional
 Owner Guard of the resolve pass admits there, read from the one record those
-guards refuse by (`cardlang.resolve._name_positions`).
+guards refuse by (`cardlang.resolve._name_positions`). Where the refusal is
+the check's only one, the pipeline narrows the offer further to the names
+with which the game, each written in place, passes resolve and typecheck
+(`cardlang.pipeline._judged`): the type a name takes where it stands is
+typecheck's, and a guard judging by walk state reads no record.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -25,10 +29,10 @@ domain:          every slip the Near Miss census holds (`WITNESSES`,
                  any name where a `Positive` parameter's argument stands
                  (`_check_positive_arguments`, which reads no `ref_kind`),
                  crossed with
-                 every Near Miss each one offers. A cell whose offer is of
-                 the wrong type for its position is a strict xfail naming its
-                 issue (`RESIDUAL`), and a positional guard the record does
-                 not read is a `POSITIONAL_GUARDS` row naming its issue.
+                 every Near Miss each one offers, and one probe of a slip
+                 beside a second slip. A cell the checker cannot yet judge
+                 is a strict xfail naming its issue (`RESIDUAL`, and
+                 `UNJUDGED` for a whole offer the oracle cannot see).
 registry:        the census dictionaries, pinned to the routed sites by
                  tests/test_near_misses.py; the positional guards,
                  `POSITIONAL_GUARDS`, pinned equal to the functions of
@@ -37,7 +41,11 @@ registry:        the census dictionaries, pinned to the routed sites by
 held by:         Derived and Pinned. One record (`_name_positions`), built
                  from the walks the guards refuse by, and one predicate per
                  guard (`_position_refuses` is their disjunction); the scrape
-                 pins the guard set. A round's refusals of its own winner
+                 pins the guard set. Beneath it, for a check's only refusal of
+                 a bare name in the game's own text, the checker itself: each
+                 offer is kept only if the game it makes passes resolve and
+                 typecheck (`_judged`), so the type, alias and hidden-read
+                 cells copy no guard's condition. A round's refusals of its own winner
                  have one producer (`_winner_refusals`) that every guard
                  telling one dispatches on, and a scrape pins that every
                  function reading a round's winner and refusing calls it.
@@ -62,7 +70,13 @@ does not prove:  that a green offer is the name the designer meant, or that the
                  the winner through a typecheck helper (`card_content_forms`)
                  is held by its call to the producer, which nothing pins; and
                  the scrape reads a call to the producer anywhere in the
-                 function, not in each arm that tells a refusal.
+                 function, not in each arm that tells a refusal. A check
+                 holding two refusals, or a slip in library text, is offered
+                 the record's list, its types and walk-state positions
+                 unjudged; the oracle applies one offer and leaves the other
+                 slip refused, so it cannot see that (`UNJUDGED`). The
+                 hand-written `OFFERED` lists are the half independent of the
+                 checker, since `_judged` and the oracle run the same stages.
 """
 
 from __future__ import annotations
@@ -195,6 +209,11 @@ POSITION_PROBES: dict[str, Slip] = {
     "a seat's family bare where no player acts": Slip(
         "docs/games/belote.cardlang", "      shuffle deck\n", "      shuffle hnad\n",
         "unresolved name 'hnad'", "deck"),
+    # A round's `trump` misspelled while another misspelling stands.
+    "two slips at once": Slip(
+        "docs/games/bridge.cardlang", "trump trump_suit", "trump cur_levl",
+        "`trump` names 'cur_levl'", "trump_suit",
+        also=(("let required = 6 + contract_level", "let required = 6 + contract_levl"),)),
     # A `Positive` parameter's argument, which takes a written number.
     "a Positive argument": Slip(
         "docs/games/five-card-stud.cardlang", "run betting_street(bringer, 10, 0)",
@@ -218,21 +237,18 @@ SPELLED: dict[str, str] = {
 # The cells whose offers a guard outside the record refuses, by the issue that
 # holds them.
 RESIDUAL: dict[str, str] = {
-    "a call-site pronoun in a function": "the state `acted` and the seat direction `across` are not Players (issue #1088)",
-    "a call-site pronoun in a procedure": "the seat direction `across` is not a Player (issue #1088)",
-    "a default reads a pronoun": "the seat direction `across` is not a Player (issue #1088)",
-    "a round's trump": "`contract_level` is an Integer, not a Suit? (issue #1088)",
-    "bool": "`captured` is cards, not a condition (issue #1088)",
-    "a Hosted Poll reads `state`": "the play shape `straight` is not a Player (issue #1088)",
-    "two names for the acting player compared": (
-        "`actor is actor` is always true, which the alias guard judges off the record, "
-        "and the seat direction `across` is not a Player (issue #1089, issue #1088)"),
-    "a decision reads a zone its seat cannot see": "the hidden-read walk judges off the record (issue #1089)",
-    "`actor` where no player acts": (
-        "the hidden-read walk judges off the record, and the seat direction `across` "
-        "is not a Player (issue #1089, issue #1088)"),
-    "a seat's family bare where no player acts": "the hidden-read walk judges off the record (issue #1089)",
-    "a Positive argument": "a `Positive` parameter takes a written number, which no record holds (issue #1089)",
+    "a Positive argument": (
+        "the misspelling is told twice, unresolved and as no written number, so the "
+        "check holds two refusals and no offer is re-checked (issue #1087)"),
+}
+
+# The position probes whose whole offer is wrong where the oracle cannot see
+# it, by the issue that holds them: applied, the offer leaves the other
+# misspelling refused, so no type is judged.
+UNJUDGED: dict[str, str] = {
+    "two slips at once": (
+        "the check holds two refusals, so no offer is re-checked and `contract_level`, "
+        "an Integer, is offered where a Suit? stands (issue #1088)"),
 }
 
 _CELLS: dict[str, Slip] = {**WITNESSES, **{str(k): v for k, v in REF_KIND_WITNESSES.items()},
@@ -350,18 +366,19 @@ def _refused_at_the_position(key: str) -> list[str]:
     return found
 
 
-def _cell(key: str) -> object:
-    marks = [pytest.mark.xfail(strict=True, reason=RESIDUAL[key])] if key in RESIDUAL else []
+def _cell(key: str, residual: dict[str, str]) -> object:
+    marks = [pytest.mark.xfail(strict=True, raises=AssertionError, reason=residual[key])] if key in residual else []
     return pytest.param(key, id=key, marks=marks)
 
 
-@pytest.mark.parametrize("key", [_cell(key) for key in sorted(_CELLS)])
+@pytest.mark.parametrize("key", [_cell(key, RESIDUAL) for key in sorted(_CELLS)])
 def test_an_offered_name_is_admitted_where_it_is_offered(key: str) -> None:
     assert _refused_at_the_position(key) == []
 
 
 def test_the_residual_names_cells() -> None:
     assert set(RESIDUAL) <= set(_CELLS)
+    assert set(UNJUDGED) <= set(OFFERED)
 
 
 # --------------------------------------------------------------------------
@@ -400,6 +417,7 @@ OFFERED: dict[str, list[str]] = {
     "`actor` where no player acts": ["action"],
     "a seat's family bare where no player acts": [],
     "a Positive argument": [],
+    "two slips at once": [],
 }
 
 
@@ -410,7 +428,7 @@ def _offer(key: str) -> list[str]:
     return _offers(hits[0])
 
 
-@pytest.mark.parametrize("key", [_cell(key) for key in sorted(OFFERED)])
+@pytest.mark.parametrize("key", [_cell(key, {**RESIDUAL, **UNJUDGED}) for key in sorted(OFFERED)])
 def test_a_position_probe_is_offered_only_what_resolves_there(key: str) -> None:
     assert _offer(key) == OFFERED[key]
 
@@ -440,10 +458,11 @@ POSITIONAL_GUARDS: dict[str, str] = {
     "_check_play_source": "joined",
     "_check_arrival_record_pile_args": "joined",
     "_check_hosted_node": "joined",
-    # Residual: the guard judges a position by walk state (the alias set, a
-    # `let`, the deciding seat) the tree's shape does not hold.
-    "_check_alias_operands": "residual (issue #1089)",
-    "_HiddenReads": "residual (issue #1089)",
+    # Judged by the pipeline's re-check (`pipeline._judged`): the guard judges
+    # a position by walk state (the alias set, a `let`, the deciding seat)
+    # the tree's shape does not hold.
+    "_check_alias_operands": "re-checked",
+    "_HiddenReads": "re-checked",
     # Not a positional guard: it classifies, and refuses a name that
     # classifies as nothing.
     "_rewrite": "the classifier itself",

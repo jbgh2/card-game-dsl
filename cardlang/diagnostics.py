@@ -175,14 +175,16 @@ def resemblance(typed: str, declared: str) -> float:
     return SequenceMatcher(None, typed.casefold(), declared.casefold()).ratio()
 
 
-def near_misses(spelled: str, among: Iterable[str]) -> tuple[str, ...]:
+def near_misses(
+    spelled: str, among: Iterable[str], limit: int | None = NEAR_MISS_LIMIT
+) -> tuple[str, ...]:
     """The declared names in `among` that `spelled` nearly spells: at most
-    `NEAR_MISS_LIMIT`, most alike first and alphabetical among equals, each
-    at least `NEAR_MISS_CUTOFF` alike, and never `spelled` itself."""
+    `limit`, most alike first and alphabetical among equals, each at least
+    `NEAR_MISS_CUTOFF` alike, and never `spelled` itself."""
     scored = sorted(
         (-resemblance(spelled, name), name) for name in set(among) if name != spelled
     )
-    return tuple(name for score, name in scored if -score >= NEAR_MISS_CUTOFF)[:NEAR_MISS_LIMIT]
+    return tuple(name for score, name in scored if -score >= NEAR_MISS_CUTOFF)[:limit]
 
 
 def listed(words: Sequence[str], conjunction: str = "or") -> str:
@@ -249,7 +251,10 @@ class Diagnostic:
 
     `near_misses` are the declared names a refused spelling nearly spells
     (`near_misses`), offered by `format` and carried through every retelling;
-    never mechanically applicable.
+    never mechanically applicable. `ranked_near_misses` is every Near Miss of
+    a refused bare name, ranked, where each is a name written in place of
+    that name at `span`: what `cardlang.pipeline` re-checks to narrow
+    `near_misses`. A retelling moves the span and drops it.
 
     `code` is the kind of fix the refusal asks for (`Code`), required where
     the diagnostic is made and kept by every retelling; `format` never
@@ -263,6 +268,7 @@ class Diagnostic:
     notes: tuple[Note, ...] = ()
     stands_on: tuple[Span, ...] = ()
     near_misses: tuple[str, ...] = ()
+    ranked_near_misses: tuple[str, ...] = ()
     code: Code = field(kw_only=True)
 
     def format(self) -> str:
@@ -356,18 +362,24 @@ class DiagnosticBag:
         for_game: Said | None = None,
         stands_on: Span | tuple[Span, ...] | None = None,
         written: Callable[[str], str] | None = None,
+        in_place: bool = False,
     ) -> None:
         """Refuse `spelled`, absent from `among`, the set it was looked up in:
         `error`, with the set's Near Misses carried as data, each as `written`
         spells it where the refusal stands (a numeric rank in a string
-        position is written quoted)."""
+        position is written quoted). `in_place` says `spelled` is a bare name
+        at `span`, each Near Miss a name written in its place, and carries
+        the whole ranking (`Diagnostic.ranked_near_misses`)."""
         self.error(
             message, span, code=code, route=route, for_game=for_game, stands_on=stands_on
         )
-        near = near_misses(spelled, among)
+        ranked = near_misses(spelled, among, limit=None)
+        near = ranked[:NEAR_MISS_LIMIT]
         if written is not None:
             near = tuple(written(name) for name in near)
-        self.items[-1] = replace(self.items[-1], near_misses=near)
+        self.items[-1] = replace(
+            self.items[-1], near_misses=near, ranked_near_misses=ranked if in_place else ()
+        )
 
     @property
     def has_errors(self) -> bool:

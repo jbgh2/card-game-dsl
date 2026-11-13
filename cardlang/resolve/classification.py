@@ -18,7 +18,12 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
               predicates); a trick round's winner is offered the winners that
               round admits (``_winner_refusals``, the one producer the
               guards refusing a round's winner dispatch on). Held by Derived and Pinned
-              (tests/test_near_miss_positions.py).
+              (tests/test_near_miss_positions.py). The type a Near Miss
+              takes where it stands is typecheck's, and this pass derives
+              none: the bare-name and round `trump` refusals carry their
+              whole ranking (``Diagnostic.ranked_near_misses``), which the
+              pipeline narrows by checking the game each Near Miss makes
+              (``pipeline._judged``).
               Asked for one (``resolve(scopes=...)``), the pass fills the
               Scope Record: at every node the classifying walk visits, keyed by
               ``n.node_key``, the names a bare name written there classifies
