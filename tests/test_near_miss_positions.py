@@ -9,8 +9,8 @@ bare-name and round `trump` refusals offer only the names every positional
 Owner Guard of the resolve pass admits there, read from the one record those
 guards refuse by (`cardlang.resolve._name_positions`). Where the refusal is
 the check's only one, the pipeline narrows the offer further to the names
-with which the game, each written in place, passes resolve and typecheck
-(`cardlang.pipeline._judged`): the type a name takes where it stands is
+with which the game's text, each written in place, passes parse, resolve and
+typecheck (`cardlang.pipeline._judged`): the type a name takes where it stands is
 typecheck's, and a guard judging by walk state reads no record.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
@@ -43,8 +43,8 @@ held by:         Derived and Pinned. One record (`_name_positions`), built
                  guard (`_position_refuses` is their disjunction); the scrape
                  pins the guard set. Beneath it, for a check's only refusal of
                  a bare name in the game's own text, the checker itself: each
-                 offer is kept only if the game it makes passes resolve and
-                 typecheck (`_judged`), so the type, alias and hidden-read
+                 offer is kept only if the text it makes passes parse,
+                 resolve and typecheck (`_judged`), so the type, alias and hidden-read
                  cells copy no guard's condition. A round's refusals of its own winner
                  have one producer (`_winner_refusals`) that every guard
                  telling one dispatches on, and a scrape pins that every
@@ -214,6 +214,11 @@ POSITION_PROBES: dict[str, Slip] = {
         "docs/games/bridge.cardlang", "trump trump_suit", "trump cur_levl",
         "`trump` names 'cur_levl'", "trump_suit",
         also=(("let required = 6 + contract_level", "let required = 6 + contract_levl"),)),
+    # A decision's hidden read misspelled while another misspelling stands.
+    "a hidden read beside a second slip": Slip(
+        "docs/games/belote.cardlang", "  when: s is not suit_of(turnup)", "  when: s is not suit_of(dek)",
+        "unresolved name 'dek'", "turnup",
+        also=(("  trick_pile is not empty and\n  team_of", "  trick_pil is not empty and\n  team_of"),)),
     # A `Positive` parameter's argument, which takes a written number.
     "a Positive argument": Slip(
         "docs/games/five-card-stud.cardlang", "run betting_street(bringer, 10, 0)",
@@ -237,6 +242,9 @@ SPELLED: dict[str, str] = {
 # The cells whose offers a guard outside the record refuses, by the issue that
 # holds them.
 RESIDUAL: dict[str, str] = {
+    "a hidden read beside a second slip": (
+        "the check holds two refusals, so no offer is re-checked and `deck`, which the "
+        "deciding seat cannot see, is offered in a `when:` (issue #1089)"),
     "a Positive argument": (
         "the misspelling is told twice, unresolved and as no written number, so the "
         "check holds two refusals and no offer is re-checked (issue #1087)"),
@@ -418,6 +426,7 @@ OFFERED: dict[str, list[str]] = {
     "a seat's family bare where no player acts": [],
     "a Positive argument": [],
     "two slips at once": [],
+    "a hidden read beside a second slip": [],
 }
 
 
@@ -461,8 +470,8 @@ POSITIONAL_GUARDS: dict[str, str] = {
     # Judged by the pipeline's re-check (`pipeline._judged`): the guard judges
     # a position by walk state (the alias set, a `let`, the deciding seat)
     # the tree's shape does not hold.
-    "_check_alias_operands": "re-checked",
-    "_HiddenReads": "re-checked",
+    "_check_alias_operands": "re-checked; a check holding two refusals is not (issue #1089)",
+    "_HiddenReads": "re-checked; a check holding two refusals is not (issue #1089)",
     # Not a positional guard: it classifies, and refuses a name that
     # classifies as nothing.
     "_rewrite": "the classifier itself",

@@ -20,7 +20,11 @@ Establishes:  `resemblance` is the one measure of how alike two spellings
               parse refusal of a misspelled keyword carries the keywords the
               grammar accepts in its place (`cardlang.parse`);
               `Diagnostic.format` is the one place the `did you mean` clause
-              is worded. Every diagnostic carries its Diagnostic Code
+              is worded. A refusal of a bare name carries the whole ranking
+              too (`Diagnostic.ranked_near_misses`, `unknown(in_place=True)`),
+              the data `cardlang.pipeline._judged` narrows `near_misses` by:
+              it writes each Near Miss into a copy of the designer's text and
+              checks that copy, which is never told and never kept. Every diagnostic carries its Diagnostic Code
               (`cardlang.diagnostic_codes.Code`), which `format` never shows;
               a `DiagnosticError` carries every diagnostic it tells as a
               Told Diagnostic (`Told`), each with its Author, and renders the
