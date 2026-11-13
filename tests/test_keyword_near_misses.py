@@ -43,8 +43,13 @@ domain:          two grids. Block items: every element of a repetition in the
                  slot, the clause heads of one production's fixed sequence,
                  the slips offered nothing at the parse, the names offered no
                  keyword at the checker (`_NOT_OFFERED_AS_A_NAME`), the code
-                 a declared name nearer than the keyword keeps, and the two
-                 issue witnesses in `docs/games/hearts.cardlang`.
+                 a declared name nearer than the keyword keeps, the two
+                 issue witnesses in `docs/games/hearts.cardlang` and one in a
+                 Markdown game, and the slips another site refuses or the
+                 look-back does not reach, each a strict xfail. The
+                 productions only a library file reaches hold no name
+                 position (`test_a_library_reaches_no_name_position_a_game_file_does_not`),
+                 so the game-file sentences reach every one.
 registry:        block positions: `_positions` over
                  `cardlang.parse._parser().rules`; name positions:
                  `_positions_a_name_competes_at` over the same rules, narrowed
@@ -60,17 +65,17 @@ held by:         Derived and Pinned. A refusal's offer is data on one
                  which words a position takes is the grammar's, read off the
                  compiled rules at refusal time, and no type can hold it.
 does not prove:  that a position is offered in every sentence holding it: a
-                 cell is one sentence per position, the shortest, so a slip
-                 whose reading as a name depends on words the shortest
-                 sentence does not have (a call's parentheses after it) is a
-                 probe's to show, not the grid's. Nor that the text checks
-                 once the keyword is written, which a game whose other words
-                 are clean shows only for the hearts witnesses.
+                 cell is one sentence per position, the shortest, and a slip
+                 whose reading depends on the words after it in a longer
+                 sentence is outside what the cell runs. Nor that the text
+                 checks once the keyword is written, which a game whose other
+                 words are clean shows only for the hearts witnesses.
 """
 
 from __future__ import annotations
 
 import re
+import shutil
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import cache
@@ -80,10 +85,10 @@ import pytest
 from lark.exceptions import UnexpectedInput
 from lark.grammar import NonTerminal, Symbol, Terminal
 
-from cardlang import parse
+from cardlang import libraries, parse
 from cardlang.diagnostic_codes import Code
 from cardlang.diagnostics import NEAR_MISS_CUTOFF, Diagnostic, DiagnosticError, Span, resemblance
-from cardlang.pipeline import check_dsl
+from cardlang.pipeline import check_dsl, check_markdown, check_source
 
 _ROOT = Path(__file__).resolve().parent.parent
 _HOLE = "@@"
@@ -532,6 +537,79 @@ def test_a_slip_read_as_a_call_is_offered_the_keyword() -> None:
     assert "jointly" in told.near_misses, told.format()
 
 
+def test_a_slip_in_a_markdown_game_is_offered_the_keyword() -> None:
+    """The text read is the fenced block's, at the block's own offsets."""
+    slipped, at = _hearts_with("deal 13 cards", "deal som cards")
+    markdown = "# Hearts\n\nThe rules.\n\n```cardlang\n" + slipped + "```\n"
+    with pytest.raises(DiagnosticError) as refused:
+        check_markdown(markdown, "hearts.md")
+    told = refused.value.diagnostic
+    assert told.near_misses == ("some",), told.format()
+    assert told.code is Code.MISSPELLED_KEYWORD
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "issue #TBD-keyword: the look-back starts at the items the parser was "
+        "scanning, which begin after an index the slip is followed by"
+    ),
+)
+def test_a_slip_followed_by_an_index_is_offered_the_keyword() -> None:
+    game, at = _in_the_clean_host("let n = @@iff points[0] then 1 else 2")
+    _assert_offered_at("start", game, at, "iff", "if")
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "issue #TBD-keyword: a word after a produces arm list is read as one "
+        "more arm, refused as an unknown outcome with no keyword offered"
+    ),
+)
+def test_a_slip_after_a_produces_arm_list_is_offered_the_keyword() -> None:
+    line = "      bid_won(d, c) { high_bidder := d  current_bid := c  continue to play }\n"
+    text = (_ROOT / "docs/games/pinochle.cardlang").read_text()
+    assert line in text
+    written = text.replace(line, line + "    before_each { }\n", 1)
+    check_dsl(written, "pinochle.cardlang")
+    slipped = written.replace("    before_each { }\n", "    befor_each { }\n", 1)
+    told = _the_refusal_at(slipped, slipped.index("befor_each"))
+    assert "before_each" in told.near_misses, told.format()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "issue #TBD-keyword: a family library's text is not the text resolve "
+        "is handed, so a slip in it is offered no keyword"
+    ),
+)
+def test_a_slip_inside_a_family_library_is_offered_the_keyword(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    copied = tmp_path / "libraries"
+    shutil.copytree(_ROOT / "docs" / "libraries", copied)
+    library = copied / "smuggling.cardlang"
+    line = "move all cards from shipment[merchant] to warehouse[merchant]"
+    assert line in library.read_text()
+    library.write_text(library.read_text().replace(line, line.replace("all", "al", 1), 1))
+    monkeypatch.setattr(libraries, "_libraries_dir", lambda: copied)
+    libraries.library_names.cache_clear()
+    libraries.load_library.cache_clear()
+    try:
+        with pytest.raises(DiagnosticError) as refused:
+            check_source(_ROOT / "experiments" / "green-lane" / "green-lane-mini.cardlang")
+    finally:
+        libraries.library_names.cache_clear()
+        libraries.load_library.cache_clear()
+    told = refused.value.diagnostic
+    assert "all" in told.near_misses, told.format()
+
+
 def test_a_name_in_library_text_reads_no_game_text() -> None:
     """A span outside the source offers nothing, whatever the text at its
     offsets. red under: dropping the source-name check from
@@ -598,9 +676,9 @@ def _seq(symbols: list[Symbol]) -> tuple[str, ...]:
 
 
 @cache
-def _contexts() -> dict[str, tuple[tuple[str, ...], tuple[str, ...]]]:
-    """Each nonterminal's shortest surroundings in a game file."""
-    found: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {"start": ((), ())}
+def _contexts(start: str = "start") -> dict[str, tuple[tuple[str, ...], tuple[str, ...]]]:
+    """Each nonterminal's shortest surroundings in a text parsed from `start`."""
+    found: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {start: ((), ())}
     changed = True
     while changed:
         changed = False
@@ -672,9 +750,9 @@ def _statically_open(origin: str, expansion: list[Symbol], at: int) -> bool:
     return bool(taken & names)
 
 
-def _expected_at(text: str, at: int) -> frozenset[str]:
+def _expected_at(text: str, at: int, start: str = "start") -> frozenset[str]:
     try:
-        parse._parser().parse(text[:at] + "\x00", start="start")
+        parse._parser().parse(text[:at] + "\x00", start=start)
     except UnexpectedInput as stopped:
         if getattr(stopped, "pos_in_stream", None) != at:
             return frozenset()
@@ -724,15 +802,18 @@ class NameCell:
 
 
 @cache
-def _positions_a_name_competes_at() -> dict[tuple[str, frozenset[str]], tuple[str, tuple[str, ...], int]]:
+def _positions_a_name_competes_at(
+    start: str = "start", origins: frozenset[str] | None = None
+) -> dict[tuple[str, frozenset[str]], tuple[str, tuple[str, ...], int]]:
     """Every keyword the grammar takes where it also takes a name-like
     terminal, by the expected set there, with the smallest sentence holding
-    it: (position label, words, index of the keyword)."""
-    contexts = _contexts()
+    it in a text parsed from `start`: (position label, words, index of the
+    keyword). `origins`, when given, limits the productions read."""
+    contexts = _contexts(start)
     names = _name_like()
     found: dict[tuple[str, frozenset[str]], tuple[str, tuple[str, ...], int]] = {}
     for origin, expansions in sorted(_rules().items()):
-        if origin not in contexts:
+        if origin not in contexts or (origins is not None and origin not in origins):
             continue
         left, right = contexts[origin]
         for expansion in expansions:
@@ -756,7 +837,7 @@ def _positions_a_name_competes_at() -> dict[tuple[str, frozenset[str]], tuple[st
                         index = len(left) + len(prefix)
                         words = tuple(_sample(t) for t in terms)
                         offset = len(" ".join(words[:index])) + (1 if index else 0)
-                        expected = _expected_at(" ".join(words), offset)
+                        expected = _expected_at(" ".join(words), offset, start)
                         if terminal not in expected or not expected & names:
                             continue
                         for keyword in _spellings(terminal):
@@ -900,6 +981,17 @@ def _name_cell_param(cell: NameCell) -> object:
     reason = _TOLD_ELSEWHERE.get((cell.keyword, cell.position))
     marks = [pytest.mark.xfail(strict=True, raises=AssertionError, reason=reason)] if reason else []
     return pytest.param(cell, id=f"{cell.keyword}-{cell.position}-{cell.kind}", marks=marks)
+
+
+def test_a_library_reaches_no_name_position_a_game_file_does_not() -> None:
+    """The productions only a library file reaches (its items and its
+    `requires` rows) hold no keyword a name competes with, so the grid's
+    game-file sentences reach every such position. red under: a `requires`
+    row that may begin with a keyword (`| _SKIP_KW NAME -> require_plain` on
+    `require_decl` in `cardlang/grammar/cardlang.lark`)."""
+    only = frozenset(_contexts("library")) - frozenset(_contexts())
+    assert only, "a library reaches no production a game file does not"
+    assert _positions_a_name_competes_at("library", only) == {}
 
 
 def test_every_position_told_elsewhere_is_a_cell() -> None:

@@ -371,12 +371,13 @@ class DiagnosticBag:
         self.error(
             message, span, code=code, route=route, for_game=for_game, stands_on=stands_on
         )
-        declared = near_misses(spelled, among)
-        offered = frozenset(keywords) - frozenset(declared)
-        near = tuple(sorted({*declared, *offered}, key=lambda w: (-resemblance(spelled, w), w)))
-        near = near[:NEAR_MISS_LIMIT]
+        near = near_misses(spelled, among)
         if written is not None:
-            near = tuple(name if name in offered else written(name) for name in near)
+            near = tuple(written(name) for name in near)
+        offered = frozenset(keywords) - frozenset(near)
+        if offered:
+            ranked = sorted({*near, *offered}, key=lambda w: (-resemblance(spelled, w), w))
+            near = tuple(ranked)[:NEAR_MISS_LIMIT]
         told = Code.MISSPELLED_KEYWORD if near[:1] and near[0] in offered else code
         self.items[-1] = replace(self.items[-1], near_misses=near, code=told)
 
