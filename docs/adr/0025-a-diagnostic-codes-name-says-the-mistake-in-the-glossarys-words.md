@@ -60,7 +60,11 @@ five sites of `unknown-index-domain` judge four different slots.
 
 - A test reads the glossary's reserved-words table and refuses a code name
   using a reserved word outside an approved compound; "checker type" and the
-  round forms' names joined their rows' approved compounds.
+  round forms' names joined their rows' approved compounds, and a row whose
+  compounds open "one meaning only" (the Outcome row) approves its bare word.
+- The same ruling respells `unknown-round-function`, whose sites judge a trick
+  round's winner function and early-termination predicate, as
+  `unknown-trick-round-function`.
 - Every `name-taken` and `written-twice` site is classified by the act its
   sentence asks for, over a scraped axis, so a misfiled site reddens.
 - The board registry's refusals carry which misuse they are, and the one
@@ -68,5 +72,3 @@ five sites of `unknown-index-domain` judge four different slots.
 - From here ADR-0023's rule holds again: a shipped code is never renamed.
 - The names minted for split and dissolved codes are proposals the operator
   may adjust; each is spelled once in the registry.
-- Deliberately not decided: `unknown-round-function` keeps a bare `round`,
-  which no ruling here respells.

@@ -15,7 +15,8 @@ property:        every member of `cardlang.diagnostic_codes.Code` is told by
                  `requires` rows `REQUIRES_ROWS` lists, tells the code of its
                  fix; and no code's
                  name uses a reserved word of the glossary outside an
-                 approved compound of that word's row.
+                 approved compound of that word's row, where a row opening
+                 "one meaning only" approves the bare word (`_approved`).
 domain:          the registry crossed with one witness per member, the axis
                  derived from `Code` itself, so a member added without a
                  witness is a red cell rather than an unlisted one; the whole
@@ -146,7 +147,7 @@ SHIPPED: dict[str, str] = {
     "unknown-position-domain": "a query ranges over a position domain, or a collection noun, the game does not have; name one it has",
     "unknown-field": "a field the value does not have; read one of its fields, or read it another way",
     "unknown-turn-direction": "a turn direction the language does not have; write one it has",
-    "unknown-round-function": "a round names a winner or predicate the language does not have; name one it has",
+    "unknown-trick-round-function": "a trick round names a winner function or an early-termination predicate the language does not have; name one it has",
     "unknown-play-shape": "a play shape no row of the game's catalogue labels; write a row's label",
     "unknown-primitive": "a `primitives` entry nothing implements; name an implemented Primitive",
     "unknown-board": "a board the language does not have; write a board it has",
@@ -443,7 +444,7 @@ WITNESSES: dict[Code, Tells] = {
     Code.UNKNOWN_POSITION_DOMAIN: _case("any_over_unknown_position_domain"),
     Code.UNKNOWN_FIELD: _case("code_unknown_field"),
     Code.UNKNOWN_TURN_DIRECTION: _case("unknown_direction"),
-    Code.UNKNOWN_ROUND_FUNCTION: _case("code_unknown_round_function"),
+    Code.UNKNOWN_TRICK_ROUND_FUNCTION: _case("trick_round_unknown_early_termination"),
     Code.UNKNOWN_PLAY_SHAPE: _case("code_unknown_play_shape"),
     Code.UNKNOWN_PRIMITIVE: _case("code_unknown_primitive"),
     Code.UNKNOWN_BOARD: _case("board_unknown_family"),
@@ -769,10 +770,8 @@ _GLOSSARY = _ROOT / "docs" / "glossary.md"
 
 
 def _compounds(cell: str) -> list[tuple[str, ...]]:
-    """A reserved word's approved compounds, read off its table cell: each
-    compound as its words, its parentheses and its gloss after a dash or a
-    colon dropped. A cell that says the word has one meaning only approves
-    the bare word."""
+    """The compounds a table cell names: each as its words, its parentheses
+    and its gloss after a dash or a colon dropped."""
     cell = re.sub(r"\[\[([a-z-]+)\]\]", lambda m: m.group(1).replace("-", " "), cell)
     cell = re.sub(r"\([^)]*\)", "", cell)
     out: list[tuple[str, ...]] = []
@@ -784,19 +783,28 @@ def _compounds(cell: str) -> list[tuple[str, ...]]:
     return out
 
 
-def _reserved_words() -> dict[str, list[tuple[str, ...]]]:
-    """The reserved-words table of docs/glossary.md: each word, with the
-    compounds its row approves."""
-    table = _GLOSSARY.read_text().split("## Reserved words", 1)[1]
+def _approved(word: str, cell: str) -> list[tuple[str, ...]]:
+    """The compounds a reserved word's row approves. A row whose cell opens
+    "one meaning only" says the word carries a single meaning, so it
+    approves the bare word too (the Outcome row); any other row approves only
+    the compounds it names."""
+    compounds = _compounds(cell)
+    if compounds and compounds[0] == ("one", "meaning", "only"):
+        compounds.append((word,))
+    return compounds
+
+
+def _reserved_words(index: str | None = None) -> dict[str, list[tuple[str, ...]]]:
+    """The reserved-words table of `index` (docs/glossary.md by default):
+    each word, with the compounds its row approves."""
+    text = _GLOSSARY.read_text() if index is None else index
+    table = text.split("## Reserved words", 1)[1]
     words: dict[str, list[tuple[str, ...]]] = {}
     for line in table.splitlines():
         m = re.fullmatch(r"\| \[([^\]]+)\]\([^)]*\) \| (.*) \|", line)
         if m is not None:
             word = m.group(1).lower()
-            compounds = _compounds(m.group(2))
-            if compounds and compounds[0] == ("one", "meaning", "only"):
-                compounds.append((word,))
-            words[word] = compounds
+            words[word] = _approved(word, m.group(2))
     return words
 
 
@@ -831,25 +839,21 @@ def test_the_reserved_word_reading_tells_a_compound_from_a_bare_word() -> None:
     assert _bare_reserved_words("checker-of-the-value", reserved) == ["value"]
 
 
-_UNRULED_BARE = {
-    Code.UNKNOWN_ROUND_FUNCTION: (
-        "bare `round`: no ruling on PR #1101 respells it, so its respelling is the operator's"
-    ),
-}
+def test_a_row_of_one_meaning_only_approves_its_bare_word() -> None:
+    """red under: `_approved` no longer adding the bare word for a row whose
+    cell opens "one meaning only", or adding it for every row."""
+    table = (
+        "## Reserved words\n\n| Word | Approved compounds |\n|---|---|\n"
+        "| [probe](glossary/probe.md) | one meaning only: the probe's own sense |\n"
+        "| [gadget](glossary/gadget.md) | gadget kit \u00b7 spare gadget |\n"
+    )
+    reserved = _reserved_words(table)
+    assert _bare_reserved_words("unknown-probe", reserved) == []
+    assert _bare_reserved_words("unknown-gadget", reserved) == ["gadget"]
+    assert _bare_reserved_words("unknown-gadget-kit", reserved) == []
 
 
-@pytest.mark.parametrize(
-    "code",
-    [
-        pytest.param(
-            c,
-            marks=[pytest.mark.xfail(reason=_UNRULED_BARE[c], raises=AssertionError, strict=True)]
-            if c in _UNRULED_BARE else [],
-            id=c.slug,
-        )
-        for c in Code
-    ],
-)
+@pytest.mark.parametrize("code", list(Code), ids=lambda c: c.slug)
 def test_a_code_name_uses_a_reserved_word_only_in_an_approved_compound(code: Code) -> None:
     """red under: a member spelled `UNKNOWN_HOUSE_RULE = ("unknown-house-rule", ...)`."""
     assert _bare_reserved_words(code.slug, _reserved_words()) == []

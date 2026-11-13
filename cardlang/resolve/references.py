@@ -1219,7 +1219,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             if not _winner_refusals(replace(nd, winner_fn=name), game)
                         },
                         nd.span,
-                        code=Code.UNKNOWN_ROUND_FUNCTION,
+                        code=Code.UNKNOWN_TRICK_ROUND_FUNCTION,
                     )
                 elif nd.winner_fn in TRICK_ORDER_GATED_WINNERS:
                     # A Trick Order winner takes no `trump` argument at all --
@@ -1271,5 +1271,5 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.early_termination,
                         _ROUND_QUERY_REGISTRIES[(n.TrickRound, "early_termination")],
                         nd.span,
-                        code=Code.UNKNOWN_ROUND_FUNCTION,
+                        code=Code.UNKNOWN_TRICK_ROUND_FUNCTION,
                     )

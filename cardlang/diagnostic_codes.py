@@ -77,7 +77,7 @@ class Code(Enum):
     UNKNOWN_POSITION_DOMAIN = ("unknown-position-domain", "a query ranges over a position domain, or a collection noun, the game does not have; name one it has")
     UNKNOWN_FIELD = ("unknown-field", "a field the value does not have; read one of its fields, or read it another way")
     UNKNOWN_TURN_DIRECTION = ("unknown-turn-direction", "a turn direction the language does not have; write one it has")
-    UNKNOWN_ROUND_FUNCTION = ("unknown-round-function", "a round names a winner or predicate the language does not have; name one it has")
+    UNKNOWN_TRICK_ROUND_FUNCTION = ("unknown-trick-round-function", "a trick round names a winner function or an early-termination predicate the language does not have; name one it has")
     UNKNOWN_PLAY_SHAPE = ("unknown-play-shape", "a play shape no row of the game's catalogue labels; write a row's label")
     UNKNOWN_PRIMITIVE = ("unknown-primitive", "a `primitives` entry nothing implements; name an implemented Primitive")
     UNKNOWN_BOARD = ("unknown-board", "a board the language does not have; write a board it has")
