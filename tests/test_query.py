@@ -65,7 +65,8 @@ does not prove:  that an answer is the RIGHT one at a position no corpus game
                  family where no player acts, each refused when written
                  there. At a node that is no name it lists a zone family of
                  any index, which the bare-family rule refuses written bare
-                 there: that rule judges a name alone. The Hosted Poll
+                 there: that rule judges a name alone (issue #1108). The
+                 Hosted Poll
                  rule and the kernel-answer rule are
                  run by apply-the-read at one position each, never over the
                  corpus; the rule of a function a rule's clauses reach is
@@ -642,7 +643,7 @@ _REACH_ORACLE_CELLS: dict[str, tuple[Path, int, int, int, bool, str]] = {
 
 #: The rules the scope does not apply at a node that is no name, by the code
 #: each refuses in: who is acting (issue #1089), and a zone family named bare,
-#: which the bare-family rule judges at a name alone.
+#: which the bare-family rule judges at a name alone (issue #1108).
 _UNAPPLIED_AT_A_NODE = frozenset({Code.NO_PLAYER_ACTING.slug, Code.WRONG_SUBSCRIPT.slug})
 
 
