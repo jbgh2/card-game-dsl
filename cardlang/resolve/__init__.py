@@ -48,7 +48,8 @@ library's loader).
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 Assumes:      a parsed AST (spans present, ``NameRef.ref_kind`` still
-              ``None``).
+              ``None``), and, where the caller holds it, the text it was
+              parsed from (``source``, a ``cardlang.parse.SourceText``).
 Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               rule templates are instantiated into concrete rules; every
               structural reference names a real declaration. This is the
@@ -100,6 +101,7 @@ from __future__ import annotations
 from cardlang.ast import nodes as n
 from cardlang.attribution import raise_if_errors
 from cardlang.diagnostics import DiagnosticBag
+from cardlang.parse import SourceText
 from cardlang.resolve import (
     classification,
     classified_checks,
@@ -648,9 +650,16 @@ from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 
 
-def resolve(game: n.Game, *, scopes: dict[n.NodeKey, NamesInScope] | None = None) -> n.Game:
+def resolve(
+    game: n.Game,
+    *,
+    scopes: dict[n.NodeKey, NamesInScope] | None = None,
+    source: SourceText | None = None,
+) -> n.Game:
     """`scopes`, when given, is filled with the Scope Record: what a bare name
-    resolves to at every node the classifying walk visits."""
+    resolves to at every node the classifying walk visits. `source`, when
+    given, is the text `game` was parsed from, which an unresolved name's
+    refusal reads to offer the keywords the grammar accepts in its place."""
     bag = DiagnosticBag()
     # First: `uses` splices each named library's definitions but its rules in,
     # so everything below sees one flat game; `_instantiate_rules` splices the
@@ -677,7 +686,7 @@ def resolve(game: n.Game, *, scopes: dict[n.NodeKey, NamesInScope] | None = None
     zone_declarations.step(game, bag, position_names)
     written = game
     game, refused_binders = rule_instantiation.step(game, library_rules, bag)
-    game, cats = classification.step(game, refused_binders, bag, scopes=scopes)
+    game, cats = classification.step(game, refused_binders, bag, scopes=scopes, source=source)
     _validate_refs(game, cats, bag)
     classified_checks.step(
         game,

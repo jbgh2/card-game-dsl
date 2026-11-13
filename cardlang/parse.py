@@ -31,13 +31,18 @@ Establishes:  a syntactically valid frozen AST; every node carries a
               the main parser's, or the composed parser's where that read
               further, past a twin's slip, before failing — so no expectation
               it lists names a retired spelling. A word that nearly spells a
-              keyword the grammar accepts in its place — at the failure, or
-              just before it where the grammar read the word as a name — is
-              refused standing on that word, its Near Misses those keywords
-              that, written there, carry the parse past the failure
-              (``_misspelled_keyword``; Derived and Pinned, by
-              tests/test_keyword_near_misses.py, since which words a position
-              takes is the grammar's and no type holds it). No semantic claims —
+              keyword the grammar accepts in its place -- at the failure, or
+              before it where the grammar read the word as a name, back to
+              the word ending the item before those the parser had in
+              progress at the failure -- is refused standing on that word, its
+              Near Misses those keywords that, written there, carry the parse
+              past the failure (``_misspelled_keyword``). For a word the
+              grammar derives as a name, ``keywords_in_place_of`` gives a
+              later pass the keywords it nearly spells that the grammar
+              accepts there and derives read as those keywords. Both Derived
+              and Pinned, by tests/test_keyword_near_misses.py, since which
+              words a position takes is the grammar's and no type holds it.
+              No semantic claims —
               names carry no
               [[ref-kind]] yet (``NameRef.ref_kind`` is ``None``) and
               nothing is typed. The `primitives { }` entry's own production
@@ -2835,6 +2840,39 @@ def _past_with(
     return tuple(offered)
 
 
+def _accepted_at(text: str, start: str, word: Token) -> tuple[object, ...]:
+    """The terminals the main grammar accepts where `word` stands, for a word
+    that nearly spells some keyword; none for any other."""
+    if not near_misses(str(word.value), _keyword_words()):
+        return ()
+    try:
+        _parser().parse(text[: word.start_pos] + "\x00", start=start)
+    except UnexpectedInput as at_word:
+        if getattr(at_word, "pos_in_stream", None) != word.start_pos:
+            return ()
+        return tuple(getattr(at_word, "allowed", None) or getattr(at_word, "expected", None) or ())
+    return ()
+
+
+def _read_before(exc: UnexpectedInput, tokens: tuple[Token, ...], pos: int) -> list[Token]:
+    """The words before a refusal at `pos` the parser may have read as a
+    name, nearest first: the word just before it, then those inside the
+    items it had in progress there (the Earley items the refusal reports,
+    from the earliest one's start) and the word that ends the item before
+    them, which a slip read as a name completes. Past the word just before
+    the refusal, a word that spells a keyword is the keyword written, not a
+    slip."""
+    before = [t for t in tokens if (t.end_pos or 0) <= pos]
+    items = getattr(exc, "considered_tokens", None) or ()
+    starts = [s for s in (getattr(item, "start", None) for item in items) if isinstance(s, int)]
+    earliest = min(starts, default=pos)
+    inside = [t for t in before[:-1] if (t.start_pos or 0) >= earliest]
+    ending = [t for t in before[:-1] if (t.end_pos or 0) <= earliest][-1:]
+    keywords = _keyword_words()
+    farther = [t for t in reversed(ending + inside) if str(t.value) not in keywords]
+    return [t for t in (*before[-1:], *farther) if _is_word(t)]
+
+
 def _misspelled_keyword(
     exc: UnexpectedInput, text: str, pos: int, start: str
 ) -> tuple[Token, tuple[str, ...]] | None:
@@ -2842,10 +2880,11 @@ def _misspelled_keyword(
     with the keywords it is offered.
 
     The slip is the word AT the refusal where the grammar takes no name
-    there, or the word BEFORE it where the grammar read the slip as a name
-    and refused what follows (`shufle deck` is refused at `deck`). Either is
-    offered the keywords the grammar accepts in its place that it nearly
-    spells and that carry the parse past the word after it."""
+    there, or a word BEFORE it where the grammar read the slip as a name
+    and refused what follows (`shufle deck` is refused at `deck`, `let n =
+    al players where x` at `where`; ``_read_before``). Either is offered the
+    keywords the grammar accepts in its place that it nearly spells and that
+    carry the parse past the refusal."""
     tokens = _scan(text).tokens
     after = [t for t in tokens if (t.start_pos or 0) >= pos]
     if after and after[0].start_pos == pos and _is_word(after[0]):
@@ -2854,22 +2893,54 @@ def _misspelled_keyword(
         offered = _past_with(text, start, after[0], following, names)
         if offered:
             return after[0], offered
-    before = [t for t in tokens if (t.end_pos or 0) <= pos]
-    if not before or not _is_word(before[-1]):
-        return None
-    word = before[-1]
-    if not near_misses(str(word.value), _keyword_words()):
-        return None
-    try:
-        _parser().parse(text[: word.start_pos] + "\x00", start=start)
-    except UnexpectedInput as at_word:
-        if getattr(at_word, "pos_in_stream", None) != word.start_pos:
-            return None
-        names = getattr(at_word, "allowed", None) or getattr(at_word, "expected", None) or ()
-        offered = _past_with(text, start, word, pos, names)
+    for word in _read_before(exc, tokens, pos):
+        offered = _past_with(text, start, word, pos, _accepted_at(text, start, word))
         if offered:
             return word, offered
     return None
+
+
+@dataclass(frozen=True, slots=True)
+class SourceText:
+    """The text a tree was parsed from, under its source name and the start
+    symbol it was parsed under: what a refusal standing on a word reads to
+    offer the keywords the grammar accepts there."""
+
+    name: str
+    text: str
+    start: str = "start"
+
+
+def keywords_in_place_of(source: SourceText | None, span: Span | None) -> tuple[str, ...]:
+    """The keywords the grammar accepts where the word at `span` stands in
+    `source`, that the word nearly spells and that, written in its place,
+    give text the grammar derives reading them as those keywords; none for a
+    span outside `source`."""
+    if source is None or span is None or span.source_name != source.name:
+        return ()
+    spelled = source.text[span.start : span.end]
+    if _WORD_RUN.fullmatch(spelled) is None or not spelled[:1].isalpha():
+        return ()
+    word = Token("NAME", spelled, start_pos=span.start, end_pos=span.end)
+    return tuple(
+        keyword
+        for keyword in near_misses(spelled, _words_of(_accepted_at(source.text, source.start, word)))
+        if _derives_reading(keyword, source, span)
+    )
+
+
+def _derives_reading(keyword: str, source: SourceText, span: Span) -> bool:
+    """Whether the main grammar derives `source` with `keyword` in place of
+    the word at `span`, reading it as that keyword rather than as a name:
+    the tree keeps a token there only where a terminal that does not spell
+    the keyword read it."""
+    text = source.text[: span.start] + keyword + source.text[span.end :]
+    try:
+        tree = _parser().parse(text, start=source.start)
+    except UnexpectedInput:
+        return False
+    read = [t for t in tree.scan_values(lambda v: isinstance(v, Token)) if t.start_pos == span.start]
+    return all(keyword in _words_of([t.type]) for t in read)
 
 
 #: How many characters no terminal admits a scan steps over before it gives

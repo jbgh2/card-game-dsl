@@ -18,7 +18,10 @@ Establishes:  `resemblance` is the one measure of how alike two spellings
               a spelling absent from a set it holds, and the refusal carries
               that set's Near Misses as data (`Diagnostic.near_misses`), as a
               parse refusal of a misspelled keyword carries the keywords the
-              grammar accepts in its place (`cardlang.parse`);
+              grammar accepts in its place (`cardlang.parse`); keywords handed
+              to it rank among the set's by the same measure, and a refusal
+              whose first Near Miss is a keyword the set does not hold is told
+              as a misspelled keyword;
               `Diagnostic.format` is the one place the `did you mean` clause
               is worded. Every diagnostic carries its Diagnostic Code
               (`cardlang.diagnostic_codes.Code`), which `format` never shows;
@@ -356,18 +359,26 @@ class DiagnosticBag:
         for_game: Said | None = None,
         stands_on: Span | tuple[Span, ...] | None = None,
         written: Callable[[str], str] | None = None,
+        keywords: Iterable[str] = (),
     ) -> None:
         """Refuse `spelled`, absent from `among`, the set it was looked up in:
         `error`, with the set's Near Misses carried as data, each as `written`
         spells it where the refusal stands (a numeric rank in a string
-        position is written quoted)."""
+        position is written quoted). `keywords` are the keywords the grammar
+        accepts where `spelled` stands that it nearly spells, ranked with the
+        set's by the one measure; where one the set does not also hold ranks
+        first, the refusal is told as a misspelled keyword."""
         self.error(
             message, span, code=code, route=route, for_game=for_game, stands_on=stands_on
         )
-        near = near_misses(spelled, among)
+        declared = near_misses(spelled, among)
+        offered = frozenset(keywords) - frozenset(declared)
+        near = tuple(sorted({*declared, *offered}, key=lambda w: (-resemblance(spelled, w), w)))
+        near = near[:NEAR_MISS_LIMIT]
         if written is not None:
-            near = tuple(written(name) for name in near)
-        self.items[-1] = replace(self.items[-1], near_misses=near)
+            near = tuple(name if name in offered else written(name) for name in near)
+        told = Code.MISSPELLED_KEYWORD if near[:1] and near[0] in offered else code
+        self.items[-1] = replace(self.items[-1], near_misses=near, code=told)
 
     @property
     def has_errors(self) -> bool:

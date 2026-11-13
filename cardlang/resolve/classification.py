@@ -10,15 +10,23 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
               clause introduces) is ``ref_kind == "play_source"``: the
               trick round's Play Source, so no later pass learns it from
               the spelling ``hand``.
-              Every Near Miss the bare-name and round `trump` refusals offer
-              classifies where the refusal stands and is admitted there by
-              every positional Owner Guard that refuses by the position record
+              Every declared-name Near Miss the bare-name and round `trump`
+              refusals offer classifies where the refusal stands and is
+              admitted there by every positional Owner Guard that refuses by
+              the position record
               (``_name_positions``, read off the tree's shape alone, and
               ``_position_refuses``, the disjunction of the guards'
               predicates); a trick round's winner is offered the winners that
               round admits (``_winner_refusals``, the one producer the
               guards refusing a round's winner dispatch on). Held by Derived and Pinned
               (tests/test_near_miss_positions.py).
+              Given the text the game was parsed from, the bare-name refusal
+              also offers the keywords the grammar accepts where the name
+              stands that it nearly spells and that, written there, derive
+              read as those keywords (``cardlang.parse.keywords_in_place_of``),
+              ranked with the names by the one measure, and is told as a
+              misspelled keyword where a keyword ranks first. Held by Derived
+              and Pinned (tests/test_keyword_near_misses.py).
               Asked for one (``resolve(scopes=...)``), the pass fills the
               Scope Record: at every node the classifying walk visits, keyed by
               ``n.node_key``, the names a bare name written there classifies
@@ -37,6 +45,7 @@ from dataclasses import replace
 from cardlang.ast import nodes as n
 from cardlang.builtins.functions import BUILTIN_IMPLICIT_READS
 from cardlang.diagnostics import DiagnosticBag
+from cardlang.parse import SourceText
 from cardlang.resolve.walk import _child_nodes, _walk
 from cardlang.resolve.slots import _NAME_SLOTS, _slot_root
 from cardlang.resolve.declared import _map_climb_rounds
@@ -57,13 +66,14 @@ def step(
     bag: DiagnosticBag,
     *,
     scopes: dict[n.NodeKey, NamesInScope] | None = None,
+    source: SourceText | None = None,
 ) -> tuple[n.Game, _Categories]:
     """The classification step. Returns the classified game, and the
     categories it was classified against; `scopes`, when given, is filled
     with the Scope Record."""
     # Deep name resolution: classify every bare name and validate calls,
     # card literals, and the rotate/winner targets.
-    cats = replace(_categories(game), refused_binders=refused_binders, scopes=scopes)
+    cats = replace(_categories(game), refused_binders=refused_binders, scopes=scopes, source=source)
     game = _classify_names(game, cats, bag)
     game = _stamp_follows_reads(game)
     return game, cats
