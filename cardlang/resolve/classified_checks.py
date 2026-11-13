@@ -1015,7 +1015,7 @@ def _check_play_source(
     named = _play_source_names(game)
     subscripted = _subscripted_ids(game)
     reported: set[int] = set()
-    for rule, fname, fn, reached, names in _rule_function_reads(game):
+    for rule, fname, fn, reached, nodes in _rule_function_reads(game):
         answer = (
             None if rule.name in own_rules
             else _contracted_answer_on(("function", fname), reached, _rule_clauses(rule))
@@ -1035,9 +1035,10 @@ def _check_play_source(
             if rule.origin is None
             else None
         )
-        for ref in names:
+        for ref in nodes:
             if (
-                _play_source_refused(ref.name, ref.ref_kind, named, id(ref) in subscripted)
+                isinstance(ref, n.NameRef)
+                and _play_source_refused(ref.name, ref.ref_kind, named, id(ref) in subscripted)
                 and id(ref) not in reported
             ):
                 reported.add(id(ref))

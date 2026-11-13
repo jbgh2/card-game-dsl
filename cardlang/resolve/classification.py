@@ -30,14 +30,16 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
               the scope rules refuse at the node (``_scope_facts``, recorded
               at every node from the walks the rules refuse by, and
               ``_scope_refuses``: the State Variable scope rules, the Pronouns
-              a definition body may not read, a default's reads) and, where
-              the node is a name, those every positional Owner Guard joined to
-              the position record refuses (``_position_refuses``) --
-              ``_record_scope``. The rules of who is acting and of a Hosted
-              Poll's body are not applied there (issue #1089). It is the one
-              source of "what is in scope
-              here" outside this pass (``cardlang.query``), and recording it
-              changes nothing the pass decides.
+              a definition body may not read, a default's reads, what a
+              kernel answer and the functions it reaches may read, what a
+              function a rule's clauses reach may read bare, and a Hosted
+              Poll's closure's refusal of ``state``) and, where the node is a
+              name, those every positional Owner Guard joined to the position
+              record refuses (``_position_refuses``) -- ``_record_scope``. The
+              rule of who is acting is not applied there (issue #1089). It is
+              the one source of "what is in scope here" outside this pass
+              (``cardlang.query``), and recording it changes nothing the pass
+              decides.
               The step returns the categories it classified against, for the
               references step.
 """
@@ -150,7 +152,10 @@ def _stamp_follows_reads(game: n.Game) -> n.Game:
 def _scope_facts(game: n.Game) -> dict[int, _ScopeFacts]:
     """Every node of `game` with what a name written there may read, whatever
     slot it fills. Read off the tree's shape and declarations alone, never
-    its classification."""
+    its classification. Each fact is recorded at every node of the walk its
+    rule refuses by: a kernel answer's reach (`_answer_reaches`), every node
+    of a function a rule's clauses reach (`_rule_function_reads`), and a
+    Hosted Poll's closure (`_hosted_units`)."""
     live: dict[int, frozenset[str]] = {}
     for node, in_scope in _phase_scoped_nodes(game):
         live[id(node)] = in_scope
@@ -168,6 +173,22 @@ def _scope_facts(game: n.Game) -> dict[int, _ScopeFacts]:
         refused = _refused_call_site_pronouns(definition)
         for node in _child_nodes(definition.body):
             pronouns[id(node)] = refused
+    answer_through: dict[int, set[bool]] = {}
+    for reach in _answer_reaches(game):
+        for node, fn in reach.sites:
+            answer_through.setdefault(id(node), set()).add(fn is not None)
+    play_source: dict[int, frozenset[str]] = {}
+    named = _play_source_names(game)
+    for _rule, _fname, _fn, _reached, nodes in _rule_function_reads(game):
+        for node in nodes:
+            play_source[id(node)] = named
+    hosted = {
+        id(node)
+        for _poll, _reached, units in _hosted_units(game)
+        for unit in units
+        for node in _hosted_unit_nodes(unit)
+    }
+    limits = _read_limits(game)
     return {
         id(node): _ScopeFacts(
             live_state=live.get(id(node)),
@@ -175,6 +196,10 @@ def _scope_facts(game: n.Game) -> dict[int, _ScopeFacts]:
                 _DEFAULT_REFUSED_PRONOUNS if id(node) in in_default else pronouns.get(id(node), frozenset())
             ),
             in_default=id(node) in in_default,
+            answer_through=frozenset(answer_through.get(id(node), ())),
+            play_source_names=play_source.get(id(node), frozenset()),
+            hosted=id(node) in hosted,
+            limits=limits,
         )
         for node in _walk(game)
     }
@@ -196,38 +221,16 @@ def _name_positions(game: n.Game, facts: Mapping[int, _ScopeFacts] | None = None
         if isinstance(node, n.Transfer) and node.dest_each and isinstance(node.dest, n.NameRef):
             each.add(id(node.dest))
     keyed = _keyed_ids(game)
-    answer_through: dict[int, set[bool]] = {}
-    for reach in _answer_reaches(game):
-        for node, fn in reach.sites:
-            if isinstance(node, n.NameRef):
-                answer_through.setdefault(id(node), set()).add(fn is not None)
-    play_source: dict[int, frozenset[str]] = {}
-    named = _play_source_names(game)
-    for _rule, _fname, _fn, _reached, names in _rule_function_reads(game):
-        for name in names:
-            play_source[id(name)] = named
     piles = {id(ref) for _call, _arg, ref in _arrival_piles(game) if ref is not None}
-    hosted = {
-        id(node)
-        for _poll, _reached, units in _hosted_units(game)
-        for unit in units
-        for node in _hosted_unit_nodes(unit)
-        if isinstance(node, n.NameRef)
-    }
     subscripted = _subscripted_ids(game)
-    limits = _read_limits(game)
     return {
         id(ref): _NamePosition(
             scope=scope[id(ref)],
             slot=slots.get(id(ref)),
             each_destination=id(ref) in each,
             keyed=id(ref) in keyed,
-            answer_through=frozenset(answer_through.get(id(ref), ())),
-            play_source_names=play_source.get(id(ref), frozenset()),
             arrival_pile=id(ref) in piles,
-            hosted=id(ref) in hosted,
             subscripted=id(ref) in subscripted,
-            limits=limits,
         )
         for ref in _walk(game)
         if isinstance(ref, n.NameRef)

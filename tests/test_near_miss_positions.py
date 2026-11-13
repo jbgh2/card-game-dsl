@@ -7,7 +7,8 @@ refused where the misspelling stands -- a phase's state outside that phase, a
 call-site pronoun in a function, a literal where a zone is wanted -- so the
 bare-name and round `trump` refusals offer only the names every positional
 Owner Guard joined to the one record admits there
-(`cardlang.resolve._name_positions`; the `joined` rows of
+(`cardlang.resolve._name_positions`, whose `scope` facts are
+`_scope_facts`; the `joined` rows of
 `POSITIONAL_GUARDS`, among them a kernel answer's reach, a function a rule's
 clauses reach, an Arrival Record pile and a Hosted Poll's closure). Two
 guards judge by walk state the tree's shape does not hold -- the alias
@@ -42,9 +43,11 @@ registry:        the census dictionaries, pinned to the routed sites by
                  `POSITIONAL_GUARDS`, pinned equal to the functions of
                  `cardlang/resolve/` that read a name's `ref_kind` and
                  refuse (an AST scrape).
-held by:         Derived and Pinned. One record (`_name_positions`), built
-                 from the walks the guards refuse by, and one predicate per
-                 guard (`_position_refuses` is their disjunction); the scrape
+held by:         Derived and Pinned. One record (`_name_positions`, with
+                 `_scope_facts` for the rules judging a name wherever it
+                 stands), built from the walks the guards refuse by, and one
+                 predicate per guard (`_position_refuses` is their
+                 disjunction, through `_scope_refuses`); the scrape
                  pins the guard set. A round's refusals of its own winner
                  have one producer (`_winner_refusals`) that every guard
                  telling one dispatches on, and a scrape pins that every

@@ -187,7 +187,7 @@ _ROUTED: dict[str, dict[str, Callable[[], L.Crossing]]] = {
 _NO_CROSSING_REASONS = frozenset({"refuses nothing", "game text", "certificate"})
 _UNROUTED: dict[str, str] = {
     "resolve._answer_routes": "refuses nothing",
-    "resolve._name_positions": "refuses nothing",
+    "resolve._scope_facts": "refuses nothing",
     "resolve._HiddenReads._after": "refuses nothing",
     "expand._expansion": "refuses nothing",
     "resolve._HiddenReads.reads_of": "game text",
