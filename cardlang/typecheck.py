@@ -41,9 +41,12 @@ Establishes:  type validity only. A ``play_source`` read types as the join
               there. Asked for one (``typecheck(types=...)``), the pass keeps
               the Type Record: every Type ``infer`` returns during the check,
               by the expression's ``n.node_key``, the one source of an
-              expression's type outside this pass (``cardlang.query``); an
-              expression the check never infers has no entry, and keeping the
-              record changes no verdict. The other sanctioned materialization
+              expression's type outside this pass (``cardlang.query``). The
+              check infers every expression it reads, a write target, a
+              subscripted zone family's name and a rule clause's whole
+              expression included (Pinned over the corpus by
+              tests/test_query.py's node grid), and keeping the record
+              changes no verdict. The other sanctioned materialization
               is ``declared_primitive_sigs``, and the `Sig` it builds for a
               declared collection parameter is exactly
               ``TCollection(element, key=None, zone=False)`` — the facets a
@@ -813,17 +816,13 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             # Card, degrading every aggregation/membership use downstream to
             # TAny or a spurious rejection). A non-family subscript (a state
             # var, a `[…]` list, a query result) keeps the generic behavior.
-            obj_ref = e.obj
-            if isinstance(obj_ref, n.NameRef) and obj_ref.ref_kind == "zone":
-                family = env.zone_families.get(obj_ref.name)
-                if family is not None:
-                    zone_t = env.zones.get(obj_ref.name)
-                    if zone_t is None:
-                        raise _env_miss(
-                            "zone", obj_ref.name, "zones", "`env_from_game`"
-                        )
-                    return zone_t
             obj = infer(e.obj, env)
+            if (
+                isinstance(e.obj, n.NameRef)
+                and e.obj.ref_kind == "zone"
+                and e.obj.name in env.zone_families
+            ):
+                return obj
             # A subscript of a non-collection is REJECTED by `_check_expr`
             # (`subscriptable`), which admits the permissive top; so the only
             # value reaching here is one already typed as the top (or one whose error is
@@ -3728,6 +3727,14 @@ def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: Said) -> Non
         bag.error(where + f" must be Boolean, got {_type_name(t)}", e.span, code=Code.TYPE_MISMATCH)
 
 
+def _check_card_clause(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """A rule's `demands:` or `exempts:` expression: checked, and typed, so
+    the Type Record holds its Type; no guard of this pass reads that Type
+    (issue #626)."""
+    _check_expr(e, env, bag)
+    infer(e, env)
+
+
 def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> None:
     """A rule's `if_impossible:` fallback is a card set, or the `error(...)`
     form that refuses the move instead of widening it.
@@ -3740,9 +3747,9 @@ def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> N
     expr = rule.if_impossible
     if expr is None:
         return
+    got = infer(expr, env)
     if isinstance(expr, n.Call) and expr.func == "error":
         return
-    got = infer(expr, env)
     if isinstance(got, TAny):
         bag.error(
             f"rule " + cite_named(rule, f"'{rule.name}'") + f" `if_impossible:` types as `Any`, the permissive "
@@ -3929,12 +3936,10 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     as its base; adding to its `none` is `execute._apply`'s refusal, a fact of
     play). Each refusal names the spelling that fits."""
     name = stmt.target.name
-    target = env.state_vars.get(name)
-    if target is None:
-        # Resolve guarantees a write target classifies as a state variable — a binder,
-        # a zone and an unknown name are all rejected there — so this is unreachable
-        # for a checked game.
-        return
+    # Resolve guarantees a write target classifies as a state variable (a
+    # binder, a zone and an unknown name are refused by `_bad_write_target`),
+    # so this is the variable's declared Type.
+    target = infer(stmt.target, env)
     if stmt.index is not None and not isinstance(target, TCollection):
         bag.error(
             f"`{name}` holds one value, so it takes no index — write "
@@ -4005,9 +4010,7 @@ def _check_rotate(stmt: n.RotateStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     """`rotate` cycles a variable holding one value through values it can
     hold. Resolve has checked each value names an enum value."""
     name = stmt.target.name
-    target = env.state_vars.get(name)
-    if target is None:
-        return  # resolve refuses a target that is no state variable
+    target = infer(stmt.target, env)  # a state variable: `_bad_write_target`
     if isinstance(target, TCollection) and target.key is not None:
         per = _type_name(target.key).lower()
         bag.error(
@@ -5021,12 +5024,12 @@ def typecheck(game: Game) -> Game:
                 "rule " + cite_named(rule, f"'{rule.name}'") + " `applies_when:`",
             )
         if rule.demands is not None:
-            _check_expr(rule.demands.expr, env, bag)
+            _check_card_clause(rule.demands.expr, env, bag)
         if rule.if_impossible is not None:
             _check_expr(rule.if_impossible, env, bag)
             _check_if_impossible(rule, env, bag)
         if rule.exempts is not None:
-            _check_expr(rule.exempts, env, bag)
+            _check_card_clause(rule.exempts, env, bag)
     # Phase-level state defaults and transition predicates are checked by
     # `check_phase_positions` above, with their real binder scope; only the
     # game-level state block remains here (nothing can precede it).

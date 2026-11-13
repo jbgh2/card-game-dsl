@@ -113,9 +113,10 @@ NOT_IN_CHECKED_TEXT: dict[type, str] = {
     n.Block: "made by procedure expansion, after the passes the query reads",
 }
 
-#: The slots whose expression the type checker reads without inferring a
-#: Type, so the Type Record holds none there (issue #1107).
-UNTYPED_SLOTS: frozenset[tuple[type, str]] = frozenset(
+#: The slots no value read of the checker reaches -- a write target, a zone
+#: family's name, a rule clause's whole expression -- which the check types
+#: where it reads them.
+UNREAD_SLOTS: frozenset[tuple[type, str]] = frozenset(
     {
         (n.AssignStmt, "target"),
         (n.RotateStmt, "target"),
@@ -219,13 +220,11 @@ _ASK = {"scope": scope_at, "type": type_at, "seats": seats_at}
 @cache
 def _mismatches() -> dict[tuple[str, str], list[str]]:
     """Every instance whose answer differs from the expected column, by
-    (kind, answer), less the slots `UNTYPED_SLOTS` holds."""
+    (kind, answer)."""
     out: dict[tuple[str, str], list[str]] = defaultdict(list)
     for checked, placed in _corpus():
         for p in placed:
             for answer in ANSWERS:
-                if answer == "type" and p.slot in UNTYPED_SLOTS:
-                    continue
                 got = _outcome(_ASK[answer](checked, p.chain))
                 want = _expected(p, answer)
                 if got not in want:
@@ -276,29 +275,24 @@ def test_node_kind_answer(kind: type, answer: str) -> None:
     assert not wrong, "\n".join(wrong[:5])
 
 
-@pytest.mark.parametrize("slot", sorted(UNTYPED_SLOTS, key=_slot_id), ids=_slot_id)
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1107")
-def test_an_expression_in_an_untyped_slot_has_a_type(slot: tuple[type, str]) -> None:
-    untyped = [
-        f"{getattr(p.node, 'span').line}"
+@pytest.mark.parametrize("slot", sorted(UNREAD_SLOTS, key=_slot_id), ids=_slot_id)
+def test_an_expression_in_an_unread_slot_has_a_type(slot: tuple[type, str]) -> None:
+    """The expression in a slot no value read reaches has the Type the check
+    gave it there, at an instance of the slot the corpus writes. red under:
+    revert `_check_rotate`'s target to `env.state_vars.get(name)`."""
+    instances = [
+        (checked, p)
         for checked, placed in _corpus()
         for p in placed
         if p.slot == slot and isinstance(p.node, EXPR_KINDS)
-        and isinstance(type_at(checked, p.chain), Told)
     ]
-    assert not untyped
-
-
-def test_every_untyped_slot_is_a_real_slot() -> None:
-    """Each slot `UNTYPED_SLOTS` excuses holds an untyped expression in the
-    corpus, so the list shrinks with the fix rather than going stale.
-    red under: add `(n.BinOp, "left")` to `UNTYPED_SLOTS`."""
-    for slot in UNTYPED_SLOTS:
-        assert any(
-            p.slot == slot and isinstance(type_at(checked, p.chain), Told)
-            for checked, placed in _corpus()
-            for p in placed
-        ), slot
+    assert instances, f"no corpus game writes {_slot_id(slot)}"
+    untyped = [
+        f"{getattr(p.node, 'span').source_name}:{getattr(p.node, 'span').line}"
+        for checked, p in instances
+        if isinstance(type_at(checked, p.chain), Told)
+    ]
+    assert not untyped, untyped[:5]
 
 
 # --- the position axis ---------------------------------------------------------
