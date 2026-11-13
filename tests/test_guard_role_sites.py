@@ -99,6 +99,7 @@ _ACCOUNTED = frozenset(
         "ResampleRefusal",
         "PausedRunStalled",
         "_Refused",
+        "_StreamFailed",
         # not a defect: the game author wrote `error(...)` and the refusal is
         # the rule working
         "IllegalMove",

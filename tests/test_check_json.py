@@ -3,15 +3,18 @@
 Completeness ledger (decisions.md "Closed-domain completeness"):
 
 property:        once the command line is read, `check --json` prints exactly
-                 one Record Envelope on stdout and nothing on stderr, exits
-                 with the code the text output exits with, and exits 1
-                 exactly when every error it records is a game's, a
-                 library's or the engine's to fix; `--json` beside
-                 `--emit-ir` is refused as a usage error.
+                 one Record Envelope on stdout and nothing on stderr but an
+                 engine failure's traceback, exits with the code the text
+                 output exits with, and exits 1 exactly when every error it
+                 records is a game's or a library's to fix, 3 when one is the
+                 engine's; `--json` beside `--emit-ir` is refused as a usage
+                 error.
 domain:          the outcomes of a check -- a game that checks clean, a
                  game refused, a file of an extension the checker does not
-                 read, a path that cannot be read -- crossed with the two
-                 output forms, text and `--json`. A command line
+                 read, a path that cannot be read, a leaked Owner Guard told
+                 to the engine -- crossed with the two
+                 output forms, text and `--json`; a runtime refusal a check
+                 raises, under both forms, is tests/test_playout_records.py's. A command line
                  refused before it is read (a usage error, a first word that
                  names no command) is refused as text: `--json` is a word of
                  the line being refused.
@@ -30,14 +33,14 @@ import pytest
 
 from cardlang import cli
 from cardlang.records import read_envelope
-from cardlang.runtime.errors import GameRegistrationError
+from cardlang.runtime.errors import GameRegistrationError, ShadowGuardError
 
 _ROOT = Path(__file__).resolve().parent.parent
 HEARTS = _ROOT / "docs" / "games" / "hearts.cardlang"
 
 # The authors whose fix is in a file the check read: the text output's
 # exit 1.
-_FILE_AUTHORS = {"game", "library", "engine"}
+_FILE_AUTHORS = {"game", "library"}
 
 
 def _run(argv: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, str, str]:
@@ -63,11 +66,27 @@ def _cases(tmp_path: Path) -> dict[str, Path]:
     }
 
 
-@pytest.mark.parametrize("case", ["clean", "refused", "extension", "unreadable"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "clean",
+        "refused",
+        "extension",
+        "unreadable",
+        pytest.param("a leaked Owner Guard", marks=pytest.mark.expects_shadow_guard),
+    ],
+)
 def test_json_prints_one_envelope_and_exits_as_the_text_does(
-    case: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    case: str, tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    path = str(_cases(tmp_path)[case])
+    """red under: `cli._status` naming 1 for the engine."""
+    if case == "a leaked Owner Guard":
+
+        def leaked(_path: object) -> None:
+            raise ShadowGuardError("resolve", "a refusal that leaked")
+
+        monkeypatch.setattr(cli, "check_source", leaked)
+    path = str(_cases(tmp_path).get(case, HEARTS))
     text_exit, _out, _err = _run(["check", path], capsys)
     json_exit, out, err = _run(["check", path, "--json"], capsys)
     assert (json_exit, err) == (text_exit, "")
@@ -77,6 +96,7 @@ def test_json_prints_one_envelope_and_exits_as_the_text_does(
     assert (errors == []) == (json_exit == 0)
     if errors:
         assert (json_exit == 1) == all(r["author"] in _FILE_AUTHORS for r in errors)
+        assert (json_exit == 3) == any(r["author"] == "engine" for r in errors)
 
 
 def test_the_witness_a_typo_in_hearts(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -111,20 +131,22 @@ def test_a_registration_refusal_is_a_record_and_exits_2(
     assert (record["code"], record["author"]) == ("unregistrable-game", "registration")
 
 
-def test_an_engine_failure_prints_its_envelope_and_keeps_its_traceback(
+def test_an_engine_failure_prints_its_envelope_and_exits_3(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """An exception outside the typed channels: the envelope tells the engine,
-    and the exception still propagates, so the exit status is Python's 1, the
-    status a game at fault also gets (issue #1104)."""
+    """An exception outside the typed Failure Channel: the envelope tells the
+    engine, the traceback goes to stderr, and the status is the engine's 3,
+    never the 1 a game at fault gets."""
 
     def crashed(_path: object) -> None:
         raise AssertionError("an engine invariant")
 
     monkeypatch.setattr(cli, "check_source", crashed)
-    with pytest.raises(AssertionError):
-        cli.main(["check", str(HEARTS), "--json"])
-    (record,) = json.loads(capsys.readouterr().out)["diagnostics"]
+    exit_code, out, err = _run(["check", str(HEARTS), "--json"], capsys)
+    (record,) = json.loads(out)["diagnostics"]
     assert (record["code"], record["author"], record["message"]) == (
         "engine-gap", "engine", "an engine invariant"
     )
+    assert exit_code == 3
+    assert "Traceback (most recent call last)" in err
+

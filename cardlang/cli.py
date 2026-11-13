@@ -6,6 +6,7 @@
     cardlang check docs/games/hearts.cardlang --json          # its refusals as one Record Envelope
     cardlang play docs/games/hearts.cardlang --vs all=random  # take a seat and play it
     cardlang demo docs/games/hearts.cardlang                  # one uniform-random self-play
+    cardlang demo docs/games/hearts.cardlang --json           # its refusals as one Record Envelope
     cardlang query docs/games/hearts.cardlang --at 66:16      # what the checker knows there
 
 `cardlang <file>` names no command: `main` reads it as `check`, so the two
@@ -34,10 +35,11 @@ RENDERS rather than decides. The compile stages' [[failure-channel]] and the
 runtime's are both already typed, and each
 failure reaches the [[author]] who can act on it (`cardlang/runtime/errors.py`,
 Contract): a `GameDescriptionError` the game author, an `InstallationError`
-whoever installed this checkout. It never discriminates the `GameDescriptionError`
-subtypes; which ROLE of guard fired is the suite's question, not a caller's,
-and the Told Diagnostic it renders a refusal through names the Author the role
-implies (`cardlang.records.refusal_diagnostic`).
+whoever installed this checkout. It never catches a `GameDescriptionError`
+subtype; the Told Diagnostic it renders a refusal through names the Author
+the guard's role implies (`cardlang.records.refusal_diagnostic`), and the exit
+status follows that Author, so a leaked Owner Guard reaches a caller as the
+engine's failure rather than as a bad game, as the runtime's Contract asks.
 
 `IllegalMove` is rendered beside them and means something else, which the
 message says: the game's own `error(...)` refused, no player was offered the
@@ -45,13 +47,20 @@ move, and the game author is who can act — so the file is where to look
 without the file being called illegal. Both carry the sentence they escaped
 and print it the way a compile diagnostic prints one.
 
-An exception outside those channels keeps its traceback. For the engine's own
-assertions that is right — they address the engine maintainer, and the
-traceback is what that reader needs.
+An exception outside that Failure Channel is an engine failure: it keeps its
+traceback, since it addresses the engine maintainer and the traceback is what
+that reader needs, printed on stderr from the frame that carried the command
+out down to the failure (`_engine_gap`), and it exits with a status of its
+own. A stream the caller set up that cannot be written -- a reader that has
+gone, an encoding that cannot spell the output -- is no engine failure: it is
+the caller's (`_StreamFailed`), told to whoever ran the command, and a broken
+pipe ends the run saying nothing more.
 
-A game that reaches its `max_length` ends there, a [[length-stop]], and is not
-a refusal: `demo` leads its summary with the stop, in the uniform-random voice,
-and `play` says the game is over and that the table played it to its bound.
+A game that reaches its `max_length` ends there, a [[length-stop]]. At a table
+it is no refusal: `play` says the game is over and that the table played it to
+its bound. Under `demo` it is one, told to the game, since the sizing rule says
+uniform-random play ends by the rules: the summary leads with the stop, in the
+uniform-random voice, and under `--json` it is a record beside the others.
 
 Exit codes: 0 on success, a `play` session that reaches the bound included --
 the people at the table did it, and the game finished; 1 when the game file is
@@ -62,15 +71,30 @@ it, which the sizing rule says it does not; 2 when the
 invocation cannot be carried out — an unreadable path, a seat the game does
 not seat, opponents that do not seat every other seat once, a saved game that
 cannot be resumed or saved, a game whose decisions the action space cannot
-number, a broken checkout, a refusal of the line's words. That last is told
+number, a broken checkout, a refusal of the line's words; 3 when the engine
+failed -- a refusal told to the engine, a leaked Owner Guard's, or an
+exception outside the typed Failure Channel raised while the command is
+carried out and its result printed, once the line is read and its path
+probed; an `OSError` the path probe itself meets escapes as a traceback
+(issue #1097). A refusal of the line's words is told
 by `_refuse` and leaves through argparse's own exit, `SystemExit`, as
 argparse's usage errors do.
-The two are split by who must act, not by how badly it went.
+The statuses are split by who must act, not by how badly it went: every
+status but 0 is the one `_status` names for the author of the refusal told,
+the highest of them where one run tells several, computed once, by
+`_Telling.status`, from every refusal the run told.
 
-`check --json` prints one Record Envelope (`cardlang.records`) on stdout in
-place of the text, whatever the outcome, with the same exit code; every
-refusal it records is a Told Diagnostic, the command line's own (an
-unreadable path) told to whoever ran the command.
+`--json`, which every command takes, prints one Record Envelope
+(`cardlang.records`) on stdout whatever the outcome, with the exit code the
+text would give, and nothing else there: every refusal is a Told Diagnostic
+in it, the command's own (a path it cannot read, a seat the game does not
+seat, a saved game it cannot resume) told to whoever ran the command, with
+the lines the text prints beside it. Under `check`, `play` and `demo` it is
+gathered by `_Telling` and printed at the end, and everything else the
+command prints -- `demo`'s summary, listing and views, `play`'s table, menus
+and prompts -- goes to stderr word for word; `play` still reads the picks
+from stdin. `-h` prints its help instead, and a command line refused before
+it is read is refused as text, with nothing on stdout.
 
 `query` answers a [[checker-query]] (`cardlang.query`) on a file the checker
 accepts, and prints the checker's refusal, as `check` does, for one it
@@ -82,15 +106,18 @@ Envelope in every case, with the same exit code.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
+import os
 import random
 import re
 import shlex
 import sys
-from collections.abc import Callable
-from dataclasses import dataclass
+import traceback
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, NoReturn, assert_never, cast
+from typing import Any, NoReturn, TextIO, assert_never, cast
 
 from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
@@ -111,6 +138,7 @@ from cardlang.play.opponents import (
     EXAMPLE,
     REST,
     Item,
+    NoSuchSeat,
     Unnamed,
     as_flags,
     listing,
@@ -138,8 +166,14 @@ from cardlang.records import (
     query_envelope,
     refusal_diagnostic,
 )
-from cardlang.runtime.errors import GameDescriptionError, InstallationError
+from cardlang.runtime.errors import (
+    GameDescriptionError,
+    GameRegistrationError,
+    InstallationError,
+    Located,
+)
 from cardlang.runtime.observe import render
+from cardlang.runtime.reads import PrimitiveNameMissing
 from cardlang.runtime.state import IllegalMove, RuntimeState
 from cardlang.runtime.values import Player
 
@@ -199,6 +233,15 @@ def _add_demo_arguments(parser: argparse.ArgumentParser) -> None:
         help="print what --info-state and --view show at decision N — the "
         "position just before that one choice is made — instead of at the "
         "terminal position; --decisions lists the numbers",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help=(
+            "print every refusal, the playout's own included, as a Diagnostic "
+            "Record in one JSON document on stdout, and everything else on "
+            "stderr; a command line that cannot be read is still refused as text"
+        ),
     )
 
 
@@ -332,6 +375,15 @@ def _add_play_arguments(parser: argparse.ArgumentParser) -> None:
         "against the opponents it was played with, saving back to FILE unless "
         "--save names another",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help=(
+            "print every refusal as a Diagnostic Record in one JSON document on "
+            "stdout when the session ends, and the table on stderr; a command "
+            "line that cannot be read is still refused as text"
+        ),
+    )
 
 
 # The commands, and the one place they are written: `build_parser` registers a
@@ -369,6 +421,29 @@ _READ_AS_BARE = f"no command is named, so the line is read as {_BARE}"
 _EXIT_OK = 0
 _EXIT_GAME_AT_FAULT = 1
 _EXIT_CANNOT_PROCEED = 2
+_EXIT_ENGINE_FAILED = 3
+
+
+def _status(author: Author) -> int:
+    """The exit status of a refusal told to `author`: who must act."""
+    match author:
+        case Author.GAME | Author.LIBRARY:
+            return _EXIT_GAME_AT_FAULT
+        case Author.INVOCATION | Author.INSTALLATION | Author.REGISTRATION:
+            return _EXIT_CANNOT_PROCEED
+        case Author.ENGINE:
+            return _EXIT_ENGINE_FAILED
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+def _told_status(told: Sequence[Told]) -> int:
+    """The exit status of a run telling `told`: the highest its errors' authors
+    name, 0 when it tells no error."""
+    return max(
+        (_status(t.author) for t in told if t.diagnostic.severity is Severity.ERROR),
+        default=_EXIT_OK,
+    )
 
 
 def build_parser() -> _Parser:
@@ -380,6 +455,7 @@ def build_parser() -> _Parser:
     parser = _Parser(
         prog="cardlang",
         description="Check a card-game description, or play one through.",
+        allow_abbrev=False,
     )
     # No `metavar`: argparse then spells the choices into every usage line it
     # prints, so a refusal that shows usage — a command in the wrong slot, a
@@ -387,7 +463,9 @@ def build_parser() -> _Parser:
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
 
     for name, (help_text, add_arguments) in _COMMAND_TABLE.items():
-        command = commands.add_parser(name, help=help_text)
+        # No prefix of an option reads as the option: a slip is refused as
+        # typed, never taken as the option it begins.
+        command = commands.add_parser(name, help=help_text, allow_abbrev=False)
         file = command.add_argument(
             "file", type=_file, help=f"game file, its name ending in {extensions_read()}"
         )
@@ -623,6 +701,81 @@ def _unreadable(word: str) -> str | None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    out, err = sys.stdout, sys.stderr
+    sys.stdout = cast(TextIO, _Guarded("stdout", out))
+    sys.stderr = cast(TextIO, _Guarded("stderr", err))
+    try:
+        return _main(argv)
+    except _StreamFailed as failed:
+        # Before the line is read, or under `query --json`: nothing is told.
+        failed.silence()
+        return _status(failed.told.author)
+    finally:
+        sys.stdout, sys.stderr = out, err
+
+
+class _StreamFailed(Exception):
+    """The command's own output could not be written: its reader has gone, or
+    its encoding cannot spell what is printed. The caller set the stream up,
+    so the refusal is told to whoever ran the command."""
+
+    def __init__(self, name: str, error: BrokenPipeError | UnicodeEncodeError) -> None:
+        super().__init__(str(error))
+        self.name = name
+        self.broken = isinstance(error, BrokenPipeError)
+        if isinstance(error, UnicodeEncodeError):
+            spelled = ascii(error.object[error.start : error.end])
+            message = (
+                f"cannot write to {name}: its encoding, {error.encoding}, cannot spell "
+                f"{spelled}; give it one that can, as PYTHONIOENCODING=utf-8 does"
+            )
+        else:
+            message = f"cannot write to {name}: its reader has gone"
+        self.told = Told(
+            Diagnostic(Severity.ERROR, message, code=Code.UNWRITABLE_OUTPUT), Author.INVOCATION
+        )
+
+    def silence(self) -> None:
+        """Send whatever is still to be written to a stream whose reader has
+        gone nowhere, so that nothing more is said and the interpreter's own
+        flush at exit meets no broken pipe either."""
+        if not self.broken:
+            return
+        stream = sys.__stdout__ if self.name == "stdout" else sys.__stderr__
+        if stream is None:
+            return
+        with contextlib.suppress(OSError, ValueError):
+            nowhere = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(nowhere, stream.fileno())
+
+
+class _Guarded:
+    """A standard stream whose write failures are the caller's: a broken pipe
+    or an encoding that cannot spell the text raises `_StreamFailed`, which
+    the command line tells, where it would otherwise read as an engine
+    failure."""
+
+    def __init__(self, name: str, stream: TextIO) -> None:
+        self._name = name
+        self._stream = stream
+
+    def write(self, text: str) -> int:
+        try:
+            return self._stream.write(text)
+        except (BrokenPipeError, UnicodeEncodeError) as error:
+            raise _StreamFailed(self._name, error) from error
+
+    def flush(self) -> None:
+        try:
+            self._stream.flush()
+        except BrokenPipeError as error:
+            raise _StreamFailed(self._name, error) from error
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._stream, name)
+
+
+def _main(argv: list[str] | None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
     line = _normalize(raw)
@@ -648,9 +801,8 @@ def main(argv: list[str] | None = None) -> int:
     implicit = line.implicit
 
     path = Path(args.file)
-    refusal = _unreadable(args.file)
-    if args.command == "check" and args.json:
-        return _check_json(path, refusal)
+    unreadable = _unreadable(args.file)
+    refusal = None if unreadable is None else _unreadable_told(unreadable, implicit)
     at = _position(args.at) if args.command == "query" else None
     if isinstance(at, str) and args.json:
         # A query naming no position has no envelope to fill: refused as text,
@@ -660,186 +812,289 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "query" and args.json:
         assert at is not None and not isinstance(at, str)
         return _query_json(path, refusal, at)
+    telling = _Telling(args.json)
+    _carried_out(args, path, refusal, at, telling)
+    return telling.status()
+
+
+class _Telling:
+    """Where a command tells its refusals and prints its transcript, and the
+    one owner of the run's exit status. In text, a refusal prints on stderr
+    and the transcript on stdout; under `--json`, every refusal is kept for
+    the one Record Envelope printed at the end, and the transcript goes to
+    stderr, word for word, so stdout holds the envelope alone. Either way
+    every refusal is kept, and the status is computed from all of them."""
+
+    def __init__(self, as_json: bool) -> None:
+        self.as_json = as_json
+        self.told: list[Told] = []
+        self.out: TextIO = sys.stderr if as_json else sys.stdout
+        # Nothing more is printed once a reader has gone.
+        self.silent = False
+
+    def refuse(self, told: Told, show: Callable[[Told], None]) -> None:
+        """Tell `told`, printed by `show` in text."""
+        self.told.append(told)
+        if not self.as_json and not self.silent:
+            show(told)
+
+    def cannot(self, message: str, code: Code) -> None:
+        """A refusal of the command's own, told to whoever ran it."""
+        self.refuse(Told(Diagnostic(Severity.ERROR, message, code=code), Author.INVOCATION), _print_line)
+
+    def status(self) -> int:
+        """The run's exit status: the highest its errors' authors name."""
+        return _told_status(self.told)
+
+
+def _unprinted(_told: Told) -> None:
+    """A refusal whose text is already printed, or that prints none."""
+
+
+def _carried_out(
+    args: argparse.Namespace,
+    path: Path,
+    refusal: Told | None,
+    at: tuple[int, int] | str | None,
+    telling: _Telling,
+) -> None:
+    """The command the line names, carried out and its result printed, every
+    refusal told by `telling`. Printing the envelope is part of carrying the
+    command out, so a failure there is an engine failure like any other; a
+    stream the caller cannot be written to is the caller's."""
+    try:
+        try:
+            _commanded(args, path, refusal, at, telling)
+        except _StreamFailed:
+            raise
+        except Exception as exc:
+            telling.refuse(_engine_gap(exc), _unprinted)
+        if telling.as_json and not telling.silent:
+            try:
+                print(json.dumps(envelope(telling.told), indent=2))
+            except _StreamFailed:
+                raise
+            except Exception as exc:
+                telling.refuse(_engine_gap(exc), _unprinted)
+        sys.stdout.flush()
+    except _StreamFailed as failed:
+        failed.silence()
+        telling.silent = telling.silent or failed.broken
+        telling.refuse(failed.told, _unprinted if failed.broken or failed.name == "stderr" else _print_line)
+
+
+def _commanded(
+    args: argparse.Namespace,
+    path: Path,
+    refusal: Told | None,
+    at: tuple[int, int] | str | None,
+    telling: _Telling,
+) -> None:
+    """The command itself, its refusals told by `telling`."""
     if refusal is not None:
-        print(f"cardlang: {refusal}", file=sys.stderr)
-        if implicit:
-            # The token stands where a command may also stand, so the refusal
-            # answers both readings rather than picking one.
-            print(
-                f"cardlang: if you meant a command, they are: {', '.join(COMMANDS)}",
-                file=sys.stderr,
-            )
-        return _EXIT_CANNOT_PROCEED
+        telling.refuse(refusal, _print_line)
+        return
     if isinstance(at, str):
         # The path is refused first, as under every command; then the position.
-        print(f"cardlang: {at}", file=sys.stderr)
-        return _EXIT_CANNOT_PROCEED
-
+        telling.cannot(at, Code.COMMAND_LINE_USAGE)
+        return
     try:
         if args.command == "demo":
-            return _demo(
-                path, args.seed, args.info_state, args.view, args.at, args.decisions
-            )
-        if args.command == "play":
-            return _play(path, args.seat, args.seed, args.save, args.resume, args.vs)
-        if args.command == "query":
+            _demo(path, args.seed, args.info_state, args.view, args.at, args.decisions, telling)
+        elif args.command == "play":
+            _play(path, args.seat, args.seed, args.save, args.resume, args.vs, telling)
+        elif args.command == "query":
             assert at is not None
-            return _query(path, at)
-        return _check(path, args.emit_ir)
+            _query(path, at, telling)
+        else:
+            _check(path, args.emit_ir)
     except DiagnosticError as exc:
-        print(exc.diagnostic.format(), file=sys.stderr)
-        for note in getattr(exc, "__notes__", []):
-            print(note, file=sys.stderr)
-        return _EXIT_GAME_AT_FAULT
-    except GameDescriptionError as exc:
-        print(f"cardlang: playing {path} failed", file=sys.stderr)
-        _print_refusal(exc)
-        print(
-            "  the static checks passed — this is a rule only a playout "
-            "reaches, and the line played was uniform-random",
-            file=sys.stderr,
-        )
-        return _EXIT_GAME_AT_FAULT
-    except IllegalMove as exc:
-        print(f"cardlang: playing {path} failed", file=sys.stderr)
-        _print_refusal(exc)
-        # `error(...)` is writable in any expression the engine evaluates, so
-        # the message names the position it most often guards without claiming
-        # the refusal came from there.
-        print(
-            "  this is your game's own `error(...)` refusing, and a playout "
-            "has no player to tell",
-            file=sys.stderr,
-        )
-        print(
-            "  from a rule's `if_impossible:` it means no card satisfied that "
-            "rule: widen its `demands:`, or give it a card set to fall back on",
-            file=sys.stderr,
-        )
-        return _EXIT_GAME_AT_FAULT
-    except InstallationError as exc:
-        print("cardlang: this checkout of cardlang is incomplete", file=sys.stderr)
-        print(f"  {exc}", file=sys.stderr)
-        print("  reinstall the package, or restore what the message names", file=sys.stderr)
-        return _EXIT_CANNOT_PROCEED
+        telling.told.extend(exc.told)
+        if not telling.as_json:
+            print(exc.diagnostic.format(), file=sys.stderr)
+            for note in getattr(exc, "__notes__", []):
+                print(note, file=sys.stderr)
+    except RUNTIME_REFUSALS as exc:
+        telling.refuse(*_refused_in_play(path, cast(RuntimeRefusal, exc)))
 
 
-def _print_refusal(exc: GameDescriptionError | IllegalMove) -> None:
-    """A refusal, at the sentence that refused.
+def _unreadable_told(refusal: str, implicit: bool) -> Told:
+    """A path the front end cannot read, told to whoever ran the command. A
+    first word standing where a command may also stand is answered in both
+    readings, the commands told beside it, rather than read as one."""
+    hint = (f"if you meant a command, they are: {', '.join(COMMANDS)}",) if implicit else ()
+    return _with_lines(
+        Told(Diagnostic(Severity.ERROR, refusal, code=Code.UNREADABLE_FILE), Author.INVOCATION), *hint
+    )
 
-    Rendered through the checker's own `Diagnostic`, so the two halves of the
-    [[failure-channel]] print one shape and cannot drift into two spellings of
-    a file position. A refusal that reached no stamping site prints without a
-    locator — the engine's own guards, which refuse a world rather than a
-    sentence — and an invented span would point the reader at a line where
-    nothing happened.
-    """
-    if exc.span is None:
-        print(f"  {exc}", file=sys.stderr)
-    else:
-        print(refusal_diagnostic(exc).diagnostic.format(), file=sys.stderr)
+
+def _with_lines(told: Told, *lines: str) -> Told:
+    """`told`, with the lines the command line prints beside it, in the order
+    they print."""
+    return replace(told, lines=(*told.lines, *lines))
+
+
+def _place(exc: RuntimeRefusal) -> str | None:
+    """Where in play a refusal happened, as its line prints it."""
+    if not isinstance(exc, Located):
+        return None
     where = [w for w in (
         None if exc.phase is None else f"in phase {exc.phase}",
         None if exc.zone is None else f"moving from {exc.zone}",
     ) if w is not None]
-    if where:
-        print(f"  {', '.join(where)}", file=sys.stderr)
+    return ", ".join(where) if where else None
 
 
-def _checked(
-    path: Path, unreadable: str | None, crashed: Callable[[Told], None]
-) -> tuple[tuple[Told, ...], int]:
-    """What `check --json` and `query --json` record of the check: every
+def _in_play(path: Path, exc: GameDescriptionError | IllegalMove, *advice: str) -> Told:
+    """A refusal met loading or playing a game: led by the line that says so,
+    then where in play it happened, then `advice` -- or, for a refusal told
+    to the engine, the line saying the engine is who must act, since advice
+    aimed at the game would send its author to the wrong file."""
+    told = refusal_diagnostic(exc)
+    where = _place(exc)
+    aimed = (_ENGINE_FIXES_IT,) if told.author is Author.ENGINE else advice
+    return _with_lines(told, f"playing {path} failed", *([] if where is None else [where]), *aimed)
+
+
+_ENGINE_FIXES_IT = "this is cardlang's own failure, not your game's: report it"
+
+
+# What a refusal the game's own `error(...)` raised means. `error(...)` is
+# writable in any expression the engine evaluates, so the advice names the
+# position it most often guards without claiming the refusal came from there.
+_IF_IMPOSSIBLE = (
+    "from a rule's `if_impossible:` it means no card satisfied that rule: widen "
+    "its `demands:`, or give it a card set to fall back on"
+)
+
+
+def _refused_in_play(path: Path, exc: RuntimeRefusal) -> tuple[Told, Callable[[Told], None]]:
+    """A runtime refusal as the command line tells it outside a table: the
+    told refusal, and how its text prints."""
+    match exc:
+        case GameDescriptionError():
+            advice = (
+                "the static checks passed — this is a rule only a playout reaches, "
+                "and the line played was uniform-random"
+            )
+            return _in_play(path, exc, advice), _print_playout
+        case IllegalMove():
+            advice = "this is your game's own `error(...)` refusing, and a playout has no player to tell"
+            return _in_play(path, exc, advice, _IF_IMPOSSIBLE), _print_playout
+        case InstallationError():
+            told = _with_lines(
+                refusal_diagnostic(exc),
+                "this checkout of cardlang is incomplete",
+                "reinstall the package, or restore what the message names",
+            )
+            return told, _print_playout
+        case GameRegistrationError():
+            return refusal_diagnostic(exc), _print_line
+        case PrimitiveNameMissing():
+            return _with_lines(refusal_diagnostic(exc), f"playing {path} failed"), _print_playout
+        case _:
+            assert_never(exc)
+
+
+def _print_line(told: Told) -> None:
+    """A refusal of the command's own: its message, then each line told beside
+    it, every one led by `cardlang: `."""
+    for line in (told.diagnostic.message, *told.lines):
+        print(f"cardlang: {line}", file=sys.stderr)
+
+
+def _print_playout(told: Told) -> None:
+    """A refusal met loading or playing a game: its first line leads, then
+    the refusal at the sentence that refused, then the rest of its lines,
+    indented.
+
+    The refusal renders through the checker's own `Diagnostic`, so the two
+    halves of the [[failure-channel]] print one shape and cannot drift into
+    two spellings of a file position. A refusal that reached no stamping site
+    prints without a locator -- the engine's own guards, which refuse a world
+    rather than a sentence -- since an invented span would point the reader
+    at a line where nothing happened."""
+    heading, *rest = told.lines
+    d = told.diagnostic
+    print(f"cardlang: {heading}", file=sys.stderr)
+    print(d.format() if d.span is not None else f"  {d.message}", file=sys.stderr)
+    for line in rest:
+        print(f"  {line}", file=sys.stderr)
+
+
+def _checked(path: Path, unreadable: Told | None) -> tuple[tuple[Told, ...], int]:
+    """What `query --json` records of the check: every
     refusal it told, and the exit code the text output would give. An engine
-    failure outside the typed channels is handed to `crashed` as an
-    `engine-gap` record and re-raised, so its traceback and exit status stay
-    the text output's (issue #1104)."""
+    failure outside the typed Failure Channel is an `engine-gap` record told
+    to the engine, its traceback printed on stderr as `_engine_gap` prints it."""
     if unreadable is not None:
-        told = Told(
-            Diagnostic(Severity.ERROR, unreadable, code=Code.UNREADABLE_FILE),
-            Author.INVOCATION,
-        )
-        return (told,), _EXIT_CANNOT_PROCEED
+        return (unreadable,), _status(unreadable.author)
     try:
         check_source(path)
     except DiagnosticError as exc:
-        return exc.told, _EXIT_GAME_AT_FAULT
+        return exc.told, _told_status(exc.told)
     except RUNTIME_REFUSALS as exc:
-        refused = refusal_diagnostic(cast(RuntimeRefusal, exc))
-        exit_code = (
-            _EXIT_CANNOT_PROCEED
-            if refused.author in (Author.INSTALLATION, Author.REGISTRATION)
-            else _EXIT_GAME_AT_FAULT
-        )
-        return (refused,), exit_code
+        refused, _shown = _refused_in_play(path, cast(RuntimeRefusal, exc))
+        return (refused,), _status(refused.author)
     except Exception as exc:
-        crashed(_engine_gap(exc))
-        raise
+        return (_engine_gap(exc),), _EXIT_ENGINE_FAILED
     return (), _EXIT_OK
 
 
 def _engine_gap(exc: Exception) -> Told:
+    """An exception outside the typed Failure Channel, as a record told to the
+    engine, its traceback printed on stderr as `traceback.print_exc` prints it
+    where the command line catches it: from the frame that carried the
+    command out down to the failure, without `main`'s frame or the console
+    script's above it."""
+    traceback.print_exc()
     return Told(
         Diagnostic(Severity.ERROR, str(exc) or type(exc).__name__, code=Code.ENGINE_GAP),
         Author.ENGINE,
     )
 
 
-def _check_json(path: Path, unreadable: str | None) -> int:
-    """`check --json`: one Record Envelope on stdout, whatever the outcome,
-    and the exit code the text output would give."""
-    told, exit_code = _checked(
-        path, unreadable, lambda crash: print(json.dumps(envelope((crash,)), indent=2))
-    )
-    print(json.dumps(envelope(told), indent=2))
-    return exit_code
-
-
-def _query(path: Path, at: tuple[int, int]) -> int:
+def _query(path: Path, at: tuple[int, int], telling: _Telling) -> None:
     """`query`: the checker's refusal, as `check` prints it, for a file it
     refuses; otherwise the Checker Query's answer, on stdout, or the refusal
-    of the position, on stderr."""
+    of the position, on stderr, told as the answer renders it."""
     check_source(path)
     answer = query.ask_path(path, *at)
     print(query.render(answer), file=sys.stdout if answer.located is not None else sys.stderr)
-    return answer.exit_code
+    for refused in answer.refused:
+        telling.refuse(refused, _unprinted)
 
 
-def _query_json(path: Path, unreadable: str | None, at: tuple[int, int]) -> int:
+def _query_json(path: Path, unreadable: Told | None, at: tuple[int, int]) -> int:
     """`query --json`: one Record Envelope on stdout, whatever the outcome,
     with the exit code the text output would give; an engine failure, in
     the check or in the query's own run of the passes, as `check --json`
     records one."""
     line, column = at
-
-    def crashed(crash: Told) -> None:
-        answer = query.refused(str(path), line, column, (crash,), _EXIT_GAME_AT_FAULT)
-        print(json.dumps(query_envelope(answer), indent=2))
-
-    refused, exit_code = _checked(path, unreadable, crashed)
+    refused, exit_code = _checked(path, unreadable)
     if refused:
         answer = query.refused(str(path), line, column, refused, exit_code)
     else:
         try:
             answer = query.ask_path(path, line, column)
         except Exception as exc:
-            crashed(_engine_gap(exc))
-            raise
-    print(json.dumps(query_envelope(answer), indent=2))
+            crash = (_engine_gap(exc),)
+            answer = query.refused(str(path), line, column, crash, _EXIT_ENGINE_FAILED)
+    try:
+        print(json.dumps(query_envelope(answer), indent=2))
+    except _StreamFailed:
+        raise
+    except Exception as exc:
+        return _status(_engine_gap(exc).author)
+    sys.stdout.flush()
     return answer.exit_code
 
 
-def _check(path: Path, emit_ir: bool) -> int:
+def _check(path: Path, emit_ir: bool) -> None:
     if emit_ir:
         print(json.dumps(compile_path(path), indent=2))
     else:
         check_source(path)
-    return _EXIT_OK
-
-
-def _cannot(message: str) -> int:
-    print(f"cardlang: {message}", file=sys.stderr)
-    return _EXIT_CANNOT_PROCEED
 
 
 def _unnamed(
@@ -875,44 +1130,60 @@ def _play(
     save: str | None,
     resume: str | None,
     vs: list[Item] | None,
-) -> int:
+    telling: _Telling,
+) -> None:
+    cannot = telling.cannot
     try:
         game, space = load(str(path))
     except NotImplementedError as exc:
         # `ActionSpace.for_game` refuses a decision it has no numbering for; the
         # game is sound and plays in `demo`, and what cannot proceed is a table
         # whose picks are action ids.
-        return _cannot(
+        cannot(
             f"{path} cannot be played at a table yet: one of its decisions has no "
-            f"numbering for its picks ({exc})"
+            f"numbering for its picks ({exc})",
+            Code.TABLE_CANNOT_NUMBER_A_DECISION,
         )
+        return
     seats = game.players.count
     if seat is not None and not 0 <= seat < seats:
-        return _cannot(f"{path} seats 0..{seats - 1}; --seat {seat} names no seat at this table")
+        cannot(
+            f"{path} seats 0..{seats - 1}; --seat {seat} names no seat at this table",
+            Code.OUT_OF_RANGE,
+        )
+        return
     history: list[Any] = []
     on_file: dict[int, str] | None = None
     if resume is not None:
         saved = read_saved(Path(resume), game_identity(game))
         if isinstance(saved, str):
-            return _cannot(f"cannot resume {resume}: {saved}")
+            cannot(f"cannot resume {resume}: {saved}", Code.SAVED_GAME_NOT_RESUMABLE)
+            return
         if seat is not None and seat != saved.seat:
-            return _cannot(
+            cannot(
                 f"cannot resume {resume}: it was played at seat {saved.seat}, and "
-                f"--seat {seat} names another; leave --seat out to go on with it"
+                f"--seat {seat} names another; leave --seat out to go on with it",
+                Code.CONTRADICTS_SAVED_GAME,
             )
+            return
         if seed is not None and seed != saved.seed:
-            return _cannot(
+            cannot(
                 f"cannot resume {resume}: it was dealt with seed {saved.seed}, and "
-                f"--seed {seed} names another; leave --seed out to go on with it"
+                f"--seed {seed} names another; leave --seed out to go on with it",
+                Code.CONTRADICTS_SAVED_GAME,
             )
+            return
         if not 0 <= saved.seat < seats:
-            return _cannot(
+            cannot(
                 f"cannot resume {resume}: it was played at seat {saved.seat}, and "
-                f"{path} seats 0..{seats - 1}"
+                f"{path} seats 0..{seats - 1}",
+                Code.SAVED_GAME_NOT_RESUMABLE,
             )
+            return
         read = recorded(saved.opponents, seats, saved.seat, str(path))
         if isinstance(read, str):
-            return _cannot(f"cannot resume {resume}: {read}")
+            cannot(f"cannot resume {resume}: {read}", Code.SAVED_GAME_NOT_RESUMABLE)
+            return
         seat, seed, history, on_file = saved.seat, saved.seed, saved.history, read
     person = 0 if seat is None else seat
     if vs is None and on_file is not None:
@@ -920,23 +1191,33 @@ def _play(
     else:
         chosen = seated(vs or [], seats, person, str(path))
         if isinstance(chosen, str):
-            return _cannot(chosen if resume is None else f"cannot resume {resume}: {chosen}")
+            cannot(
+                chosen if resume is None else f"cannot resume {resume}: {chosen}",
+                Code.OUT_OF_RANGE if isinstance(chosen, NoSuchSeat) else Code.OPPONENTS_SEATED_WRONGLY,
+            )
+            return
         if on_file is not None:
             if chosen != on_file:
-                return _cannot(
+                cannot(
                     f"cannot resume {resume}: it was played with {as_flags(on_file)}, and "
-                    "--vs does not name the same opponents; leave --vs out to go on with it"
+                    "--vs does not name the same opponents; leave --vs out to go on with it",
+                    Code.CONTRADICTS_SAVED_GAME,
                 )
+                return
             opponents = on_file
         elif isinstance(chosen, Unnamed):
-            return _cannot(_unnamed(path, seat, seed, save, vs or [], chosen))
+            cannot(
+                _unnamed(path, seat, seed, save, vs or [], chosen), Code.UNNAMED_OPPONENTS
+            )
+            return
         else:
             opponents = chosen
     save_to = Path(save) if save is not None else None if resume is None else Path(resume)
     if save_to is not None:
         refusal = unwritable(save_to)
         if refusal is not None:
-            return _cannot(f"cannot save to {save_to}: {refusal}")
+            cannot(f"cannot save to {save_to}: {refusal}", Code.CANNOT_SAVE_TO_FILE)
+            return
     session = Session(
         str(path),
         game,
@@ -946,37 +1227,30 @@ def _play(
         opponents,
         history,
         sys.stdin,
-        sys.stdout,
+        telling.out,
         save_to,
     )
     try:
         session.run()
     except SaveFailed as exc:
-        return _cannot(str(exc))
+        cannot(str(exc), Code.CANNOT_SAVE_TO_FILE)
+        return
     except HistoryMismatch as exc:
         if resume is None:
             raise
-        return _cannot(f"cannot resume {resume}: its picks no longer replay in {path} ({exc})")
+        cannot(
+            f"cannot resume {resume}: its picks no longer replay in {path} ({exc})",
+            Code.SAVED_GAME_NOT_RESUMABLE,
+        )
+        return
     except GameDescriptionError as exc:
-        print(f"cardlang: playing {path} failed", file=sys.stderr)
-        _print_refusal(exc)
-        print(
-            "  the static checks passed — this is a rule only play reaches; "
-            f"{session.who_played()}",
-            file=sys.stderr,
-        )
-        return _EXIT_GAME_AT_FAULT
+        advice = f"the static checks passed — this is a rule only play reaches; {session.who_played()}"
+        telling.refuse(_in_play(path, exc, advice), _print_playout)
+        return
     except IllegalMove as exc:
-        print(f"cardlang: playing {path} failed", file=sys.stderr)
-        _print_refusal(exc)
-        print("  this is your game's own `error(...)` refusing", file=sys.stderr)
-        print(
-            "  from a rule's `if_impossible:` it means no card satisfied that "
-            "rule: widen its `demands:`, or give it a card set to fall back on",
-            file=sys.stderr,
-        )
-        return _EXIT_GAME_AT_FAULT
-    return _EXIT_OK
+        told = _in_play(path, exc, "this is your game's own `error(...)` refusing", _IF_IMPOSSIBLE)
+        telling.refuse(told, _print_playout)
+        return
 
 
 def _demo(
@@ -986,7 +1260,9 @@ def _demo(
     view_seat: int | None,
     at: int | None,
     listing: bool,
-) -> int:
+    telling: _Telling,
+) -> None:
+    cannot, out = telling.cannot, telling.out
     game = check_source(path)
     seats = game.players.count
     for flag, named in (("--info-state", seat), ("--view", view_seat)):
@@ -996,30 +1272,28 @@ def _demo(
             # in the engine maintainer's channel. Taken here, the refusal comes
             # before the game is played and in the words of the caller who
             # named the seat.
-            print(
-                f"cardlang: {path} seats 0..{seats - 1}; {flag} {named} names "
-                "no seat at this table",
-                file=sys.stderr,
+            cannot(
+                f"{path} seats 0..{seats - 1}; {flag} {named} names no seat at this table",
+                Code.OUT_OF_RANGE,
             )
-            return _EXIT_CANNOT_PROCEED
+            return
     named_seats = sorted({s for s in (seat, view_seat) if s is not None})
     # Both `--at` refusals a playout cannot inform are taken here, beside the
     # seat check and before the game runs; the range refusal needs the count
     # only the playout produces and waits below.
     if at is not None and not named_seats:
-        print(
-            f"cardlang: --at {at} says which decision to look at; add "
+        cannot(
+            f"--at {at} says which decision to look at; add "
             "--view SEAT or --info-state SEAT to say whose view to show",
-            file=sys.stderr,
+            Code.COMMAND_LINE_USAGE,
         )
-        return _EXIT_CANNOT_PROCEED
+        return
     if at is not None and at < 0:
-        print(
-            f"cardlang: --at {at} names no decision; a playout's decisions "
-            "start at 0",
-            file=sys.stderr,
+        cannot(
+            f"--at {at} names no decision; a playout's decisions start at 0",
+            Code.OUT_OF_RANGE,
         )
-        return _EXIT_CANNOT_PROCEED
+        return
 
     drawn = random.randrange(2**31) if seed is None else seed
     logs: dict[Player, list[tuple[Any, ...]]] = {p: [] for p in range(seats)}
@@ -1109,32 +1383,40 @@ def _demo(
     # The driver's own count, not a second one taken off the list: the two are
     # the same unit and `tests/test_cli_surface.py` pins them equal.
     made = world[0].decisions_made if world else 0
-    print(_summary(game, result, made, drawn))
+    print(_summary(game, result, made, drawn), file=out)
     if listing:
-        print()
-        print(_listing(decisions))
+        print(file=out)
+        print(_listing(decisions), file=out)
+    if result.ended_by is EndedBy.LENGTH:
+        # The sizing rule says uniform-random play ends by the rules, so the
+        # file is where to look: told to the game, its line already leading
+        # the summary.
+        stop = Diagnostic(
+            Severity.ERROR, length_stop_line(game, made), code=Code.RANDOM_PLAY_REACHES_LENGTH_STOP
+        )
+        telling.refuse(Told(stop, Author.GAME), _unprinted)
 
     if not named_seats:
-        return _demo_exit(result)
+        return
     if not decisions:
         # No decision means `on_first_decision` never fired, so there is no
         # world to project from — at a decision or at the end alike.
-        print(
-            f"cardlang: {path} reached its end without a decision, so the "
+        cannot(
+            f"{path} reached its end without a decision, so the "
             "engine exposes no world to project a seat's view from",
-            file=sys.stderr,
+            Code.SEAT_VIEW_OF_A_PLAYOUT_WITH_NO_DECISION,
         )
-        return _EXIT_CANNOT_PROCEED
+        return
     if at is not None and at >= len(decisions):
         # Naming the range rather than clamping: the nearest decision is an
         # answer to a question nobody asked, and it would read as the one
         # asked for.
-        print(
-            f"cardlang: this playout has {len(decisions)} decisions, so --at "
+        cannot(
+            f"this playout has {len(decisions)} decisions, so --at "
             f"takes 0..{len(decisions) - 1}; --at {at} names none of them",
-            file=sys.stderr,
+            Code.OUT_OF_RANGE,
         )
-        return _EXIT_CANNOT_PROCEED
+        return
     if at is None:
         where = "at the terminal position"
     else:
@@ -1142,12 +1424,11 @@ def _demo(
         assert line is not None, "a named decision always renders its line"
         where = f"at decision {at} ({line})"
     if seat is not None:
-        print(f"\ninformation state, seat {seat}, {where}:")
-        print(shown["--info-state"])
+        print(f"\ninformation state, seat {seat}, {where}:", file=out)
+        print(shown["--info-state"], file=out)
     if view_seat is not None:
-        print(f"\nview, seat {view_seat}, {where}:")
-        print(shown["--view"])
-    return _demo_exit(result)
+        print(f"\nview, seat {view_seat}, {where}:", file=out)
+        print(shown["--view"], file=out)
 
 
 # How many candidates a decision's line names before it trails off. A line is
@@ -1196,20 +1477,6 @@ def _listing(decisions: list[str | None]) -> str:
         if line is not None
     ]
     return "\n".join([head, *rows])
-
-
-def _demo_exit(result: GameResult) -> int:
-    """`demo`'s exit code for a playout that ran: 0 when the game's rules
-    ended it, 1 when it reached its `max_length` -- the sizing rule says
-    uniform-random play ends by the rules, so the file is where to look
-    (docs/decisions.md, "Game length as a declared contract")."""
-    match result.ended_by:
-        case EndedBy.RULES:
-            return _EXIT_OK
-        case EndedBy.LENGTH:
-            return _EXIT_GAME_AT_FAULT
-        case _ as unreachable:
-            assert_never(unreachable)
 
 
 def length_stop_line(game: n.Game, decisions: int) -> str:
