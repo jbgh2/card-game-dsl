@@ -48,7 +48,7 @@ jobs:
     outputs:
       lane: ${{ steps.pick.outputs.lane }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: tools/ci-route.sh
           sparse-checkout-cone-mode: false
@@ -83,7 +83,7 @@ jobs:
         run: |
           echo "::error title=check::the route job picked no lane (result: ${{ needs.route.result }}), so the gate did not run"
           exit 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Venv (rebuilt whenever the dependency spec changes)
         if: needs.route.outputs.lane == 'laptop'
         # Keyed to pyproject.toml by content stamp: any spec change rebuilds
@@ -111,7 +111,7 @@ jobs:
           fi
           echo "$VENV/bin" >> "$GITHUB_PATH"
           echo "MYPY_CACHE_DIR=$RUNNER_TOOL_CACHE/cardlang-mypy-cache" >> "$GITHUB_ENV"
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: needs.route.outputs.lane == 'hosted'
         with:
           python-version: "3.11"
@@ -151,8 +151,8 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - name: Install
