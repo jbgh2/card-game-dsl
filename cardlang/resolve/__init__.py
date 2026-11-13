@@ -265,7 +265,6 @@ from cardlang.resolve.references import (
 )
 from cardlang.resolve.classified_checks import (
     HOSTED_REACH_INERT_SLOTS as HOSTED_REACH_INERT_SLOTS,
-    HOSTED_REACH_POOLS as HOSTED_REACH_POOLS,
     _AnswerVoice as _AnswerVoice,
     _DEFINITION_CLAUSES as _DEFINITION_CLAUSES,
     _ErrorSink as _ErrorSink,
@@ -283,7 +282,6 @@ from cardlang.resolve.classified_checks import (
     _UNREAD_SENTENCES as _UNREAD_SENTENCES,
     _WINNER_BINDING_STMTS as _WINNER_BINDING_STMTS,
     _ZONE_SLOTS as _ZONE_SLOTS,
-    _answer_routes as _answer_routes,
     _arg_shape as _arg_shape,
     _card_points_clause as _card_points_clause,
     _check_actor_alias_comparisons as _check_actor_alias_comparisons,
@@ -322,7 +320,6 @@ from cardlang.resolve.classified_checks import (
     _offered_move_types as _offered_move_types,
     _reaches as _reaches,
     _report_recursion as _report_recursion,
-    _rule_clauses as _rule_clauses,
     _sweep_aliases as _sweep_aliases,
     _sweep_stmt_seq as _sweep_stmt_seq,
     _trick_order_clause as _trick_order_clause,
@@ -478,6 +475,11 @@ from cardlang.resolve.scope import (
     _refused_call_site_pronouns as _refused_call_site_pronouns,
     _state_declarations as _state_declarations,
     _state_out_of_scope as _state_out_of_scope,
+)
+from cardlang.resolve.reaches import (
+    HOSTED_REACH_POOLS as HOSTED_REACH_POOLS,
+    _answer_routes as _answer_routes,
+    _rule_clauses as _rule_clauses,
 )
 from cardlang.resolve.crossings import (
     _DEFINITION_POOLS as _DEFINITION_POOLS,

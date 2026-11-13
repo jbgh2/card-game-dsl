@@ -36,6 +36,13 @@ from cardlang.resolve.binders import _BINDER_SCOPE_FIELDS, _introduced_binders
 from cardlang.resolve.reserved import PLAY_SOURCE_NAME, _PRONOUNS, _SUBSCRIPTED_PLAY_SOURCE
 from cardlang.resolve.slots import _ROUND_QUERY_SLOT_SPELLINGS
 from cardlang.resolve.declared import _component_known
+from cardlang.resolve.reaches import (
+    _ReadLimits,
+    _answer_read_refusal,
+    _arrival_pile_refusal,
+    _hosted_read_refused,
+    _play_source_refused,
+)
 from cardlang.resolve.scope import (
     _bare_family_refused,
     _bare_seat_family_in_default,
@@ -142,6 +149,9 @@ def _record_scope(node: object, cats: _Categories) -> None:
     cats.scopes[key] = NamesInScope(tuple(named), at_a_name=position is not None)
 
 
+_NO_LIMITS = _ReadLimits(frozenset(), frozenset(), frozenset())
+
+
 @dataclass(frozen=True)
 class _ScopeFacts:
     """What a name written at a node may read, whatever slot it fills: the
@@ -176,6 +186,12 @@ class _NamePosition:
     slot: frozenset[n.RefKind] | None = None
     each_destination: bool = False
     keyed: bool = False
+    answer_through: frozenset[bool] = frozenset()
+    play_source_names: frozenset[str] = frozenset()
+    arrival_pile: bool = False
+    hosted: bool = False
+    subscripted: bool = False
+    limits: _ReadLimits = _NO_LIMITS
 
 
 def _scope_refuses(facts: _ScopeFacts, name: str, kind: n.RefKind) -> bool:
@@ -200,6 +216,13 @@ def _position_refuses(
             position.scope.in_default
             and _bare_seat_family_in_default(zone_index, name, kind, position.keyed)
         )
+        or any(
+            _answer_read_refusal(name, kind, through, position.subscripted, position.limits) is not None
+            for through in position.answer_through
+        )
+        or _play_source_refused(name, kind, position.play_source_names, position.subscripted)
+        or (position.arrival_pile and _arrival_pile_refusal(name, kind, position.limits) is not None)
+        or (position.hosted and _hosted_read_refused(name, kind))
     )
 
 

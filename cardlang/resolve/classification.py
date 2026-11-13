@@ -18,7 +18,11 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
               predicates); a trick round's winner is offered the winners that
               round admits (``_winner_refusals``, the one producer the
               guards refusing a round's winner dispatch on). Held by Derived and Pinned
-              (tests/test_near_miss_positions.py).
+              (tests/test_near_miss_positions.py). Not established: the
+              alias-comparison and hidden-read guards judge by walk state the
+              record does not hold (issue #1089), and no Near Miss is judged by
+              its Type (issue #1088), so one can be refused there still, or be
+              a Pronoun the checker gives no Type (issue #1125).
               Asked for one (``resolve(scopes=...)``), the pass fills the
               Scope Record: at every node the classifying walk visits, keyed by
               ``n.node_key``, the names a bare name written there classifies
@@ -55,6 +59,16 @@ from cardlang.resolve.scope import (
     _phase_scoped_nodes,
     _refused_call_site_pronouns,
     _state_declarations,
+)
+from cardlang.resolve.reaches import (
+    _answer_reaches,
+    _arrival_piles,
+    _hosted_unit_nodes,
+    _hosted_units,
+    _play_source_names,
+    _read_limits,
+    _rule_function_reads,
+    _subscripted_ids,
 )
 from cardlang.resolve.classifier import _Categories, _NamePosition, _ScopeFacts, _rewrite
 from cardlang.resolve.classifier import NamesInScope, _categories
@@ -182,12 +196,38 @@ def _name_positions(game: n.Game, facts: Mapping[int, _ScopeFacts] | None = None
         if isinstance(node, n.Transfer) and node.dest_each and isinstance(node.dest, n.NameRef):
             each.add(id(node.dest))
     keyed = _keyed_ids(game)
+    answer_through: dict[int, set[bool]] = {}
+    for reach in _answer_reaches(game):
+        for node, fn in reach.sites:
+            if isinstance(node, n.NameRef):
+                answer_through.setdefault(id(node), set()).add(fn is not None)
+    play_source: dict[int, frozenset[str]] = {}
+    named = _play_source_names(game)
+    for _rule, _fname, _fn, _reached, names in _rule_function_reads(game):
+        for name in names:
+            play_source[id(name)] = named
+    piles = {id(ref) for _call, _arg, ref in _arrival_piles(game) if ref is not None}
+    hosted = {
+        id(node)
+        for _poll, _reached, units in _hosted_units(game)
+        for unit in units
+        for node in _hosted_unit_nodes(unit)
+        if isinstance(node, n.NameRef)
+    }
+    subscripted = _subscripted_ids(game)
+    limits = _read_limits(game)
     return {
         id(ref): _NamePosition(
             scope=scope[id(ref)],
             slot=slots.get(id(ref)),
             each_destination=id(ref) in each,
             keyed=id(ref) in keyed,
+            answer_through=frozenset(answer_through.get(id(ref), ())),
+            play_source_names=play_source.get(id(ref), frozenset()),
+            arrival_pile=id(ref) in piles,
+            hosted=id(ref) in hosted,
+            subscripted=id(ref) in subscripted,
+            limits=limits,
         )
         for ref in _walk(game)
         if isinstance(ref, n.NameRef)
