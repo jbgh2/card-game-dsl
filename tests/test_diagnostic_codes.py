@@ -12,7 +12,8 @@ property:        every member of `cardlang.diagnostic_codes.Code` is told by
                  `name-taken` and `written-twice` site tells the code of the
                  corrective act its sentence asks for; each misuse the board
                  registry refuses, and each refusal of a family library's
-                 `requires` rows, tells the code of its fix; and no code's
+                 `requires` rows `REQUIRES_ROWS` lists, tells the code of its
+                 fix; and no code's
                  name uses a reserved word of the glossary outside an
                  approved compound of that word's row.
 domain:          the registry crossed with one witness per member, the axis
@@ -21,9 +22,12 @@ domain:          the registry crossed with one witness per member, the axis
                  rejection corpus, every case with its code golden; every use
                  of `Code.NAME_TAKEN` and `Code.WRITTEN_TWICE` in `cardlang/`,
                  scraped, each matched to exactly one row of
-                 `NAME_PAIR_SITES`; every `BoardMisuse`; the refusals of the
-                 `requires`-row checks of cardlang/resolve/library_alone.py, one row per
-                 sentence; and the registry crossed with the reserved-words
+                 `NAME_PAIR_SITES`; every `BoardMisuse`; the `requires`-row
+                 refusals listed by hand in `REQUIRES_ROWS`, each reached
+                 through a crafted family library a game uses, since the
+                 library rejection corpus is refused by `parse_library`
+                 alone, which runs no family-library check; and the registry
+                 crossed with the reserved-words
                  table of docs/glossary.md. The witnesses reach the checker
                  through `check_dsl`, `parse_library`, `check_source` and the
                  standard library's own loader, the command line through
@@ -57,7 +61,9 @@ does not prove:  that a report site no rejection case reaches keeps its code:
                  standard-library codes, nor `BoardMisuse.NO_LINES` through
                  `check_dsl`, which the board-need gate refuses first: their
                  rows here run the standard library's loader and the teller
-                 directly.
+                 directly. Nor that a `requires`-row refusal `REQUIRES_ROWS`
+                 does not list tells the code of its fix: the list is written
+                 by hand, not scraped.
 """
 
 from __future__ import annotations
