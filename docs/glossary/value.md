@@ -4,6 +4,7 @@ definition: card points (the `card_points { }` clause — see its entry) · rank
 layer: kernel
 status: reserved
 reserved: true
+compounds: [rank value, suit value, enum value]
 home:
 see: ["card-points", "suit-ranking"]
 retired_spellings: []

@@ -518,7 +518,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 "with `up to N` (`0 .. hand_size up to 10`) — the OpenSpiel "
                 "action space reserves that many ids up front",
                 node.span,
-                code=Code.NUMBER_CHOICE_NEEDS_FIXED_CEILING,
+                code=Code.CHOOSE_INTEGER_NEEDS_FIXED_CEILING,
             )
             continue
         if ceiling < 0:

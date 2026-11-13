@@ -386,7 +386,7 @@ def _check_move_params(
                 t,
                 (*_FIXED_DOMAINS, "Card", *positions, *directions),
                 span,
-                code=Code.UNKNOWN_CHECKER_TYPE,
+                code=Code.UNKNOWN_PARAMETER_DOMAIN,
             )
         # Exact string, matching `_FIXED_DOMAINS`'s own convention (never by
         # stripping a trailing `?`): `Rank?` is not in `_FIXED_DOMAINS`, so it

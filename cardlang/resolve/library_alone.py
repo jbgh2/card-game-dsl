@@ -25,13 +25,20 @@ Now illegal:  a Primitive named by family-library text, as a call or in
 from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
-from typing import Literal, get_args, get_origin, get_type_hints
+from typing import Literal, assert_never, get_args, get_origin, get_type_hints
 from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.builtins.functions import BUILTIN_CALL_FUNCS, PRIMITIVE_CALL_FUNCS, VALUE_NAMES
 from cardlang import kernel_contracts as K
 from cardlang.primitives_block import COLLECTION_TYPE_CONSTRUCTOR, walled_namespace_of
-from cardlang.attribution import cite_library, cite_named, cite_where, library_text_codes
+from cardlang.attribution import (
+    LibrarySort,
+    cite_library,
+    cite_named,
+    cite_where,
+    library_sort,
+    library_text_codes,
+)
 from cardlang.diagnostics import Diagnostic, DiagnosticBag, Said, Span, listed
 from cardlang.domains import ZONE_INDEX_ROLES, role_names, role_of
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES
@@ -813,6 +820,20 @@ _PRIMITIVE_POSITIONS: dict[_PrimitivePosition, tuple[str, str, str]] = {
 }
 
 
+def _by_sort(library: n.Library, family: Said, standard: Said) -> Said:
+    """The sentence that is true of `library`'s sort: a family library asks a
+    game through its `requires` contract, and the standard library, which no
+    `uses` line imports, defines what it reads."""
+    sort = library_sort(library.name)
+    match sort:
+        case LibrarySort.FAMILY:
+            return family
+        case LibrarySort.STANDARD:
+            return standard
+        case _:
+            assert_never(sort)
+
+
 def _primitive_in_library(
     library: n.Library, position: _PrimitivePosition, name: str, at: Span | None
 ) -> Said:
@@ -889,10 +910,16 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             # The set the name was read against is the scope `_rewrite` held,
             # and its Near Misses are the ones ranked there.
             bag.unknown(
-                cite_library(library.name, ref.span) + f" reads '{ref.name}', which is neither in "
-                f"its `requires` contract nor defined in the library — add it to "
-                f"`requires {{ }}` if the including game must declare it, or move "
-                f"the definition that needs it into the game",
+                _by_sort(
+                    library,
+                    cite_library(library.name, ref.span) + f" reads '{ref.name}', which is neither in "
+                    f"its `requires` contract nor defined in the library — add it to "
+                    f"`requires {{ }}` if the including game must declare it, or move "
+                    f"the definition that needs it into the game",
+                    cite_library(library.name, ref.span) + f" reads '{ref.name}', which it does "
+                    f"not define — the standard library reads only what it defines "
+                    f"and what every game has, so define it there",
+                ),
                 ref.name,
                 reach.unresolved_near.get(ref.span, ()),
                 ref.span,
@@ -921,19 +948,30 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             # The game owns the fact; a library reaches it through the row the
             # kernel states.
             bag.error(
-                cite_library(library.name, call.span) + f" calls '{call.func}', a "
-                f"fact each game answers for itself — contract for it with "
-                f"`{K.CONTRACTS[call.func].spelled}` in `requires {{ }}`",
+                _by_sort(
+                    library,
+                    cite_library(library.name, call.span) + f" calls '{call.func}', a "
+                    f"fact each game answers for itself — contract for it with "
+                    f"`{K.CONTRACTS[call.func].spelled}` in `requires {{ }}`",
+                    cite_library(library.name, call.span) + f" calls '{call.func}', a "
+                    f"fact each game answers for itself — the standard library has "
+                    f"no `requires` contract to ask a game for it, so it may not call it",
+                ),
                 call.span,
                 code=library_text_codes(library.name).reads_undefined_name,
             )
         elif what is None:
             bag.unknown(
-                cite_library(library.name, call.span) + f" calls '{call.func}', which is neither "
-                f"defined in the library nor a native function — contract for it "
-                f"with `{call.func}(<parameter> : <type>, …) : <result type>` in "
-                f"`requires {{ }}` so the including game defines it, or keep the "
-                f"definition that needs it in the game",
+                _by_sort(
+                    library,
+                    cite_library(library.name, call.span) + f" calls '{call.func}', which is neither "
+                    f"defined in the library nor a native function — contract for it "
+                    f"with `{call.func}(<parameter> : <type>, …) : <result type>` in "
+                    f"`requires {{ }}` so the including game defines it, or keep the "
+                    f"definition that needs it in the game",
+                    cite_library(library.name, call.span) + f" calls '{call.func}', which is neither "
+                    f"defined in it nor a native function — define it in the standard library",
+                ),
                 call.func,
                 _library_slot_names(library)["function"],
                 call.span,
@@ -954,10 +992,16 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
         bag.error(_primitive_in_library(library, "round slot", name, at), at, code=library_text_codes(library.name).reaches_one_game)
     for card in reach.card_literals:
         bag.error(
-            cite_library(library.name, card.span) + f" names the card `{card.rank} of "
-            f"{card.suit}`, but a family library is deck-agnostic — its members "
-            f"do not share a deck, and Kuhn's holds three cards. Take the card "
-            f"as a parameter, or keep the definition that needs it in the game",
+            _by_sort(
+                library,
+                cite_library(library.name, card.span) + f" names the card `{card.rank} of "
+                f"{card.suit}`, but a family library is deck-agnostic — its members "
+                f"do not share a deck, and Kuhn's holds three cards. Take the card "
+                f"as a parameter, or keep the definition that needs it in the game",
+                cite_library(library.name, card.span) + f" names the card `{card.rank} of "
+                f"{card.suit}`, but it is deck-agnostic — every game "
+                f"reads it, whatever its deck. Take the card as a parameter",
+            ),
             card.span,
             code=library_text_codes(library.name).reaches_one_game,
         )
@@ -993,11 +1037,18 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             )
             continue
         bag.unknown(
-            cite_library(library.name, getattr(leak.node, "span", None)) + f" names the "
-            f"{_NAMESPACE_NOUN[leak.namespace]} '{leak.name}', which the library "
-            f"does not have — it would resolve against whichever game imports "
-            f"this, so the library is not self-contained: "
-            f"{_NAMESPACE_ADVICE[leak.namespace]}",
+            _by_sort(
+                library,
+                cite_library(library.name, getattr(leak.node, "span", None)) + f" names the "
+                f"{_NAMESPACE_NOUN[leak.namespace]} '{leak.name}', which the library "
+                f"does not have — it would resolve against whichever game imports "
+                f"this, so the library is not self-contained: "
+                f"{_NAMESPACE_ADVICE[leak.namespace]}",
+                cite_library(library.name, getattr(leak.node, "span", None)) + f" names the "
+                f"{_NAMESPACE_NOUN[leak.namespace]} '{leak.name}', which it does not "
+                f"define — the standard library reads only what it defines and what "
+                f"every game has",
+            ),
             leak.name.removesuffix("?"),
             _library_slot_names(library).get(leak.namespace, frozenset()),
             getattr(leak.node, "span", None),
@@ -1176,15 +1227,17 @@ def _refuse_kind_word(library: n.Library, want: n.RequireDecl, bag: DiagnosticBa
     if field == "move_types":
         if want.type_name != n.MOVE_CONTRACT_TYPE:
             why = f"`{want.type_name}` names the kind, not the row's type word"
+            code = Code.WRONG_SPELLING
         elif want.index is not None:
             why = "a move type has no index"
+            code = Code.WRONG_SUBSCRIPT
         else:
             why = "a move type contract takes no type argument"
+            code = Code.WRONG_ARGUMENT_COUNT
         message = (
             head + f", but {why} — write `" + cite_named(want, want.name)
             + f" : {n.MOVE_CONTRACT_TYPE}`"
         )
-        code = Code.WRONG_SPELLING
     elif field == "functions":
         message = (
             head + f", but a function the game defines is contracted by its "

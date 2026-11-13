@@ -65,6 +65,27 @@ def parse_entry(path: pathlib.Path) -> dict[str, str]:
     return fields
 
 
+def words(text: str) -> tuple[str, ...]:
+    """`text` as its lower-case words: markup, punctuation and possessives
+    dropped, a wiki link read as its words."""
+    text = re.sub(r"\[\[([a-z-]+)\]\]", lambda m: m.group(1).replace("-", " "), text)
+    return tuple(re.findall(r"[a-z]+", text.lower().replace("'s", "")))
+
+
+def compounds(entry: dict[str, str]) -> tuple[str, ...]:
+    """A reserved word's approved compounds, as its entry marks them in the
+    `compounds: [a, b]` frontmatter list. The marked list is the one reading
+    of the row: the table cell is prose, and every marked compound must
+    stand in it (`render`)."""
+    raw = entry.get("compounds")
+    if raw is None:
+        raise EntryError(f"{entry['_slug']}.md is `reserved: true` but marks no `compounds:` list")
+    raw = raw.strip()
+    if not raw.startswith("[") or not raw.endswith("]"):
+        raise EntryError(f"{entry['_slug']}.md: compounds must be a [bracketed, list], got {raw!r}")
+    return tuple(c.strip() for c in raw[1:-1].split(",") if c.strip())
+
+
 def load() -> list[dict[str, str]]:
     entries = [parse_entry(p) for p in sorted(ENTRIES.glob("*.md"))
                if not p.name.startswith("_")]
@@ -98,7 +119,7 @@ def render(entries: list[dict[str, str]]) -> str:
                 "above as well.", "",
                 "| Word | Approved compounds |", "|---|---|"]
         for e in sorted(reserved, key=lambda x: x["_slug"]):
-            compounds = e["definition"]
+            approved = e["definition"]
             if e["status"] == "canonical":
                 marker = "**Reserved word.** Approved compounds: "
                 line = next((ln for ln in e["_body"].splitlines() if ln.startswith(marker)), None)
@@ -108,8 +129,16 @@ def render(entries: list[dict[str, str]]) -> str:
                         f"approved compounds — the reserved table would list the "
                         f"concept's definition instead of the compounds to use"
                     )
-                compounds = line[len(marker):]
-            out.append(f"| [{e['term']}](glossary/{e['_slug']}.md) | {compounds} |")
+                approved = line[len(marker):]
+            cell = words(approved)
+            for marked in compounds(e):
+                want = words(marked)
+                if not any(cell[i : i + len(want)] == want for i in range(len(cell))):
+                    raise EntryError(
+                        f"{e['_slug']}.md marks the compound {marked!r}, which its "
+                        f"approved-compounds text does not name"
+                    )
+            out.append(f"| [{e['term']}](glossary/{e['_slug']}.md) | {approved} |")
         out.append("")
     return "\n".join(out).rstrip() + "\n"
 

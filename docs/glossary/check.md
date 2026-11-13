@@ -4,6 +4,7 @@ definition: a `_check_*` pass · the `is …` predicate is an **is-check**, not 
 layer: kernel
 status: reserved
 reserved: true
+compounds: [is-check]
 home:
 see: []
 retired_spellings: []

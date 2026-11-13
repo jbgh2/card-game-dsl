@@ -67,8 +67,21 @@ five sites of `unknown-index-domain` judge four different slots.
   `unknown-trick-round-function`.
 - Every `name-taken` and `written-twice` site is classified by the act its
   sentence asks for, over a scraped axis, so a misfiled site reddens.
-- The board registry's refusals carry which misuse they are, and the one
-  teller matches them exhaustively.
+- The board registry's refusals carry which misuse they are; the check-time
+  teller is the one place a misuse is matched, exhaustively, and a refusal
+  raised at play keeps the record layer's own code.
 - From here ADR-0023's rule holds again: a shipped code is never renamed.
 - The names minted for split and dissolved codes are proposals the operator
-  may adjust; each is spelled once in the registry.
+  may adjust, spelled where they can be with the language's own keywords
+  (`choose-integer-needs-fixed-ceiling`,
+  `deal-all-to-each-needs-as-equally-as-possible`); each is spelled once in
+  the registry.
+- A refusal joining an existing code restates that code's meaning line to
+  cover it. Restated: `wrong-argument-count` (a board, a game rule and a
+  checker type join a call and a zone type), `wrong-signature` (a `requires`
+  row joins a definition), `checker-type-not-allowed-here` (a word of a type
+  slot joins a checker type) and `game-rule-never-consulted` (a game rule no
+  trick round asks joins one no decision asks). Joined with their lines
+  unchanged: `out-of-range`, `conflicting-clauses`, `unused-declaration`,
+  `missing-declaration`, `wrong-spelling`, `wrong-subscript` and
+  `name-taken`.
