@@ -77,8 +77,10 @@ does not prove:  that a withheld refusal is a consequence in fact. A refusal
                  mistake against it. Nor that axis (b) is complete: a check
                  reading references as written that no cell here executes,
                  the framing check's other witnesses among them, is absent,
-                 not red. And a group whose assignments
-                 outrun `SETTLE_LIMIT` is told whole, which no row reaches.
+                 not red. A group of more causes than `SETTLE_CAUSES`, or
+                 whose search outruns `SETTLE_LIMIT`, is told whole: the
+                 bound on causes has its row, and no row reaches the bound
+                 on work.
 """
 
 from __future__ import annotations
@@ -905,6 +907,11 @@ WIDTH: dict[str, tuple[str, tuple[tuple[str, str], ...], str, str]] = {
         _HEARTS, (("each player simultaneously:", "each playr simultaneously:"),
                   (_SCORING, _SCORING + "\n      move chosen 1 cards from deck to trick_pile")),
         "a chosen movement is written where no player is acting", "the block's mark left on after the block"),
+    "a simultaneous role misspelled around a seat its body binds anew": (
+        _HEARTS, (("each player simultaneously:", "each playr simultaneously:"),
+                  ("        move chosen 3 cards\n          from hand[player]\n          to   hand[player offset_by pass_direction]",
+                   "        as 1 { move chosen one card from hand[actor offset_by left] to deck }")),
+        "a chosen movement's source is the pool seat 1 picks from", "an enclosing seat's marks kept inside a seat bound anew"),
     "a board misspelled beside a zone of a domain no board mints": (
         _TTT, (("board: grid(3, 3)", "board: gird(3, 3)"),
                ("    square[cell]    : Cell<cell>", "    square[cell]    : Cell<cell>\n    other[cel]      : Cell<cel>")),
@@ -951,3 +958,25 @@ def test_a_mistake_a_wider_clearing_set_would_withhold_is_told(cell: str) -> Non
     assert len(slip_alone) >= 1 and mistake not in " ".join(slip_alone), slip_alone
     got = errors(source, *edits)
     assert any(mistake in line for line in got), got
+
+
+
+def test_a_group_of_more_causes_than_the_search_takes_is_told_whole() -> None:
+    """A thousand refused spellings reaching one consequence are told with
+    it, the search never deeper than `SETTLE_CAUSES`. red under: `_assignable`
+    searching any number of causes (its `SETTLE_CAUSES` test dropped), which
+    recurses once per cause."""
+    from cardlang.diagnostic_codes import Code
+    from cardlang.diagnostics import DiagnosticBag, Slot, SlotKind, Span, Unless
+
+    at = Span("g.cardlang", 0, 4, 1, 1)
+    bag = DiagnosticBag()
+    for i in range(1000):
+        bag.unknown(
+            f"run of unknown procedure 'p{i}'", f"p{i}", ("zzz",), at,
+            code=Code.UNKNOWN_PROCEDURE, slot=Slot(SlotKind.PROCEDURE, str(i)),
+        )
+    bag.error("procedure 'zzz' is never run", at, code=Code.UNUSED_DECLARATION,
+              unless=Unless(SlotKind.PROCEDURE, frozenset({"zzz"})))
+    bag.settle()
+    assert len(bag.items) == 1001 and bag.items[-1].message == "procedure 'zzz' is never run"

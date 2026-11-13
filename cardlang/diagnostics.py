@@ -318,9 +318,11 @@ def text_slot(span: Span) -> Slot:
     return Slot(SlotKind.TEXT, f"{span.source_name}:{span.start}:{span.end}")
 
 
-#: The most assignments `DiagnosticBag.settle` tries for one group of
-#: causes; past it the group's consequences are told.
-SETTLE_LIMIT = 100_000
+#: The most causes `DiagnosticBag.settle` assigns fixes to in one group, and
+#: the most clearing tests it makes for one group: past either, the group's
+#: consequences are told whole.
+SETTLE_CAUSES = 32
+SETTLE_LIMIT = 50_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -556,51 +558,59 @@ def _assignable(
 ) -> bool:
     """Whether one fix of each cause, a member of its set or none, clears
     every consequence: some `Unless` of each reaching a cause whose fix is in
-    its `clears`. Searched depth first, giving up past `SETTLE_LIMIT` tries."""
+    its `clears`. Searched depth first over at most `SETTLE_CAUSES` causes, so
+    the search is never deeper than that, each consequence tested once its
+    last clearing cause is chosen, and answered no past `SETTLE_LIMIT` fixes
+    tried and tests made together."""
+    if len(causes) > SETTLE_CAUSES:
+        return False
 
     def refused(i: int) -> Refused:
         cause = items[i].refuses
         assert cause is not None
         return cause
 
-    domains: dict[int, list[str | None]] = {}
-    for i in causes:
-        values = {
-            value
-            for c in consequences
-            if i in clearers[c]
-            for u in items[c].unless
-            if u.reaches(refused(i))
-            for value in u.clears & refused(i).fixes
+    clears: dict[int, dict[int, frozenset[str]]] = {
+        c: {
+            i: frozenset(
+                value
+                for u in items[c].unless
+                if u.reaches(refused(i))
+                for value in u.clears & refused(i).fixes
+            )
+            for i in clearers[c]
         }
-        domains[i] = [*sorted(values), None]
-    tries = 0
+        for c in consequences
+    }
+    depth = {i: k for k, i in enumerate(causes)}
+    due: dict[int, list[int]] = {}
+    for c in consequences:
+        due.setdefault(max(depth[i] for i in clears[c]), []).append(c)
+    domains = {
+        i: [*sorted({v for c in consequences for v in clears[c].get(i, ())}), None] for i in causes
+    }
+    chosen: dict[int, str | None] = {}
+    budget = SETTLE_LIMIT
 
-    def cleared(c: int, chosen: dict[int, str | None]) -> bool | None:
-        """True when the fixes chosen clear `c`, False when no fix left to
-        choose can, None while one still might."""
-        open_cause = False
-        for i in clearers[c]:
-            if i not in chosen:
-                open_cause = True
-                continue
-            value = chosen[i]
-            if value is not None and any(u.reaches(refused(i)) and value in u.clears for u in items[c].unless):
-                return True
-        return None if open_cause else False
-
-    def search(at: int, chosen: dict[int, str | None]) -> bool:
-        nonlocal tries
-        tries += 1
-        if tries > SETTLE_LIMIT or any(cleared(c, chosen) is False for c in consequences):
-            return False
+    def search(at: int) -> bool:
+        nonlocal budget
         if at == len(causes):
             return True
-        for value in domains[causes[at]]:
-            chosen[causes[at]] = value
-            if search(at + 1, chosen):
+        cause = causes[at]
+        for value in domains[cause]:
+            budget -= 1
+            if budget < 0:
+                break
+            chosen[cause] = value
+            settled = True
+            for c in due.get(at, ()):
+                budget -= 1
+                if not any(chosen[i] is not None and chosen[i] in fixes for i, fixes in clears[c].items()):
+                    settled = False
+                    break
+            if settled and search(at + 1):
                 return True
-            del chosen[causes[at]]
+        chosen.pop(cause, None)
         return False
 
-    return search(0, {})
+    return search(0)

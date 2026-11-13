@@ -14,7 +14,8 @@ Establishes:  a refused read that a fix of a refused spelling would let its
               what clears it, judged by the same own-instance test under that
               fix (`_undecided_by`), and a refusal inside a body whose seat a
               refused spelling leaves undecided marks that slot
-              (`_undecided_seat`).
+              (`_undecided_seat`), unless a construct inside binds a seat of
+              its own around it.
 Now illegal:  a zone read that its deciders cannot make, at a position
               ``HIDDEN_READ_POSITIONS`` classes as deciding, however the read
               is reached -- a ``let``, a function, a procedure, a phase
@@ -1790,23 +1791,31 @@ class _HiddenReads:
                 if isinstance(stmt, n.AsBlock):
                     self._outside(stmt.player, scope, seat)
                 undecided = _undecided_seat(stmt)
-                if undecided is not None:
-                    self.undecided_seats.append(undecided)
+                enclosing_marks = self.undecided_seats
                 if rebound is None:
                     # A value domain (or a role no row defines, reported
                     # elsewhere): the acting seat stands, and the body loops.
                     assert isinstance(stmt, (n.ForEach, n.EachSimultaneous))
                     binder = stmt.binder if isinstance(stmt, n.ForEach) else stmt.role
                     loop = self._after(stmt.body, scope).shadow((binder,))
-                    self._stmt(stmt.body, loop, seat)
+                    self.undecided_seats = [*enclosing_marks, *(() if undecided is None else (undecided,))]
+                    try:
+                        self._stmt(stmt.body, loop, seat)
+                    finally:
+                        self.undecided_seats = enclosing_marks
                 else:
                     inner, inner_seat = self._seat_for(stmt, rebound, scope)
-                    if isinstance(stmt, (n.ForEach, n.EachSimultaneous)):
-                        self._stmt(stmt.body, inner, inner_seat)
-                    else:
-                        self._stmts(stmt.body, self._after_loop(stmt, inner), inner_seat)
-                if undecided is not None:
-                    self.undecided_seats.pop()
+                    # A seat the construct binds anew is decided by it alone,
+                    # whatever spelling an enclosing seat rests on.
+                    kept: list[Unless] = enclosing_marks if inner.seat == scope.seat else []
+                    self.undecided_seats = [*kept, *(() if undecided is None else (undecided,))]
+                    try:
+                        if isinstance(stmt, (n.ForEach, n.EachSimultaneous)):
+                            self._stmt(stmt.body, inner, inner_seat)
+                        else:
+                            self._stmts(stmt.body, self._after_loop(stmt, inner), inner_seat)
+                    finally:
+                        self.undecided_seats = enclosing_marks
             case n.Offer():
                 self._outside(stmt.player, scope, seat)
             case n.TrickRound():
