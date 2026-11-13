@@ -18,7 +18,11 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
               predicates); a trick round's winner is offered the winners that
               round admits (``_winner_refusals``, the one producer the
               guards refusing a round's winner dispatch on). Held by Derived and Pinned
-              (tests/test_near_miss_positions.py).
+              (tests/test_near_miss_positions.py). Not established: the
+              alias-comparison and hidden-read guards judge by walk state the
+              record does not hold (issue #1089), and no Near Miss is judged by
+              its Type (issue #1088), so one can be refused there still, or be
+              a Pronoun the checker gives no Type (issue #1125).
               Asked for one (``resolve(scopes=...)``), the pass fills the
               Scope Record: at every node the classifying walk visits, keyed by
               ``n.node_key``, the names a bare name written there classifies
