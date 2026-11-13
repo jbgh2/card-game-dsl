@@ -492,7 +492,7 @@ def _check_rules_reach_a_trick(game: n.Game, bag: DiagnosticBag) -> None:
             f"follows_lead(card, <pile>)`), or, for a move made by an `offer`, "
             f"state the condition in the move type's `when:`",
             (slots[0] if slots else modes[0]).span,
-            code=Code.RULE_NEVER_CONSULTED,
+            code=Code.GAME_RULE_NEVER_CONSULTED,
         )
 
 
@@ -546,7 +546,7 @@ def _check_rule_reaches_a_reader(
             f"absent), which no decision site consults: {trick}. Name "
             f"`{RULE_ENFORCED_MOVE_TYPE}` in its `constrains:`.",
             rule.span,
-            code=Code.RULE_NEVER_CONSULTED,
+            code=Code.GAME_RULE_NEVER_CONSULTED,
         )
         return
     declared = move_types.get(target) if target != RULE_ENFORCED_MOVE_TYPE else None
@@ -557,7 +557,7 @@ def _check_rule_reaches_a_reader(
             f"in its `when:` instead; a condition that reads the whole position is "
             f"a function the `when:` calls",
             rule.span,
-            code=Code.RULE_NEVER_CONSULTED,
+            code=Code.GAME_RULE_NEVER_CONSULTED,
         )
         return
     if declared is not None and declared.origin is not None:
@@ -570,7 +570,7 @@ def _check_rule_reaches_a_reader(
             f"in its `when:`, in place of `{target}`, writing the offer in the game "
             f"wherever the library's own procedure makes it",
             rule.span,
-            code=Code.RULE_NEVER_CONSULTED,
+            code=Code.GAME_RULE_NEVER_CONSULTED,
         )
         return
     form = KERNEL_MOVE_FORMS.get(target)
@@ -602,7 +602,7 @@ def _check_rule_reaches_a_reader(
                 head + f"Declare `{target}` as a move type of the game, with the "
                 f"condition in its `when:`, and offer it.",
                 rule.span,
-                code=Code.RULE_NEVER_CONSULTED,
+                code=Code.GAME_RULE_NEVER_CONSULTED,
             )
         case "chosen_movement":
             bag.error(
@@ -610,7 +610,7 @@ def _check_rule_reaches_a_reader(
                 "(`move chosen N cards from ... to ...`): state the condition on "
                 "the movement, its `chosen N` or a `where` filter.",
                 rule.span,
-                code=Code.RULE_NEVER_CONSULTED,
+                code=Code.GAME_RULE_NEVER_CONSULTED,
             )
         case "number_choice":
             bag.error(
@@ -619,7 +619,7 @@ def _check_rule_reaches_a_reader(
                 f"`{target}` as a move type of the game, with the condition in its "
                 f"`when:`, and offer it.",
                 rule.span,
-                code=Code.RULE_NEVER_CONSULTED,
+                code=Code.GAME_RULE_NEVER_CONSULTED,
             )
         case "climb_round":
             bag.error(
@@ -628,7 +628,7 @@ def _check_rule_reaches_a_reader(
                 "condition there; a Registered Engine's `follows` fixes the "
                 "legality, and the game cannot add to it.",
                 rule.span,
-                code=Code.RULE_NEVER_CONSULTED,
+                code=Code.GAME_RULE_NEVER_CONSULTED,
             )
         case _:
             assert_never(form)
@@ -784,7 +784,7 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
                     f"condition, and sharing it makes either trigger end both. "
                     f"Give each condition its own target mode",
                     transition.span,
-                    code=Code.MODE_PAIRING,
+                    code=Code.MODES_MUST_PAIR_UP,
                 )
 
     for mode in modes:
@@ -798,7 +798,7 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
                 f"use a state variable with `applies_when` for a progression "
                 f"through three or more stages",
                 mode.span,
-                code=Code.MODE_PAIRING,
+                code=Code.MODES_MUST_PAIR_UP,
             )
         elif not is_source and not is_target and mode.name not in undecided:
             bag.error(
@@ -826,7 +826,7 @@ def _resolve_phase_item(
                     ref.name,
                     known_rule_names,
                     ref.span,
-                    code=Code.UNKNOWN_RULE,
+                    code=Code.UNKNOWN_GAME_RULE,
                 )
             if ref.delta == "override":
                 overridden = known_rule_names.get(ref.name)

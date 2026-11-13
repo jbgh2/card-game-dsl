@@ -309,7 +309,7 @@ def _check_move_params(
     for p in mt.params:
         refused = _combination_outside_a_parameter(p.type_name, "a move type's parameter")
         if refused is not None:
-            bag.error(refused, span, code=Code.TYPE_NOT_ALLOWED_HERE)
+            bag.error(refused, span, code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE)
             return
     # A piece game has no suit/rank/card domain to enumerate, so a move
     # parameterized by one has no candidate space. Checked before the
@@ -344,7 +344,7 @@ def _check_move_params(
             f"so a Card parameter cannot be combined with another parameter "
             f"(fold into one parameter)",
             span,
-            code=Code.CARD_PLAY_PARAMETERS,
+            code=Code.CARD_PLAYS_LOOK_ALIKE,
         )
     names = [p.name for p in mt.params]
     dup_names = sorted({name for name in names if names.count(name) > 1})
@@ -387,7 +387,7 @@ def _check_move_params(
                 t,
                 (*_FIXED_DOMAINS, "Card", *positions, *directions),
                 span,
-                code=Code.UNKNOWN_TYPE,
+                code=Code.UNKNOWN_CHECKER_TYPE,
             )
         # Exact string, matching `_FIXED_DOMAINS`'s own convention (never by
         # stripping a trailing `?`): `Rank?` is not in `_FIXED_DOMAINS`, so it
@@ -465,7 +465,7 @@ def _check_card_offering(
             "indistinguishable — fold them into one move type",
             span,
             for_game=for_game,
-            code=Code.CARD_PLAY_PARAMETERS,
+            code=Code.CARD_PLAYS_LOOK_ALIKE,
         )
     hand = next((z for z in game.zones if z.name == family), None)
     if not card_param_moves or (
@@ -772,13 +772,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # of two independent errors on the same declaration.
                 refused = _combination_outside_a_parameter(nd.type_name, "a state variable")
                 if refused is not None:
-                    bag.error(refused, nd.span, code=Code.TYPE_NOT_ALLOWED_HERE)
+                    bag.error(refused, nd.span, code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE)
                 elif (typed := _state_type_refusal(game, nd.type_name)) is not None:
                     bag.error(
                         "state variable " + cite_named(nd, f"'{nd.name}'")
                         + f" is typed `{nd.type_name}`, " + typed,
                         nd.span,
-                        code=Code.TYPE_NOT_ALLOWED_HERE,
+                        code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE,
                     )
                 elif nd.type_name not in state_types:
                     bag.unknown(
@@ -787,7 +787,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.type_name,
                         state_types,
                         nd.span,
-                        code=Code.UNKNOWN_TYPE,
+                        code=Code.UNKNOWN_CHECKER_TYPE,
                     )
                 if nd.index is not None and role_of(nd.index) not in ZONE_INDEX_ROLES:
                     # Same guard as a zone's index role, same registry. Before

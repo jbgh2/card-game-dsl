@@ -540,7 +540,7 @@ def _set_aside(parser: _Parser, line: _Line, aside: list[str]) -> Diagnostic:
             Severity.ERROR,
             f"{word} begins with a dash, so it reads as a command-line option, not as the "
             f"file of that name; spell the file {path_word(word)}",
-            code=Code.FILE_NAME_READS_AS_OPTION,
+            code=Code.FILE_NAME_READS_AS_COMMAND_LINE_OPTION,
         )
     if option_shaped(word):
         name = word.split("=", 1)[0]
@@ -552,20 +552,20 @@ def _set_aside(parser: _Parser, line: _Line, aside: list[str]) -> Diagnostic:
                     Severity.ERROR,
                     f"{subject} takes no {name}; {name} is an option of {listed(belongs, 'and')}, "
                     f"and {declarers[0]} refuses this line too: {why(declarers[0])}",
-                    code=Code.OPTION_OF_ANOTHER_COMMAND,
+                    code=Code.COMMAND_LINE_OPTION_OF_ANOTHER_COMMAND,
                 )
             if not takers:
                 return Diagnostic(
                     Severity.ERROR,
                     f"{subject} takes no {name}; no command takes every word of this line: {apart()}",
-                    code=Code.OPTION_OF_ANOTHER_COMMAND,
+                    code=Code.COMMAND_LINE_OPTION_OF_ANOTHER_COMMAND,
                 )
             where = "first" if line.implicit else f"in place of {command}"
             return Diagnostic(
                 Severity.ERROR,
                 f"{subject} takes no {name}; {name} is an option of {listed(belongs, 'and')}, "
                 f"so name {listed(takers)} {where}",
-                code=Code.OPTION_OF_ANOTHER_COMMAND,
+                code=Code.COMMAND_LINE_OPTION_OF_ANOTHER_COMMAND,
             )
         # The measure offers `--version` the command-line option
         # `--decisions`, and `-v` the command-line option `--vs` (issue #1098).
@@ -579,7 +579,7 @@ def _set_aside(parser: _Parser, line: _Line, aside: list[str]) -> Diagnostic:
             Severity.ERROR,
             f"{subject} takes no {name}" + ("" if near else f"; {hint}"),
             near_misses=near,
-            code=Code.UNKNOWN_OPTION,
+            code=Code.UNKNOWN_COMMAND_LINE_OPTION,
         )
     return Diagnostic(
         Severity.ERROR,

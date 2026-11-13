@@ -10,4 +10,4 @@ retired_spellings: [Trick mechanic, AuctionRound]
 findings: []
 ---
 
-**Reserved word.** Approved compounds: the round statement/forms · (a "round of the game" is a *hand*)
+**Reserved word.** Approved compounds: the round statement/forms · trick round · climb round · climbing round · (a "round of the game" is a *hand*)

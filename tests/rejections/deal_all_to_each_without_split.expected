@@ -1,0 +1,1 @@
+deal_all_to_each_without_split.cardlang:11:5: error: `deal all ... to each` would give the whole source to the first player; use `as-equally-as-possible` to distribute it

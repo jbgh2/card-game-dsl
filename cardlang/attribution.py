@@ -249,7 +249,7 @@ def tell(
     for library, at in unproven.items():
         told.append(
             Diagnostic(
-                Severity.WARNING, unproven_warning(library), at, code=Code.LIBRARY_NOT_YET_PROVEN
+                Severity.WARNING, unproven_warning(library), at, code=Code.FAMILY_LIBRARY_NOT_YET_PROVEN
             )
         )
     for (library, where), at in unreached.items():
@@ -258,7 +258,7 @@ def tell(
                 Severity.WARNING,
                 unreached_warning(library, where),
                 at,
-                code=Code.LIBRARY_NOT_YET_PROVEN,
+                code=Code.FAMILY_LIBRARY_NOT_YET_PROVEN,
             )
         )
     bag.items[:] = told

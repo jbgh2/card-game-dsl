@@ -896,7 +896,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 ref.name,
                 reach.unresolved_near.get(ref.span, ()),
                 ref.span,
-                code=Code.OUTSIDE_LIBRARY_CONTRACT,
+                code=Code.OUTSIDE_FAMILY_LIBRARY_CONTRACT,
             )
         else:
             call_it: Said = (
@@ -925,7 +925,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 f"fact each game answers for itself — contract for it with "
                 f"`{K.CONTRACTS[call.func].spelled}` in `requires {{ }}`",
                 call.span,
-                code=Code.OUTSIDE_LIBRARY_CONTRACT,
+                code=Code.OUTSIDE_FAMILY_LIBRARY_CONTRACT,
             )
         elif what is None:
             bag.unknown(
@@ -937,10 +937,10 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 call.func,
                 _library_slot_names(library)["function"],
                 call.span,
-                code=Code.OUTSIDE_LIBRARY_CONTRACT,
+                code=Code.OUTSIDE_FAMILY_LIBRARY_CONTRACT,
             )
         elif what.kind == "primitive":
-            bag.error(_primitive_in_library(library, "call", call.func, call.span), call.span, code=Code.LIBRARY_REACHES_ONE_GAME)
+            bag.error(_primitive_in_library(library, "call", call.func, call.span), call.span, code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME)
         else:
             bag.error(
                 cite_library(library.name, call.span) + " calls "
@@ -951,7 +951,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             )
     for node, name in _round_slot_primitives(library):
         at = getattr(node, "span", None)
-        bag.error(_primitive_in_library(library, "round slot", name, at), at, code=Code.LIBRARY_REACHES_ONE_GAME)
+        bag.error(_primitive_in_library(library, "round slot", name, at), at, code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME)
     for card in reach.card_literals:
         bag.error(
             cite_library(library.name, card.span) + f" names the card `{card.rank} of "
@@ -959,7 +959,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             f"do not share a deck, and Kuhn's holds three cards. Take the card "
             f"as a parameter, or keep the definition that needs it in the game",
             card.span,
-            code=Code.LIBRARY_REACHES_ONE_GAME,
+            code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME,
         )
     for leak in reach.slot_leaks:
         # A `run` or an offering naming one of the library's own definitions
@@ -989,7 +989,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 f"function and the helpers it passes one to hold — keep the "
                 f"definition in the game",
                 getattr(leak.node, "span", None),
-                code=Code.LIBRARY_REACHES_ONE_GAME,
+                code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME,
             )
             continue
         bag.unknown(
@@ -1001,7 +1001,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             leak.name.removesuffix("?"),
             _library_slot_names(library).get(leak.namespace, frozenset()),
             getattr(leak.node, "span", None),
-            code=Code.OUTSIDE_LIBRARY_CONTRACT,
+            code=Code.OUTSIDE_FAMILY_LIBRARY_CONTRACT,
         )
     # A PROVIDED default reaching the contract is in scope for the general
     # declare-order Owner Guard too (`_check_state_default_scope`), which would refuse
@@ -1031,7 +1031,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                     + cite_named(decl, f"'{decl.name}'") + " a literal default and set it from "
                     + _cite_own(library, node.name, f"'{node.name}'") + " in a phase",
                     node.span or decl.span,
-                    code=Code.OUTSIDE_LIBRARY_CONTRACT,
+                    code=Code.OUTSIDE_FAMILY_LIBRARY_CONTRACT,
                 )
 
 
@@ -1116,7 +1116,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                 f"{n.PROCEDURE_CONTRACT_TYPE}`), and a library declares no "
                 f"Primitives",
                 want.span,
-                code=Code.TYPE_NOT_ALLOWED_HERE,
+                code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE,
             )
             continue
         if not is_zone_contract(want):
@@ -1252,7 +1252,7 @@ def _check_signature_row(
                 f"not reach one, so name a function each game defines in the "
                 f"language",
                 want.span,
-                code=Code.LIBRARY_REACHES_ONE_GAME,
+                code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME,
             )
         _check_signature_result(library, want, bag)
     seen: set[str] = set()

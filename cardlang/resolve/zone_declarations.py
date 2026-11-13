@@ -78,7 +78,7 @@ def _resolve_zone(
                 f"zone's angle brackets take an index domain: write a zone "
                 f"type such as `Hand<player>`",
                 ref.span,
-                code=Code.TYPE_NOT_ALLOWED_HERE,
+                code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE,
             )
         else:
             bag.unknown(f"unknown zone type '{ref.name}'", ref.name, LIBRARY_ZONE_TYPES, ref.span, code=Code.UNKNOWN_ZONE_TYPE)

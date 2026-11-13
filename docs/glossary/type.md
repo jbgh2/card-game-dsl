@@ -1,6 +1,6 @@
 ---
 term: type
-definition: zone type · collection type · move type (not a type) · the checker's `Type`
+definition: zone type · collection type · move type (not a type) · checker type (the checker's `Type`)
 layer: kernel
 status: reserved
 reserved: true

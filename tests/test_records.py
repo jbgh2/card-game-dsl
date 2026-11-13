@@ -158,7 +158,7 @@ def test_a_refusal_survives_pickling() -> None:
     """red under: `DiagnosticError.__reduce__` deleted."""
     first = Told(Diagnostic(Severity.ERROR, "one", None, code=Code.UNKNOWN_ZONE), Author.GAME)
     second = Told(
-        Diagnostic(Severity.WARNING, "two", None, code=Code.LIBRARY_NOT_YET_PROVEN), Author.GAME
+        Diagnostic(Severity.WARNING, "two", None, code=Code.FAMILY_LIBRARY_NOT_YET_PROVEN), Author.GAME
     )
     exc = DiagnosticError(first, second)
     exc.add_note("a further note")

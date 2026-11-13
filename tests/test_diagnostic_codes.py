@@ -65,6 +65,7 @@ from cardlang.runtime.errors import (
     ShadowGuardError,
 )
 from cardlang.runtime.state import IllegalMove
+from cardlang.stdlib.rules import STDLIB_NAME, STDLIB_SOURCE_NAME, load_stdlib
 from tests.test_rejections import REJECTIONS_DIR, case_paths
 from tools.dead_surface import start_for
 from tests.resolver_package import patch_resolver
@@ -84,18 +85,18 @@ SHIPPED: dict[str, str] = {
     "unknown-command": "the first word names no command and no file; write a command or a path",
     "unreadable-file": "the file named cannot be read as text; name a readable game file",
     "command-goes-first": "a command is written after the file; write it first",
-    "unknown-option": "the command takes no command-line option of that name; write one it takes",
-    "option-of-another-command": "the command-line option belongs to another command; name a command that takes every word of the line",
-    "file-name-reads-as-option": "a file's name begins with a dash, so it reads as a command-line option; spell it as a path",
+    "unknown-command-line-option": "the command takes no command-line option of that name; write one it takes",
+    "command-line-option-of-another-command": "the command-line option belongs to another command; name a command that takes every word of the line",
+    "file-name-reads-as-command-line-option": "a file's name begins with a dash, so it reads as a command-line option; spell it as a path",
     "extra-word": "the command reads one game file and no other word; drop the word",
     "missing-game-file": "the command needs a game file and the line names none; name one",
-    "command-line-usage": "the command line does not read as the command's; write what the message says it expects",
+    "command-line-usage": "the command line's fallback, where its reader can say no more than that the line does not read as the command's; write what the message says it expects",
     "unknown-name": "a name nothing in scope declares, refused where the checker cannot tell which sort of name was meant; read the suggestions, spell a declared name, or declare it",
     "unknown-zone": "a zone no `zones { }` entry declares; spell a declared zone, or declare it",
     "unknown-state-variable": "a state variable no `state { }` block declares; spell a declared one, or declare it",
     "unknown-function": "a function neither the game nor the language defines; spell a defined one, or define it",
     "unknown-procedure": "a procedure the game does not define; spell a defined one, or define it",
-    "unknown-rule": "a rule no definition or library provides; spell a defined rule, or define it",
+    "unknown-game-rule": "a game rule no definition or library provides; spell a defined game rule, or define it",
     "unknown-move-type": "a move type the game does not declare; spell a declared one, or declare it",
     "unknown-phase": "a phase that is not where the construct looks for it; name a phase that is",
     "unknown-mode": "a mode that is not a sibling of this phase's modes; name one that is",
@@ -103,10 +104,13 @@ SHIPPED: dict[str, str] = {
     "unknown-rank": "a rank the game's deck does not have; write one of its ranks",
     "unknown-suit": "a suit the game's deck does not have; write one of its suits",
     "unknown-deck": "a deck or piece set the language does not ship; name a shipped one",
-    "unknown-library": "a family library that does not exist; name one in docs/libraries/",
-    "unknown-type": "a type name the language does not have in that position; write one it has",
+    "unknown-family-library": "a family library that does not exist; name one in docs/libraries/",
+    "unknown-checker-type": "a checker type name the language does not have in that position; write one it has",
     "unknown-zone-type": "a zone type the language does not have; write one it has",
-    "unknown-index-domain": "an index domain, owner or position domain nothing declares; name one that exists",
+    "unknown-zone-index": "a zone family's `[...]` index names nothing the game can key its zones by; name one the message lists",
+    "unknown-zone-owner": "a zone type's `<...>` owner names nothing the game can own a zone by; name one the message lists",
+    "unknown-quantifiable-domain": "a `for each` names nothing it can range over; name a quantifiable domain or position domain the message lists",
+    "unknown-position-domain": "a query ranges over a position domain, or a collection noun, the game does not have; name one it has",
     "unknown-field": "a field the value does not have; read one of its fields, or read it another way",
     "unknown-turn-direction": "a turn direction the language does not have; write one it has",
     "unknown-round-function": "a round names a winner or predicate the language does not have; name one it has",
@@ -126,49 +130,50 @@ SHIPPED: dict[str, str] = {
     "out-of-range": "a number outside the values the position allows; write one inside them",
     "pieces-are-not-cards": "a card's rank, suit or points read in a game played with pieces",
     "deck-too-small": "the deck holds fewer cards than a hand deals from it",
-    "board-shape": "a board declaration the board cannot be laid out from; fix the board's shape",
-    "type-mismatch": "a value of another type than the position needs; write a value of that type",
-    "untyped-value": "a value whose type the checker cannot know where an exact type is needed; make its type plain",
+    "checker-type-mismatch": "a value of another checker type than the position needs; write a value of that checker type",
+    "checker-type-not-known-here": "a value whose checker type cannot be known where an exact checker type is needed; make its checker type plain",
     "wrong-argument-count": "a call, a rule or a zone type is given more or fewer arguments than it takes",
     "wrong-argument": "an argument of a shape the position does not take; write the shape the message gives",
     "wrong-signature": "a definition's parameters or result differ from what its role requires",
     "wrong-subscript": "a zone or variable subscripted the wrong way, or not subscripted where it must be",
-    "type-not-allowed-here": "a type the language allows only in another position; spell it there",
+    "checker-type-not-allowed-here": "a checker type, or a word of a type slot, the language allows only in another position; spell it there, or write one this position takes",
     "constant-condition": "a condition that is always true or always false; write the test that was meant",
     "needs-parentheses": "the text reads another way than it seems; add parentheses to say which",
     "out-of-scope": "something read where it does not exist; read it where it is declared, or pass it in",
     "no-player-acting": "the acting player is named, or a decision made, where no player is acting",
     "reads-beyond-parameters": "a function or procedure reads what its parameters do not pass it",
     "recursive-function": "a function calls itself, directly or through others",
-    "answer-reads-beyond-the-card": "an answer the engine asks of a card reads more than the card and public state",
-    "answer-calls-later-answer": "a Trick Order function calls one that comes after it in the Trick Order",
+    "trick-order-function-reads-beyond-the-card": "a Trick Order function, or the game's `card_points` answer, reads more than the card and public state",
+    "trick-order-function-calls-a-later-one": "a Trick Order function calls one that comes after it in the Trick Order",
     "decides-on-hidden-cards": "a seat must check or pick from cards it cannot see; read cards it sees, or announce them",
     "wrong-zone-visibility": "a zone's type hides cards that the construct needs every seat, or its owner, to see",
-    "hosted-poll-reads-unpublished-state": "a Hosted Poll reads Round State that is not yet published",
+    "hosted-poll-reads-unpublished-round-state": "a Hosted Poll reads Round State that is not yet published",
     "not-writable": "the target is not a state variable this text may write",
-    "library-requirement-unmet": "the game lacks what a library it uses requires; add it to the game",
+    "family-library-requirement-unmet": "the game lacks what a family library it uses requires; add it to the game",
     "requirement-mismatch": "the game declares what a library requires, but not as the library requires it",
     "requirement-matches-several": "a library requirement matches several of the game's declarations; keep one",
-    "outside-library-contract": "library text reads a name it neither defines nor requires; define it, or require it",
-    "library-reaches-one-game": "library text names what belongs to one game; take it as a parameter or a requirement",
-    "bad-requires-row": "a `requires` row the library cannot ask for in that form; write the row the message gives",
+    "outside-family-library-contract": "family library text reads a name it neither defines nor requires; define it, or require it",
+    "standard-library-reads-undefined-name": "standard library text reads a name the standard library does not define; define it there",
+    "family-library-reaches-one-game": "family library text names what belongs to one game; take it as a parameter or a requirement",
+    "standard-library-reaches-one-game": "standard library text names what belongs to one game; keep the standard library to what every game shares",
+    "family-library-cannot-require-a-game-rule": "a family library's `requires` row names a game rule, which only a game's `active_rules:` names; keep the definition that needs it in the game",
     "requires-what-is-provided": "a library requires what a library already provides or defines; drop one of the two",
-    "library-not-yet-proven": "no game yet checks clean reaching this library text, so its refusal stands in the library's file",
-    "rule-never-consulted": "a rule no decision ever asks; constrain a move type a trick round offers, or write the condition elsewhere",
-    "needs-a-trick-round": "a construct only a trick round reads, in a game or phase with none",
-    "mode-pairing": "modes whose transitions do not pair one condition with its far side",
-    "climb-round-queries": "a climbing round's queries that do not belong together; name one engine's pair",
-    "choose-integer-bounds": "a `choose integer` whose bounds offer no value, or no fixed ceiling",
+    "family-library-not-yet-proven": "no game yet checks clean reaching this family library text, so its refusal stands in the family library's file",
+    "game-rule-never-consulted": "a game rule no decision ever asks, so it would never apply; write the condition where a decision reads it, or delete the game rule",
+    "modes-must-pair-up": "modes whose transitions do not pair one condition with its far side; give each condition its own pair of modes",
+    "climb-round-lead-and-follows-mismatch": "a climbing round's lead query and `follows` query do not belong together; name one climb engine's pair",
+    "number-choice-needs-fixed-ceiling": "a `choose integer` has no upper bound known before play; give it a literal upper bound, or an `up to N` ceiling",
+    "choice-offers-no-candidate": "a `choose integer` whose bounds or `excluding` leave no number to choose; widen what it offers",
     "teams-must-partition-seats": "`teams:` must put every seat on exactly one team",
     "use-winner-not-loser": "`loser:` cannot decide this game's result; rank a score with `winner:`",
     "unrankable-winner-target": "`winner:` ranks something that is not a score each player or team holds",
     "ranking-incomplete": "a ranking leaves out ranks or suits it must order; list them all",
     "catalogue-row-names-no-play": "a combination catalogue row no cards of the deck can make",
     "ambiguous-play-shape": "one play fits two rows of the catalogue; settle it in the rows",
-    "card-play-parameters": "a card play's parameters or offering would make two plays look alike",
-    "deal-distribution": "an even deal written with an amount or destination it cannot distribute",
+    "card-plays-look-alike": "a card play's parameters or offering would make two plays look alike; fold them into one move type",
+    "whole-deal-needs-even-split": "`deal all ... to each` says no way to split the cards among the zones; write `as-equally-as-possible`",
     "wrong-zone-shape": "a single zone where a zone per player is needed, or the reverse",
-    "wrong-primitive-type": "a `primitives` entry spells a type no Primitive implementation takes",
+    "wrong-primitive-checker-type": "a `primitives` entry spells a checker type no Primitive implementation takes",
     "missing-outcome-arm": "a `produces:` block leaves an outcome case unhandled",
     "outcome-read-before-produced": "an outcome is consumed before the phase producing it has run",
     "refused-during-play": "a rule only a playout reaches refused the game",
@@ -246,6 +251,16 @@ def _using(library_body: str, definitions: str = "") -> Tells:
         patch_resolver(mp, "library_names", lambda: frozenset({_LIBRARY}))
         patch_resolver(mp, "load_library", lambda name: library)
         return _told(lambda: check_dsl(_HOST + definitions, "host.cardlang"))
+
+    return tells
+
+
+def _standard_library(body: str) -> Tells:
+    """Standard library text no shipped input holds, read by the standard
+    library's own loader: no designer input reaches these codes."""
+
+    def tells(_mp: pytest.MonkeyPatch, _tmp: Path) -> frozenset[Code]:
+        return _told(lambda: load_stdlib(f"library {STDLIB_NAME} {{\n{body}\n}}\n", STDLIB_SOURCE_NAME))
 
     return tells
 
@@ -378,7 +393,7 @@ WITNESSES: dict[Code, Tells] = {
     Code.UNKNOWN_STATE_VARIABLE: _case("primitives_scoped_read_on_a_zone"),
     Code.UNKNOWN_FUNCTION: _case("call_evicted_trace_emitter_coup"),
     Code.UNKNOWN_PROCEDURE: _case("code_unknown_procedure"),
-    Code.UNKNOWN_RULE: _case("active_rules_undefined_rule"),
+    Code.UNKNOWN_GAME_RULE: _case("active_rules_undefined_rule"),
     Code.UNKNOWN_MOVE_TYPE: _case("constrains_unknown_move_type"),
     Code.UNKNOWN_PHASE: _case("primitives_scoped_read_no_such_phase"),
     Code.UNKNOWN_MODE: _case("transition_to_non_sibling"),
@@ -386,10 +401,13 @@ WITNESSES: dict[Code, Tells] = {
     Code.UNKNOWN_RANK: _case("ranking_mixed_convention_and_ranks"),
     Code.UNKNOWN_SUIT: _case("round_trump_unknown_suit"),
     Code.UNKNOWN_DECK: _case("pieces_unknown_set"),
-    Code.UNKNOWN_LIBRARY: _case("code_unknown_library"),
-    Code.UNKNOWN_TYPE: _case("dir_parameter_on_morris9"),
+    Code.UNKNOWN_FAMILY_LIBRARY: _case("uses_unknown_family_library"),
+    Code.UNKNOWN_CHECKER_TYPE: _case("dir_parameter_on_morris9"),
     Code.UNKNOWN_ZONE_TYPE: _case("unknown_zone_type"),
-    Code.UNKNOWN_INDEX_DOMAIN: _case("positions_for_each"),
+    Code.UNKNOWN_ZONE_INDEX: _case("zone_index_unknown"),
+    Code.UNKNOWN_ZONE_OWNER: _case("zone_owner_unknown"),
+    Code.UNKNOWN_QUANTIFIABLE_DOMAIN: _case("positions_for_each"),
+    Code.UNKNOWN_POSITION_DOMAIN: _case("any_over_unknown_position_domain"),
     Code.UNKNOWN_FIELD: _case("code_unknown_field"),
     Code.UNKNOWN_TURN_DIRECTION: _case("unknown_direction"),
     Code.UNKNOWN_ROUND_FUNCTION: _case("code_unknown_round_function"),
@@ -409,68 +427,69 @@ WITNESSES: dict[Code, Tells] = {
     Code.OUT_OF_RANGE: _case("neighbors_past_the_end"),
     Code.PIECES_ARE_NOT_CARDS: _case("code_pieces_are_not_cards"),
     Code.DECK_TOO_SMALL: _case("deck_over_capacity"),
-    Code.BOARD_SHAPE: _case("board_bad_args"),
-    Code.TYPE_MISMATCH: _case("board_cell_state_var"),
-    Code.UNTYPED_VALUE: _case("boolean_position_laundered_any"),
+    Code.CHECKER_TYPE_MISMATCH: _case("board_cell_state_var"),
+    Code.CHECKER_TYPE_NOT_KNOWN_HERE: _case("boolean_position_laundered_any"),
     Code.WRONG_ARGUMENT_COUNT: _case("arrival_winner_missing_trump"),
     Code.WRONG_ARGUMENT: _case("code_wrong_argument"),
     Code.WRONG_SIGNATURE: _case("primitives_signature_mismatch"),
     Code.WRONG_SUBSCRIPT: _case("positions_bare_family_reference"),
-    Code.TYPE_NOT_ALLOWED_HERE: _case("collection_at_a_function_parameter"),
+    Code.CHECKER_TYPE_NOT_ALLOWED_HERE: _case("collection_at_a_function_parameter"),
     Code.CONSTANT_CONDITION: _case("code_constant_condition"),
     Code.NEEDS_PARENTHESES: _case("code_needs_parentheses"),
     Code.OUT_OF_SCOPE: _case("primitives_scoped_read_called_outside"),
     Code.NO_PLAYER_ACTING: _case("code_no_player_acting"),
     Code.READS_BEYOND_PARAMETERS: _case("code_reads_beyond_parameters"),
     Code.RECURSIVE_FUNCTION: _case("code_recursive_function"),
-    Code.ANSWER_READS_BEYOND_THE_CARD: _case("code_answer_reads_beyond_the_card"),
-    Code.ANSWER_CALLS_LATER_ANSWER: _case("code_answer_calls_later_answer"),
+    Code.TRICK_ORDER_FUNCTION_READS_BEYOND_THE_CARD: _case("is_trump_reads_a_pronoun"),
+    Code.TRICK_ORDER_FUNCTION_CALLS_A_LATER_ONE: _case("is_trump_calls_a_later_trick_order_function"),
     Code.DECIDES_ON_HIDDEN_CARDS: _case("hidden_read_blind_draw"),
     Code.WRONG_ZONE_VISIBILITY: _case("implicit_pool_hidden_from_owner"),
-    Code.HOSTED_POLL_READS_UNPUBLISHED_STATE: _case("hosted_poll_card_movement"),
+    Code.HOSTED_POLL_READS_UNPUBLISHED_ROUND_STATE: _case("hosted_poll_card_movement"),
     Code.NOT_WRITABLE: _case("code_not_writable"),
     Code.REQUIREMENT_MISMATCH: _case("contract_result_mismatch"),
-    Code.RULE_NEVER_CONSULTED: _case("constrains_game_move_type"),
-    Code.NEEDS_A_TRICK_ROUND: _case("code_needs_a_trick_round"),
-    Code.MODE_PAIRING: _case("code_mode_pairing"),
-    Code.CLIMB_ROUND_QUERIES: _case("code_climb_round_queries"),
-    Code.CHOOSE_INTEGER_BOUNDS: _case("choose_excluding_empties_range"),
+    Code.GAME_RULE_NEVER_CONSULTED: _case("constrains_game_move_type"),
+    Code.MODES_MUST_PAIR_UP: _case("mode_entered_and_transitioning"),
+    Code.CLIMB_ROUND_LEAD_AND_FOLLOWS_MISMATCH: _case("climb_round_follows_with_another_engine"),
+    Code.NUMBER_CHOICE_NEEDS_FIXED_CEILING: _case("choose_without_static_ceiling"),
+    Code.CHOICE_OFFERS_NO_CANDIDATE: _case("choose_excluding_empties_range"),
     Code.TEAMS_MUST_PARTITION_SEATS: _case("code_teams_must_partition_seats"),
     Code.USE_WINNER_NOT_LOSER: _case("elimination_one_seat"),
     Code.UNRANKABLE_WINNER_TARGET: _case("stop_result_ranking_unindexed"),
     Code.RANKING_INCOMPLETE: _case("ranking_convention_non_french_deck"),
     Code.CATALOGUE_ROW_NAMES_NO_PLAY: _case("code_catalogue_row_names_no_play"),
     Code.AMBIGUOUS_PLAY_SHAPE: _case("code_ambiguous_play_shape"),
-    Code.CARD_PLAY_PARAMETERS: _case("code_card_play_parameters"),
-    Code.DEAL_DISTRIBUTION: _case("code_deal_distribution"),
+    Code.CARD_PLAYS_LOOK_ALIKE: _case("offering_two_card_parameter_moves"),
+    Code.WHOLE_DEAL_NEEDS_EVEN_SPLIT: _case("deal_all_to_each_without_split"),
     Code.WRONG_ZONE_SHAPE: _case("deal_to_each_subscripted"),
-    Code.WRONG_PRIMITIVE_TYPE: _case("primitives_collection_bare_constructor"),
+    Code.WRONG_PRIMITIVE_CHECKER_TYPE: _case("primitives_collection_bare_constructor"),
     Code.MISSING_OUTCOME_ARM: _case("code_missing_outcome_arm"),
     Code.OUTCOME_READ_BEFORE_PRODUCED: _case("code_outcome_read_before_produced"),
     Code.ONE_FENCED_BLOCK: _no_fenced_block,
     Code.WRONG_FILE_EXTENSION: _wrong_extension,
     Code.UNKNOWN_COMMAND: _unknown_command,
     Code.COMMAND_GOES_FIRST: _refused_line(lambda _tmp: [_HEARTS, "demo"]),
-    Code.UNKNOWN_OPTION: _refused_line(lambda _tmp: ["check", _HEARTS, "--emitir"]),
-    Code.OPTION_OF_ANOTHER_COMMAND: _refused_line(lambda _tmp: ["check", _HEARTS, "--seed", "3"]),
-    Code.FILE_NAME_READS_AS_OPTION: _refused_line(_dash_named),
+    Code.UNKNOWN_COMMAND_LINE_OPTION: _refused_line(lambda _tmp: ["check", _HEARTS, "--emitir"]),
+    Code.COMMAND_LINE_OPTION_OF_ANOTHER_COMMAND: _refused_line(lambda _tmp: ["check", _HEARTS, "--seed", "3"]),
+    Code.FILE_NAME_READS_AS_COMMAND_LINE_OPTION: _refused_line(_dash_named),
     Code.EXTRA_WORD: _refused_line(lambda _tmp: ["check", _HEARTS, "extra"]),
     Code.MISSING_GAME_FILE: _refused_line(lambda _tmp: ["check"]),
     Code.COMMAND_LINE_USAGE: _refused_line(lambda _tmp: ["demo", _HEARTS, "--seed", "x"]),
     Code.UNREADABLE_FILE: _cli(lambda tmp: ["check", str(tmp / "missing.cardlang")]),
-    Code.LIBRARY_REQUIREMENT_UNMET: _using("requires { probe_s : Integer }\nfunction probe_fn() = probe_s"),
+    Code.FAMILY_LIBRARY_REQUIREMENT_UNMET: _using("requires { probe_s : Integer }\nfunction probe_fn() = probe_s"),
     Code.REQUIREMENT_MATCHES_SEVERAL: _using(
         "requires { probe_f(c : Card) : Boolean }",
         "function probe_f(c : Card) = true\nfunction probe_f(c : Card) = false\n",
     ),
-    Code.OUTSIDE_LIBRARY_CONTRACT: _using("function probe_fn() = probe_undeclared"),
-    Code.LIBRARY_REACHES_ONE_GAME: _using(
+    Code.OUTSIDE_FAMILY_LIBRARY_CONTRACT: _using("function probe_fn() = probe_undeclared"),
+    Code.FAMILY_LIBRARY_REACHES_ONE_GAME: _using(
         "requires { hand[player] : Hand<player> }\nfunction probe_fn() = number of cards in hand[0]"
     ),
-    Code.BAD_REQUIRES_ROW: _using("requires { probe_z : Integer<player> }"),
+    Code.FAMILY_LIBRARY_CANNOT_REQUIRE_A_GAME_RULE: _using("requires { probe_r : Rule }"),
+    Code.STANDARD_LIBRARY_READS_UNDEFINED_NAME: _standard_library("function probe_fn() = probe_undeclared"),
+    Code.STANDARD_LIBRARY_REACHES_ONE_GAME: _standard_library("function probe_fn(c : Card) = c is A of spades"),
     Code.REQUIRES_WHAT_IS_PROVIDED: _using("state { claimed : Integer = 0 }\nrequires { claimed : Integer }"),
     # The library no game uses refuses in its own file, beside the warning.
-    Code.LIBRARY_NOT_YET_PROVEN: _using("function probe_fn() = probe_undeclared"),
+    Code.FAMILY_LIBRARY_NOT_YET_PROVEN: _using("function probe_fn() = probe_undeclared"),
     Code.REFUSED_DURING_PLAY: _playout("empty_zone_choice.cardlang"),
     Code.GAME_ERROR_RAISED: _playout("rule_refuses_every_card.cardlang"),
     Code.ENGINE_GAP: _constructed(lambda: ShadowGuardError("resolve", "a leaked refusal")),
@@ -500,6 +519,279 @@ def test_every_code_has_a_witness_that_tells_it(
     witness = WITNESSES.get(code)
     assert witness is not None, f"`{code.slug}` has no witness"
     assert code in witness(monkeypatch, tmp_path)
+
+
+# --- a family library's `requires` rows, each refusal by the fix it asks ------
+
+# One row per refusal of `library_alone`'s row checks, keyed by a phrase of its
+# sentence: the library text that reaches it, and the code of the fix it asks.
+REQUIRES_ROWS: dict[str, tuple[str, Code]] = {
+    "is a state type and takes no type argument": ("probe_z : Integer<player>", Code.WRONG_ARGUMENT_COUNT),
+    "names the kind, not the row's type word": ("probe_m : move_type", Code.WRONG_SPELLING),
+    "a move type has no index": ("probe_m[player] : Move", Code.WRONG_SPELLING),
+    "a move type contract takes no type argument": ("probe_m : Move<player>", Code.WRONG_SPELLING),
+    "a function the game defines is contracted by its signature": ("probe_f : function", Code.WRONG_SPELLING),
+    "a procedure the game defines is contracted by its signature": ("probe_p : procedure", Code.WRONG_SPELLING),
+    "a rule cannot be contracted": ("probe_r : rule", Code.FAMILY_LIBRARY_CANNOT_REQUIRE_A_GAME_RULE),
+    "the kernel's contract is": ("is_trump(c : Card) : Integer", Code.WRONG_SIGNATURE),
+    "no function could declare": ("probe_f(z : Hand) : Boolean", Code.CHECKER_TYPE_NOT_ALLOWED_HERE),
+    "no procedure could declare": ("probe_p(z : Boolean) : Procedure", Code.CHECKER_TYPE_NOT_ALLOWED_HERE),
+    "a procedure returns no value, so its row carries no": ("probe_f() : Procedure?", Code.WRONG_SPELLING),
+    "a move type is offered by name and passed no arguments": ("probe_f() : Move", Code.WRONG_SPELLING),
+    "names a kind of definition, not the type the function returns": ("probe_f() : function", Code.CHECKER_TYPE_NOT_ALLOWED_HERE),
+    "is a zone type — a function returns a value": ("probe_f() : Hand", Code.CHECKER_TYPE_NOT_ALLOWED_HERE),
+    "is a procedure parameter's domain": ("probe_f() : Positive", Code.CHECKER_TYPE_NOT_ALLOWED_HERE),
+}
+
+
+@pytest.mark.parametrize("phrase", sorted(REQUIRES_ROWS))
+def test_a_requires_row_refusal_tells_the_code_of_its_fix(
+    phrase: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    row, code = REQUIRES_ROWS[phrase]
+    library = parse_library(
+        f"library {_LIBRARY} {{\n  requires {{ {row} }}\n}}\n", f"docs/libraries/{_LIBRARY}.cardlang"
+    )
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({_LIBRARY}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
+    with pytest.raises(DiagnosticError) as excinfo:
+        check_dsl(_HOST, "host.cardlang")
+    told = {(str(t.diagnostic.message), t.diagnostic.code) for t in excinfo.value.told}
+    reached = [c for message, c in told if phrase in message]
+    assert reached, f"`{row}` does not reach the refusal saying {phrase!r}: {told}"
+    assert reached == [code]
+
+
+# --- `name-taken` against `written-twice` -------------------------------------
+
+# The corrective act each site's own sentence asks for. A site that asks the
+# author to rename one of two things, or that could be read either way, is
+# `name-taken`; a site that asks the author to delete or merge a repeat is
+# `written-twice`.
+_ACT_CODE: dict[str, Code] = {
+    "rename one": Code.NAME_TAKEN,
+    "either": Code.NAME_TAKEN,
+    "drop the repeat": Code.WRITTEN_TWICE,
+}
+
+# Every report site of the two codes, keyed by its file and a phrase of its
+# sentence, with the act the sentence asks for.
+NAME_PAIR_SITES: dict[tuple[str, str], str] = {
+    ("cardlang/catalogue_pass.py", "labels two rows of"): "either",
+    ("cardlang/catalogue_pass.py", "a row's label names its shape"): "rename one",
+    ("cardlang/catalogue_pass.py", "names `"): "drop the repeat",
+    ("cardlang/catalogue_pass.py", "is said twice in"): "drop the repeat",
+    ("cardlang/parse.py", "a game declares one"): "drop the repeat",
+    ("cardlang/parse.py", "a library declares one `requires` block"): "drop the repeat",
+    ("cardlang/parse.py", "a library declares one `state` block"): "drop the repeat",
+    ("cardlang/resolve/classified_checks.py", "names the same go-again flag"): "rename one",
+    ("cardlang/resolve/classified_checks.py", "shadows the native function of the same name"): "rename one",
+    ("cardlang/resolve/classified_checks.py", "declares more than one parameter named"): "either",
+    ("cardlang/resolve/classified_checks.py", "that slot always runs"): "rename one",
+    ("cardlang/resolve/classified_checks.py", "shadowing its own parameter"): "rename one",
+    ("cardlang/resolve/classifier.py", "the Hosted Poll's binder"): "rename one",
+    ("cardlang/resolve/declarations.py", "is spelled like the climb engine"): "rename one",
+    ("cardlang/resolve/declarations.py", "ranking: repeats rank"): "drop the repeat",
+    ("cardlang/resolve/declarations.py", "card_points repeats rank"): "drop the repeat",
+    ("cardlang/resolve/declarations.py", "suit ranking: repeats suit"): "drop the repeat",
+    ("cardlang/resolve/declarations.py", "is answered twice"): "drop the repeat",
+    ("cardlang/resolve/declarations.py", "the later declaration would silently shadow the earlier one"): "either",
+    ("cardlang/resolve/library_alone.py", "which names more than one parameter named"): "rename one",
+    ("cardlang/resolve/library_alone.py", "a contract names each thing once"): "drop the repeat",
+    ("cardlang/resolve/library_alone.py", "and also holds a"): "rename one",
+    ("cardlang/resolve/library_alone.py", "is the language's own callback"): "rename one",
+    ("cardlang/resolve/positions.py", "'{BOARD_DOMAIN}', which collides with the declared `positions"): "rename one",
+    ("cardlang/resolve/positions.py", "which collides with {minted_clash}"): "rename one",
+    ("cardlang/resolve/positions.py", "'{DIRECTION_DOMAIN}', which collides with the declared `positions"): "rename one",
+    ("cardlang/resolve/positions.py", "which collides with {direction_clash}"): "rename one",
+    ("cardlang/resolve/positions.py", "pick another name"): "rename one",
+    ("cardlang/resolve/primitive_declarations.py", "declares one `"): "drop the repeat",
+    ("cardlang/resolve/primitive_declarations.py", "is a Builtin the language ships"): "rename one",
+    ("cardlang/resolve/primitive_declarations.py", "answers in the language"): "rename one",
+    ("cardlang/resolve/primitive_declarations.py", "is already defined in this game"): "rename one",
+    ("cardlang/resolve/primitive_declarations.py", "the innermost frame wins"): "rename one",
+    ("cardlang/resolve/primitive_declarations.py", "more than once — each parameter is named once"): "rename one",
+    ("cardlang/resolve/primitive_declarations.py", "a `reads` clause names each spelling at most once"): "drop the repeat",
+    ("cardlang/resolve/primitive_declarations.py", "as BOTH a state variable and a zone"): "rename one",
+    ("cardlang/resolve/primitive_declarations.py", "the game-level variable is then unreadable"): "rename one",
+    ("cardlang/resolve/primitive_declarations.py", "while this game declares it as a zone"): "rename one",
+    ("cardlang/resolve/references.py", "binds parameters by name"): "rename one",
+    ("cardlang/resolve/rule_instantiation.py", "declares more than one parameter named"): "either",
+    ("cardlang/resolve/rule_instantiation.py", "shadowing its own parameter"): "rename one",
+    ("cardlang/resolve/rule_instantiation.py", "delete the local definition"): "either",
+    ("cardlang/resolve/rule_instantiation.py", "block — merge the declarations into one"): "drop the repeat",
+    ("cardlang/resolve/rule_instantiation.py", "appears twice in one subset source"): "drop the repeat",
+    ("cardlang/resolve/splice.py", "the repeat imports nothing further"): "drop the repeat",
+    ("cardlang/resolve/splice.py", "a `uses` import adds names without overriding"): "rename one",
+    ("cardlang/resolve/splice.py", "nothing in this file says the spelling was taken"): "rename one",
+    ("cardlang/resolve/splice.py", "there is nothing here to rename"): "rename one",
+    ("cardlang/resolve/splice.py", "resolves it from the stdlib"): "either",
+    ("cardlang/resolve/splice.py", "but run this one instead"): "rename one",
+    ("cardlang/resolve/splice.py", "the two libraries cannot both be used"): "either",
+    ("cardlang/resolve/splice.py", "rename the game's {noun}"): "either",
+    ("cardlang/resolve/splice.py", "is provided by both"): "either",
+    ("cardlang/resolve/splice.py", "is defined by both"): "either",
+    ("cardlang/resolve/splice.py", "that slot runs the"): "rename one",
+    ("cardlang/resolve/splice.py", "delete the game's declaration"): "either",
+    ("cardlang/typecheck.py", "duplicate outcome phase name"): "either",
+    ("cardlang/typecheck.py", "in produces"): "drop the repeat",
+    ("cardlang/typecheck.py", "is consumed by more than one"): "drop the repeat",
+}
+
+
+def _sentence(call: ast.Call) -> str:
+    """The literal text of a report call's sentence: every string constant
+    and f-string part among its positional arguments, joined."""
+    parts: list[str] = []
+    for arg in call.args:
+        for node in ast.walk(arg):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                parts.append(node.value)
+            elif isinstance(node, ast.FormattedValue):
+                parts.append("{" + ast.unparse(node.value) + "}")
+    return "".join(parts)
+
+
+def _name_pair_sites() -> list[tuple[str, int, Code, str]]:
+    """Every use of `Code.NAME_TAKEN` or `Code.WRITTEN_TWICE` in `cardlang/`:
+    file, line, code and the sentence of the report call it is the `code=` of."""
+    sites: list[tuple[str, int, Code, str]] = []
+    for path in sorted((_ROOT / "cardlang").rglob("*.py")):
+        rel = path.relative_to(_ROOT).as_posix()
+        if rel == "cardlang/diagnostic_codes.py":
+            continue
+        tree = ast.parse(path.read_text())
+        coded = {
+            id(k.value): node
+            for node in ast.walk(tree) if isinstance(node, ast.Call)
+            for k in node.keywords if k.arg == "code"
+        }
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Attribute)
+                and isinstance(node.value, ast.Name) and node.value.id == "Code"
+                and node.attr in (Code.NAME_TAKEN.name, Code.WRITTEN_TWICE.name)
+            ):
+                call = coded.get(id(node))
+                assert call is not None, f"{rel}:{node.lineno}: `Code.{node.attr}` outside a report call's `code=`"
+                sites.append((rel, node.lineno, Code[node.attr], _sentence(call)))
+    return sites
+
+
+def test_every_name_pair_site_is_classified_once() -> None:
+    """The site axis is scraped from the source, so a new site of either code
+    with no row, or a row naming no site, reddens here."""
+    sites = _name_pair_sites()
+    rows: dict[tuple[str, str], int] = {key: 0 for key in NAME_PAIR_SITES}
+    for rel, line, _code, sentence in sites:
+        matched = [key for key in NAME_PAIR_SITES if key[0] == rel and key[1] in sentence]
+        assert len(matched) == 1, f"{rel}:{line}: {len(matched)} rows match {sentence!r}"
+        rows[matched[0]] += 1
+    assert {key for key, hits in rows.items() if hits != 1} == set()
+
+
+def test_a_name_pair_site_tells_the_code_of_the_act_it_asks() -> None:
+    """red under: `catalogue_pass.py`'s "labels two rows of" site coded
+    `Code.WRITTEN_TWICE`."""
+    wrong = [
+        f"{rel}:{line}: {code.slug}, asks {act!r}"
+        for rel, line, code, sentence in _name_pair_sites()
+        for (file, phrase), act in NAME_PAIR_SITES.items()
+        if file == rel and phrase in sentence and _ACT_CODE[act] is not code
+    ]
+    assert wrong == []
+
+
+# --- code names and the glossary's reserved words ----------------------------
+
+_GLOSSARY = _ROOT / "docs" / "glossary.md"
+
+
+def _compounds(cell: str) -> list[tuple[str, ...]]:
+    """A reserved word's approved compounds, read off its table cell: each
+    compound as its words, its parentheses and its gloss after a dash or a
+    colon dropped. A cell that says the word has one meaning only approves
+    the bare word."""
+    cell = re.sub(r"\[\[([a-z-]+)\]\]", lambda m: m.group(1).replace("-", " "), cell)
+    cell = re.sub(r"\([^)]*\)", "", cell)
+    out: list[tuple[str, ...]] = []
+    for part in re.split(r" · | / |, ", cell):
+        head = re.split(r" — |: |; ", part, maxsplit=1)[0]
+        words = tuple(re.findall(r"[a-z]+", head.lower().replace("'s", "")))
+        if words:
+            out.append(words)
+    return out
+
+
+def _reserved_words() -> dict[str, list[tuple[str, ...]]]:
+    """The reserved-words table of docs/glossary.md: each word, with the
+    compounds its row approves."""
+    table = _GLOSSARY.read_text().split("## Reserved words", 1)[1]
+    words: dict[str, list[tuple[str, ...]]] = {}
+    for line in table.splitlines():
+        m = re.fullmatch(r"\| \[([^\]]+)\]\([^)]*\) \| (.*) \|", line)
+        if m is not None:
+            word = m.group(1).lower()
+            compounds = _compounds(m.group(2))
+            if compounds and compounds[0] == ("one", "meaning", "only"):
+                compounds.append((word,))
+            words[word] = compounds
+    return words
+
+
+def _bare_reserved_words(slug: str, reserved: dict[str, list[tuple[str, ...]]]) -> list[str]:
+    """The reserved words `slug` uses outside every approved compound."""
+    words = slug.split("-")
+    approved = [c for compounds in reserved.values() for c in compounds]
+    bare: list[str] = []
+    for i, word in enumerate(words):
+        if word in reserved and not any(
+            words[i - j : i - j + len(c)] == list(c)
+            for c in approved
+            for j, w in enumerate(c)
+            if w == word and i - j >= 0
+        ):
+            bare.append(word)
+    return bare
+
+
+def test_the_reserved_word_reading_tells_a_compound_from_a_bare_word() -> None:
+    """The reading of the table, against spellings whose answer is known.
+    red under: the table's rows not read (an empty reading approves every
+    slug)."""
+    reserved = _reserved_words()
+    assert _bare_reserved_words("unknown-rule", reserved) == ["rule"]
+    assert _bare_reserved_words("unknown-game-rule", reserved) == []
+    assert _bare_reserved_words("one-fenced-block", reserved) == []
+    assert _bare_reserved_words("unknown-turn-direction", reserved) == []
+    assert _bare_reserved_words("trick-order-function-calls-a-later-one", reserved) == []
+    assert _bare_reserved_words("unknown-checker-type", reserved) == []
+    assert _bare_reserved_words("hosted-poll-reads-unpublished-round-state", reserved) == []
+    assert _bare_reserved_words("checker-of-the-value", reserved) == ["value"]
+
+
+_UNRULED_BARE = {
+    Code.UNKNOWN_ROUND_FUNCTION: (
+        "bare `round`: no ruling on PR #1101 respells it, so its respelling is the operator's"
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        pytest.param(
+            c,
+            marks=[pytest.mark.xfail(reason=_UNRULED_BARE[c], raises=AssertionError, strict=True)]
+            if c in _UNRULED_BARE else [],
+            id=c.slug,
+        )
+        for c in Code
+    ],
+)
+def test_a_code_name_uses_a_reserved_word_only_in_an_approved_compound(code: Code) -> None:
+    """red under: a member spelled `UNKNOWN_RULE = ("unknown-rule", ...)`."""
+    assert _bare_reserved_words(code.slug, _reserved_words()) == []
 
 
 # --- every rejection case's codes, a golden beside its text ------------------
