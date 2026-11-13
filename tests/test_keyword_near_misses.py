@@ -53,9 +53,12 @@ domain:          two grids. Block items: every element of a repetition in the
                  measured (`_CORPUS_SLIPS`, `_UNREACHED_CORPUS_SLIPS`), the
                  counts of parses on its slow inputs (`_SYNTAX_ERRORS`,
                  `_UNRESOLVED`), and the slips another site refuses or the
-                 look-back does not reach, each a strict xfail. A word the
-                 text writes more than once is a name the designer means
-                 and is never searched (`cardlang.parse._written_once`). The
+                 look-back does not reach, each a strict xfail. Farther
+                 back than the word just before the refusal, a word the text
+                 writes more than once is a name the designer means and is
+                 never searched (`cardlang.parse._a_slip_this_far_back`); the
+                 word refused at and the one before it are searched whatever
+                 the text writes (`_SLIPS_WRITTEN_ELSEWHERE`). The
                  productions only a library file reaches hold no name
                  position (`test_a_library_reaches_no_name_position_a_game_file_does_not`),
                  so the game-file sentences reach every one.
@@ -657,7 +660,8 @@ _CORPUS_SLIPS: dict[str, tuple[str, str, str, str]] = {
 def test_a_slip_before_a_word_the_keyword_resembles_is_the_one_offered(probe: str) -> None:
     """The word after the slip nearly spells a keyword too (`line` and
     `mine`, `in`), and is written elsewhere in the file: the refusal stands
-    on the slip."""
+    on the slip. red under, for `nt`: `cardlang.parse._misspelled_keyword`
+    telling the word refused at first whatever the text writes elsewhere."""
     game, line, keyword, slip = _CORPUS_SLIPS[probe]
     text = (_ROOT / "docs" / "games" / f"{game}.cardlang").read_text()
     assert line in text
@@ -668,10 +672,45 @@ def test_a_slip_before_a_word_the_keyword_resembles_is_the_one_offered(probe: st
 def test_an_offer_whose_next_refusal_stands_before_it_is_not_made() -> None:
     """`line`, written once, nearly spells `in`, which written in its place
     parses past it, but the refusal told then stands on `ay` before it, so
-    the slip offered is `ay`. red under: `shown` defaulting to False in
-    `cardlang.parse._past_with`."""
+    the slip offered is `ay`. red under: `cardlang.parse._past_with`
+    skipping its check of where the next refusal is told."""
     game, at = _in_the_clean_host("if @@ay line in deck where true { }")
     _assert_offered_at("start", game, at, "ay", "any")
+
+
+# (the corpus game, its line, the line up to the keyword, the keyword and
+# the slip): slips whose word the file also writes elsewhere.
+_SLIPS_WRITTEN_ELSEWHERE: dict[str, tuple[str, str, str, str, str]] = {
+    "tic-tac-toe line 34 `t`": (
+        "tic-tac-toe", "    move all pieces from box where piece.side is x to reserve[0]\n",
+        "    move all pieces from box where piece.side is x ", "to", "t"),
+    "tic-tac-toe line 35 `t`": (
+        "tic-tac-toe", "    move all pieces from box to reserve[1]\n",
+        "    move all pieces from box ", "to", "t"),
+    "hex line 40 `t`": (
+        "hex", "    move all pieces from box where piece.side is black to reserve[0]\n",
+        "    move all pieces from box where piece.side is black ", "to", "t"),
+    "hex line 46 `t`": ("hex", "      offer to t one of [place]\n", "      offer ", "to", "t"),
+    "president line 82 `a`": (
+        "president", "        as president { move chosen one card from hand[president] to hand[scum] }\n",
+        "        ", "as", "a"),
+}
+
+
+@pytest.mark.parametrize("probe", sorted(_SLIPS_WRITTEN_ELSEWHERE))
+def test_a_slip_at_or_just_before_the_refusal_is_searched_whatever_else_the_file_writes(
+    probe: str,
+) -> None:
+    """The word the parser refused at, and the word just before it, are
+    searched as the slip even where the file writes the same word elsewhere.
+    red under: `cardlang.parse._written_once` filtering the word at the
+    refusal or the word just before it."""
+    game, line, head, keyword, slip = _SLIPS_WRITTEN_ELSEWHERE[probe]
+    text = (_ROOT / "docs" / "games" / f"{game}.cardlang").read_text()
+    assert text.count(line) == 1 and line.startswith(head + keyword)
+    at = text.index(line) + len(head)
+    slipped = text[:at] + slip + text[at + len(keyword) :]
+    _assert_offered_at("start", slipped, at, slip, keyword)
 
 
 # (the corpus game, its line, the keyword slipped and the slip)
@@ -817,17 +856,20 @@ def test_a_syntax_error_searches_a_bounded_number_of_parses(
     case: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Two parses refuse the text, the main grammar's and the composed one,
-    and the search for a misspelled keyword makes at most `SLIP_PARSES`
-    more; on the review's inputs, whose words before the refusal are
-    written elsewhere or nearly spell no keyword, it makes none. red under:
-    for the count of none, `cardlang.parse._read_before` reading every word
+    and the search for a misspelled keyword makes at most a parse per keyword
+    tried at the word refused at, one more and a parse per keyword at the
+    word just before it, and `SLIP_PARSES` for the rest. On the review's
+    inputs it reads the word just before the refusal, as a search without
+    a look-back does, and nothing farther: one parse at most. red under:
+    for the count of one, `cardlang.parse._read_before` reading every word
     back to the earliest Earley item, unbounded by `_in_a_clause`,
-    `SLIP_WORDS` and `_written_once`; for the bound, that walk with
+    `SLIP_WORDS` and `_a_slip_this_far_back`; for the bound, that walk with
     `SLIP_PARSES` unbounded too."""
     made, told = _parses_told(_SYNTAX_ERRORS[case](), monkeypatch)
-    assert made <= 2 + parse.SLIP_PARSES, (made, told.format())
+    bound = 2 + NEAR_MISS_LIMIT + (1 + NEAR_MISS_LIMIT) + parse.SLIP_PARSES
+    assert made <= bound, (made, told.format())
     if case != "a statement of slips":
-        assert made == 2, (made, told.format())
+        assert made <= 3, (made, told.format())
 
 
 @pytest.mark.parametrize("case", sorted(_UNRESOLVED))

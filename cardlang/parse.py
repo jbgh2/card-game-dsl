@@ -40,13 +40,14 @@ Establishes:  a syntactically valid frozen AST; every node carries a
               (``_misspelled_keyword``). For a word the grammar derives as a
               name, ``keywords_in_place_of`` gives a later pass the keywords
               it nearly spells that the grammar accepts there and derives
-              read as those keywords. Both search only words the text writes
-              once, and both are bounded by a count of parses, whatever the
-              file's size: a refusal's search makes at most ``SLIP_PARSES``
-              and reads at most ``SLIP_WORDS`` words of the statement or
-              clause it is in, and a check looks up at most
-              ``KEYWORD_LOOKUPS`` names; a slip past a bound is refused as it
-              would be with no search. Derived and Pinned, by
+              read as those keywords. Past the word refused at and the word
+              just before it, both search only words the text writes once,
+              and both are bounded by a count of parses, whatever the file's
+              size: beyond those two words' own keywords, a refusal's search
+              makes at most ``SLIP_PARSES`` and reads at most ``SLIP_WORDS``
+              words of the statement or clause it is in, and a check looks up
+              at most ``KEYWORD_LOOKUPS`` names; a slip past a bound is
+              refused as it would be with no search. Derived and Pinned, by
               tests/test_keyword_near_misses.py, since which words a position
               takes is the grammar's and no type holds it.
               No semantic claims —
@@ -2820,15 +2821,17 @@ def _is_word(token: Token) -> bool:
 
 
 #: The most parses one refusal's search for a misspelled keyword makes past
-#: the parse that refused: one to read what the grammar accepts at a word,
-#: one for each keyword tried in its place. A designed bound, so the search
-#: costs the same whatever the file's size: a slip it does not reach within
-#: the bound is refused as the parser refused it.
+#: the parse that refused, beyond the word it refused at and the word just
+#: before it: one to read what the grammar accepts at a word, one for each
+#: keyword tried in its place, and those that check where a kept offer's next
+#: refusal is told. A designed bound, so the search costs the same whatever
+#: the file's size: a slip it does not reach within the bound is refused as
+#: the parser refused it.
 SLIP_PARSES = 6
 
-#: The most words before a refusal the search tries as the slip, nearest
-#: first. A slip read as a name ends the item before the failure a few words
-#: back, never a block back.
+#: The most words farther back than the word just before a refusal the search
+#: tries as the slip, nearest first. A slip read as a name ends the item before
+#: the failure a few words back, never a block back.
 SLIP_WORDS = 4
 
 
@@ -2838,8 +2841,8 @@ class _Spent(Exception):
 
 @dataclass(slots=True)
 class _Parses:
-    """The parses left to one search, and the one door every parse of it
-    passes through."""
+    """The parses left to one part of a search, and the one door every parse
+    of it passes through."""
 
     left: int
 
@@ -2868,12 +2871,13 @@ def _past_with(
     past: int,
     names: Iterable[object],
     parses: _Parses,
-    shown: bool = True,
+    checks: _Parses | None,
 ) -> tuple[str, ...]:
     """The keywords among `names` that `word` nearly spells and that, written
     in its place, carry the main grammar's parse beyond offset `past` --
-    and, where `shown`, whose next refusal, as this module would tell it,
-    stands after the word.
+    and, where `checks` is given, whose next refusal, as this module would
+    tell it, stands after the word, `checks` paying for finding out; an
+    offer whose check `checks` cannot pay for is kept.
 
     A keyword whose reading is refused at the same place is no fix for the
     refusal, so it is not offered; nor is one whose next refusal would be
@@ -2891,8 +2895,12 @@ def _past_with(
         at = _offset_of(refused, fixed)
         if at <= past + len(keyword) - (end - begin):
             continue
-        if shown and _told_by_then(refused, fixed, start, at, begin, parses):
-            continue
+        if checks is not None:
+            try:
+                if _told_by_then(refused, fixed, start, at, begin, checks):
+                    continue
+            except _Spent:
+                pass
         offered.append(keyword)
     return tuple(offered)
 
@@ -2901,13 +2909,14 @@ def _told_by_then(
     refused: UnexpectedInput, text: str, start: str, pos: int, by: int, parses: _Parses
 ) -> bool:
     """Whether a refusal of `text` at `pos` would be told standing on a word
-    that begins at offset `by` or before it, the look-back's offers judged
-    by where the parse is refused alone."""
-    for word in _read_before(refused, _scan(text).tokens, pos):
+    that begins at offset `by` or before it, the offers of the words before
+    the refusal judged by where the parse is refused alone."""
+    tokens = _scan(text).tokens
+    for word in (*_just_before(tokens, pos), *_read_before(refused, tokens, pos)):
         if int(word.start_pos or 0) > by:
             continue
         names = _accepted_at(text, start, word, parses)
-        if _past_with(text, start, word, pos, names, parses, shown=False):
+        if _past_with(text, start, word, pos, names, parses, None):
             return True
     return False
 
@@ -2939,28 +2948,39 @@ def _in_a_clause(item: object) -> bool:
     return not repeating and all(symbol.name != lbrace for symbol in read)
 
 
+def _just_before(tokens: tuple[Token, ...], pos: int) -> list[Token]:
+    """The word just before a refusal at `pos`, where a word stands there."""
+    before = [t for t in tokens if (t.end_pos or 0) <= pos]
+    return [t for t in before[-1:] if _is_word(t)]
+
+
 def _read_before(exc: UnexpectedInput, tokens: tuple[Token, ...], pos: int) -> list[Token]:
-    """The words before a refusal at `pos` the parser may have read as a
-    name, nearest first and at most `SLIP_WORDS`: the word just before it,
-    then those inside the statement or clause it was in there (the Earley
-    items the refusal reports that ``_in_a_clause``, from the earliest
+    """The words farther back than the one just before a refusal at `pos`
+    that the parser may have read as a name, nearest first and at most
+    `SLIP_WORDS`: those inside the statement or clause it was in there (the
+    Earley items the refusal reports that ``_in_a_clause``, from the earliest
     one's start) and the word that ends the item before them, which a slip
-    read as a name completes. Past the word just before the refusal, a word
-    that spells a keyword is the keyword written, not a slip."""
+    read as a name completes. A word that spells a keyword is the keyword
+    written, and a word the text writes twice is a name the designer means
+    (``_written_once``): neither is a slip this far back."""
     before = [t for t in tokens if (t.end_pos or 0) <= pos]
     items = getattr(exc, "considered_tokens", None) or ()
     starts = [int(item.start) for item in items if _in_a_clause(item)]
     earliest = min(starts, default=pos)
     inside = [t for t in before[:-1] if (t.start_pos or 0) >= earliest]
     ending = [t for t in before[:-1] if (t.end_pos or 0) <= earliest][-1:]
-    keywords = _keyword_words()
-    farther = [t for t in reversed(ending + inside) if str(t.value) not in keywords]
-    return [t for t in (*before[-1:], *farther) if _is_word(t) and _written_once(tokens, t)][:SLIP_WORDS]
+    farther = reversed(ending + inside)
+    return [t for t in farther if _a_slip_this_far_back(tokens, t)][:SLIP_WORDS]
+
+
+def _a_slip_this_far_back(tokens: tuple[Token, ...], word: Token) -> bool:
+    """Whether `word` may be a slip searched for farther back than the
+    refusal: a word that spells no keyword and that the text writes once."""
+    return _is_word(word) and str(word.value) not in _keyword_words() and _written_once(tokens, word)
 
 
 def _written_once(tokens: tuple[Token, ...], word: Token) -> bool:
-    """Whether the text spells `word` nowhere else: a word written twice is a
-    name the designer means, not a slip, and is never searched."""
+    """Whether the text spells `word` nowhere else."""
     return sum(1 for t in tokens if t.value == word.value) == 1
 
 
@@ -2971,29 +2991,43 @@ def _misspelled_keyword(
     with the keywords it is offered.
 
     The slip is the word AT the refusal where the grammar takes no name
-    there, or a word BEFORE it where the grammar read the slip as a name
-    and refused what follows (`shufle deck` is refused at `deck`, `let n =
-    al players where x` at `where`; ``_read_before``). Either is offered the
-    keywords the grammar accepts in its place that it nearly spells and that
-    carry the parse past the refusal. The search makes at most
-    `SLIP_PARSES` parses."""
+    there, the word just BEFORE it where the grammar read the slip as a name
+    and refused what follows (`shufle deck` is refused at `deck`), or a word
+    farther back (`let n = al players where x` is refused at `where`;
+    ``_read_before``). Each is offered the keywords the grammar accepts in
+    its place that it nearly spells and that carry the parse past the
+    refusal. The word refused at is offered first, but where the text
+    writes it elsewhere, a slip before it the text writes once that is
+    offered its keyword is told instead. The first two words cost at most
+    their own keywords' parses and one to read the word before; the words
+    farther back, and every check of where an offer's next refusal is told,
+    share `SLIP_PARSES`."""
     parses = _Parses(SLIP_PARSES)
     tokens = _scan(text).tokens
+    held: tuple[Token, tuple[str, ...]] | None = None
+    after = [t for t in tokens if (t.start_pos or 0) >= pos]
+    if after and after[0].start_pos == pos and _is_word(after[0]):
+        following = int(after[1].start_pos or 0) if len(after) > 1 else len(text)
+        names = getattr(exc, "allowed", None) or getattr(exc, "expected", None) or ()
+        offered = _past_with(text, start, after[0], following, names, _Parses(NEAR_MISS_LIMIT), parses)
+        if offered and _written_once(tokens, after[0]):
+            return after[0], offered
+        held = (after[0], offered) if offered else None
+    for word in _just_before(tokens, pos):
+        if held is not None and not _a_slip_this_far_back(tokens, word):
+            break
+        own = _Parses(1 + NEAR_MISS_LIMIT)
+        offered = _past_with(text, start, word, pos, _accepted_at(text, start, word, own), own, parses)
+        if offered:
+            return word, offered
     try:
-        after = [t for t in tokens if (t.start_pos or 0) >= pos]
-        if after and after[0].start_pos == pos and _is_word(after[0]) and _written_once(tokens, after[0]):
-            following = int(after[1].start_pos or 0) if len(after) > 1 else len(text)
-            names = getattr(exc, "allowed", None) or getattr(exc, "expected", None) or ()
-            offered = _past_with(text, start, after[0], following, names, parses)
-            if offered:
-                return after[0], offered
         for word in _read_before(exc, tokens, pos):
-            offered = _past_with(text, start, word, pos, _accepted_at(text, start, word, parses), parses)
+            offered = _past_with(text, start, word, pos, _accepted_at(text, start, word, parses), parses, parses)
             if offered:
                 return word, offered
     except _Spent:
-        return None
-    return None
+        return held
+    return held
 
 
 @dataclass(frozen=True, slots=True)
