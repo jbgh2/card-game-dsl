@@ -458,6 +458,8 @@ def type_at(checked: Checked, chain: tuple[object, ...]) -> Typed | Told:
         typed = _typed(checked, node)
         if typed is not None:
             return typed
+    # Shadow Guard of typecheck's Contract, which types every expression the
+    # check reads: told to the asker, never raised, should a slot go untyped.
     around = next(
         (t for node in reversed(chain[:-1]) if (t := _typed(checked, node)) is not None),
         None,
@@ -941,8 +943,11 @@ def _render_scope(scope: Scope | Told | None) -> list[str]:
             out.append(f"  {words}: {', '.join(names)}")
     if not scope.at_a_name:
         out.append(
-            "  (which of these a name may be also depends on the slot it is written "
-            "in; point at a name to see)"
+            "  (listed by the State Variable scope rules, the Pronouns a function or "
+            "procedure body may not read, and what a `state { }` default may read; "
+            "the rules of who is acting and of a Hosted Poll's body are not yet "
+            "applied (issue #1089), and what the slot a name fills takes is judged "
+            "at a name: point at one to see)"
         )
     return out
 

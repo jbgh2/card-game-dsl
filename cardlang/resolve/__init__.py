@@ -459,6 +459,7 @@ from cardlang.resolve.declared import (
     _tell_board_refusal as _tell_board_refusal,
     _unminted_direction as _unminted_direction,
     _written_state_name as _written_state_name,
+    _written_state_span as _written_state_span,
 )
 from cardlang.resolve.scope import (
     _DEFAULT_REFUSED_PRONOUNS as _DEFAULT_REFUSED_PRONOUNS,
@@ -475,6 +476,7 @@ from cardlang.resolve.scope import (
     _phase_state_names as _phase_state_names,
     _pronoun_refused as _pronoun_refused,
     _refused_call_site_pronouns as _refused_call_site_pronouns,
+    _state_declarations as _state_declarations,
     _state_out_of_scope as _state_out_of_scope,
 )
 from cardlang.resolve.crossings import (

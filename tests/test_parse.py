@@ -385,8 +385,9 @@ _SOURCES = sorted((_DOCS / "games").glob("*.cardlang")) + sorted((_DOCS / "libra
 def _names_off_their_spelling(node: object, text: str) -> Iterator[str]:
     """Every `NameRef` under `node` whose span is not its own spelling, at
     the line and column that spelling starts on. A definition the builder
-    lowers from a block (`spelled_as`) is text nobody wrote, so its nodes
-    share its row's span and are not walked."""
+    lowers from a `card_points { }` table (`spelled_as`) is not walked: its
+    nodes share their row's span, the `card` the lowering writes and the rank
+    key the designer wrote alike."""
     if not dataclasses.is_dataclass(node) or isinstance(node, Span):
         return
     if isinstance(node, FunctionDef) and node.spelled_as is not None:
@@ -409,7 +410,25 @@ def test_every_name_spans_its_own_spelling(path: pathlib.Path) -> None:
     `rotate`'s target and a subscripted zone in a movement included, so a
     refusal of the name, and anything locating it, points at the name.
     red under: build `assign_stmt`'s target `NameRef` with the statement's
-    `meta`."""
+    `meta`.
+
+    property:        every `NameRef` the parse builder makes spans its own
+                     spelling, at the line and column the spelling starts on.
+    domain:          every `NameRef` of every corpus game and family library
+                     (`docs/games/*.cardlang`, `docs/libraries/*.cardlang`).
+    held by:         Pinned, here; the builder makes a name from its token in
+                     one place (`_Builder._name`) for the three slots that
+                     carried a wider span.
+    does not prove:  that a name the tree stores as a string spans its own
+                     spelling: a round's `source` and `into`, its winner
+                     function and move type, the role of `for each <role>`
+                     and of `each <role> simultaneously`, an offer's options,
+                     `transition_to:`, `legal_moves:`, `winner:`,
+                     `constrains:` and a `card_points { }` rank key carry no
+                     span of their own, and a refusal of one stands at its
+                     whole statement or clause (issue #1124). Nor that a name
+                     a definition lowered from a `card_points { }` table
+                     holds does: those share their row's span."""
     text = path.read_text()
     tree = parse.parse_library(text, str(path)) if path.parent.name == "libraries" else parse_text(text, str(path))
     wrong = list(_names_off_their_spelling(tree, text))

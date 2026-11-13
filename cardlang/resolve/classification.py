@@ -25,9 +25,13 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
               as, by ``_classify`` under that node's categories, less those
               the scope rules refuse at the node (``_scope_facts``, recorded
               at every node from the walks the rules refuse by, and
-              ``_scope_refuses``) and, where the node is a name, those every
-              positional Owner Guard refuses (``_position_refuses``) --
-              ``_record_scope``. It is the one source of "what is in scope
+              ``_scope_refuses``: the State Variable scope rules, the Pronouns
+              a definition body may not read, a default's reads) and, where
+              the node is a name, those every positional Owner Guard joined to
+              the position record refuses (``_position_refuses``) --
+              ``_record_scope``. The rules of who is acting and of a Hosted
+              Poll's body are not applied there (issue #1089). It is the one
+              source of "what is in scope
               here" outside this pass (``cardlang.query``), and recording it
               changes nothing the pass decides.
               The step returns the categories it classified against, for the
@@ -50,6 +54,7 @@ from cardlang.resolve.scope import (
     _keyed_ids,
     _phase_scoped_nodes,
     _refused_call_site_pronouns,
+    _state_declarations,
 )
 from cardlang.resolve.classifier import _Categories, _NamePosition, _ScopeFacts, _rewrite
 from cardlang.resolve.classifier import NamesInScope, _categories
@@ -136,6 +141,10 @@ def _scope_facts(game: n.Game) -> dict[int, _ScopeFacts]:
     for node, in_scope in _phase_scoped_nodes(game):
         live[id(node)] = in_scope
     in_default: set[int] = set()
+    for block, decl, in_scope in _state_declarations(game):
+        held = block if decl is None else decl
+        live[id(held)] = in_scope
+        in_default.add(id(held))
     for _decl, node, in_scope in _default_reads(game):
         live[id(node)] = in_scope
         in_default.add(id(node))

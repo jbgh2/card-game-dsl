@@ -3936,15 +3936,14 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     as its base; adding to its `none` is `execute._apply`'s refusal, a fact of
     play). Each refusal names the spelling that fits."""
     name = stmt.target.name
-    # Resolve guarantees a write target classifies as a state variable (a
-    # binder, a zone and an unknown name are refused by `_bad_write_target`),
-    # so this is the variable's declared Type.
+    # Resolve guarantees a write target is a state variable: the classifier
+    # refuses an unknown name, `_bad_write_target` every other kind.
     target = infer(stmt.target, env)
     if stmt.index is not None and not isinstance(target, TCollection):
         bag.error(
             f"`{name}` holds one value, so it takes no index — write "
             f"`{name} {stmt.op} …`",
-            stmt.span,
+            stmt.target.span,
             code=Code.WRONG_SUBSCRIPT,
         )
         return
@@ -3958,7 +3957,7 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
         bag.error(
             f"`{name}` is one value per {per}, so `{stmt.op}` needs one of them "
             f"— write `{name}[<{per}>] {stmt.op} …`",
-            stmt.span,
+            stmt.target.span,
             code=Code.WRONG_SUBSCRIPT,
         )
         return
@@ -4010,13 +4009,13 @@ def _check_rotate(stmt: n.RotateStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     """`rotate` cycles a variable holding one value through values it can
     hold. Resolve has checked each value names an enum value."""
     name = stmt.target.name
-    target = infer(stmt.target, env)  # a state variable: `_bad_write_target`
+    target = infer(stmt.target, env)  # a state variable, as `_check_assign`'s
     if isinstance(target, TCollection) and target.key is not None:
         per = _type_name(target.key).lower()
         bag.error(
             f"`rotate` cycles a variable holding one value, and `{name}` holds "
             f"one per {per}",
-            stmt.span,
+            stmt.target.span,
             code=Code.WRONG_SUBSCRIPT,
         )
         return

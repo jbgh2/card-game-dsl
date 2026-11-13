@@ -106,9 +106,11 @@ class _Categories:
 class NamesInScope:
     """What a bare name written at one node would resolve to: each name this
     pass classifies there, with its classification, less any the scope rules
-    refuse at the node (`_scope_refuses`) and, at a name, any a positional
-    Owner Guard of this pass refuses in the slot the name fills
-    (`_position_refuses`; `at_a_name`)."""
+    refuse at the node (`_scope_refuses`: the State Variable scope rules, the
+    Pronouns a definition body may not read, a default's reads) and, at a
+    name, any a positional Owner Guard of this pass refuses in the slot the
+    name fills (`_position_refuses`; `at_a_name`). The rules of who is acting
+    and of a Hosted Poll's body are not applied (issue #1089)."""
 
     names: tuple[tuple[str, n.RefKind], ...]
     at_a_name: bool
@@ -152,7 +154,9 @@ class _ScopeFacts:
     scope rule judges (a callable body, issue #242). `refused_pronouns` are
     the pronouns the enclosing definition or default may not read
     (`_refused_call_site_pronouns`, `_DEFAULT_REFUSED_PRONOUNS`), and
-    `in_default` marks a node of a default."""
+    `in_default` marks a node of a `state { }` block. A rule judging a name
+    wherever it stands joins as a field here, filled by `_scope_facts` from
+    the walk it refuses by, and as a disjunct of `_scope_refuses`."""
 
     live_state: frozenset[str] | None = None
     refused_pronouns: frozenset[str] = frozenset()

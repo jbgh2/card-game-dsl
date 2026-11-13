@@ -234,9 +234,12 @@ def _bad_write_target(game: n.Game, node: n.AssignStmt | n.RotateStmt) -> Said |
     )
 
 
-def _bad_zone_endpoint(game: n.Game, node: n.Transfer | n.EpistemicOp, slot: str, what: str) -> Said | None:
+def _bad_zone_endpoint(
+    game: n.Game, node: n.Transfer | n.EpistemicOp, slot: str, what: str
+) -> tuple[Said, n.NameRef] | None:
     """Why this zone-position expression (a movement's `from <here>` /
-    `to <here>`, an epistemic op's target) is illegal, or None. The same move
+    `to <here>`, an epistemic op's target) is illegal, and the root name it
+    refuses, or None. The same move
     as `_bad_write_target`, one grammar position over: the position is
     name-shaped (the grammar rejects literals there), so its ROOT name has a
     classification, and most classifications cannot possibly be a zone.
@@ -262,7 +265,7 @@ def _bad_zone_endpoint(game: n.Game, node: n.Transfer | n.EpistemicOp, slot: str
     what_it_is = _WRITE_TARGET_KINDS.get(kind, f"a {kind}")
     if kind == "state_var":
         what_it_is = "a state variable"
-    return f"cannot {what} " + _named_ref(game, root) + f": it is {what_it_is}, not a zone"
+    return f"cannot {what} " + _named_ref(game, root) + f": it is {what_it_is}, not a zone", root
 
 
 # The closed set of statically enumerable move-parameter domains (decisions.md
@@ -954,7 +957,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # that, and `tests/test_binder_scoping.py` caught it.)
                 bad = _bad_write_target(game, nd)
                 if bad is not None:
-                    bag.error(bad, nd.span, code=Code.NOT_WRITABLE)
+                    bag.error(bad, nd.target.span, code=Code.NOT_WRITABLE)
                 for value in nd.values:
                     if value not in cats.enums:
                         bag.unknown(
@@ -964,15 +967,16 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
             case n.AssignStmt():
                 bad = _bad_write_target(game, nd)
                 if bad is not None:
-                    bag.error(bad, nd.span, code=Code.NOT_WRITABLE)
+                    bag.error(bad, nd.target.span, code=Code.NOT_WRITABLE)
             case n.Transfer():
                 for endpoint, direction in (
                     ("source", "move cards from"),
                     ("dest", "move cards to"),
                 ):
-                    bad = _bad_zone_endpoint(game, nd, endpoint, direction)
-                    if bad is not None:
-                        bag.error(bad, nd.span, code=Code.WRONG_SORT_OF_NAME)
+                    endpoint_refused = _bad_zone_endpoint(game, nd, endpoint, direction)
+                    if endpoint_refused is not None:
+                        bad, root = endpoint_refused
+                        bag.error(bad, root.span, code=Code.WRONG_SORT_OF_NAME)
                 # The joint-selection matrix (decisions.md "Joint-predicate
                 # selection"): `jointly` is a DECISION over subsets, so it
                 # requires `chosen` — a dealt jointly-selection has no
@@ -1092,9 +1096,10 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # `reveal one card from turn` checked clean and then reached an
                 # executor that requires an actual Zone as the op's target and
                 # refuses anything else, exactly like the movement endpoints.
-                bad = _bad_zone_endpoint(game, nd, "zone", nd.op)
-                if bad is not None:
-                    bag.error(bad, nd.span, code=Code.WRONG_SORT_OF_NAME)
+                zone_refused = _bad_zone_endpoint(game, nd, "zone", nd.op)
+                if zone_refused is not None:
+                    bad, root = zone_refused
+                    bag.error(bad, root.span, code=Code.WRONG_SORT_OF_NAME)
             case n.Winner() | n.StopResult() if (
                 nd.state_var is not None and nd.state_var not in cats.state_vars
             ):
