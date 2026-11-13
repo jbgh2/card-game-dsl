@@ -8,8 +8,8 @@ game** — no Vorbehalt round (marriage, poverty, and bid solos are out of
 scope; a *silent solo*, both ♣Q dealt to one player, arises naturally and is
 scored as a normal game with the lone player's score tripled). One session =
 one round of deals: four hands, each player dealing once. Cumulative
-zero-sum score; highest total wins. **Rules source:** Pagat,
-<https://www.pagat.com/schafkopf/doko.html> (base text; the "second ♥10
+zero-sum score; highest total wins. **Rules source:**
+<https://www.pagat.com/schafkopf/doko.html> (Pagat's base text; the "second ♥10
 wins" and Schweinchen/Genscher house variants are excluded).
 
 ## The pack

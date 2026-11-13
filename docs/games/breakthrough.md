@@ -8,8 +8,8 @@ each; light (player 0) moves first; a man steps one square straight or
 diagonally forward onto an empty square, or diagonally forward onto an enemy
 man, removing it; a straight step never captures, and no step ever lands on a
 man of your own side; you win by landing a man on the opponent's back row or by
-capturing the opponent's last man.** There is no draw. Rules are common
-knowledge, and the differential oracle is OpenSpiel's native `breakthrough`.
+capturing the opponent's last man.** There is no draw. **Rules source:**
+<https://en.wikipedia.org/wiki/Breakthrough_(board_game)>; the differential oracle is OpenSpiel's native `breakthrough`.
 
 Setup and play:
 

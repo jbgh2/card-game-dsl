@@ -13,9 +13,9 @@ it cannot; a man reaching the far rank is crowned, and that ends its move; the
 player left with no legal move loses; eighty plies in a row with no capture and
 no uncrowned man moved draw the game.** Rules are common knowledge.
 
-**Rules source.** The rules body is the World Checkers/Draughts Federation's
-*Rules of Draughts*, served as a Word document at
-<https://www.usacheckers.com/rulesofcheckers.php> (read 2026-11-02; the
+**Rules source:** <https://www.usacheckers.com/rulesofcheckers.php>, the
+World Checkers/Draughts Federation's *Rules of Draughts*, served as a Word
+document (read 2026-11-02; the
 WCDF's own <https://www.wcdf.net/rules.htm> serves its navigation and none of
 the text). Section One, "Equipment and Rules for Play", is the part the file
 plays. The executable tiebreaker is OpenSpiel's native `checkers`

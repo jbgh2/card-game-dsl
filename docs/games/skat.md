@@ -5,7 +5,7 @@ readable twin. Three-player Skat (DSkV / International rules, post-1999), 32-car
 deck. Players bid (*Reizen*) for the right to play alone against the other two;
 the declarer chooses a game type, takes or skips the two-card skat, and tries to
 make the contract for a calculated game value. Thirty-six hands are played and
-the highest score wins. Source: [Pagat](https://www.pagat.com/schafkopf/skat.html).
+the highest score wins. **Rules source:** <https://www.pagat.com/schafkopf/skat.html>.
 
 Each hand:
 

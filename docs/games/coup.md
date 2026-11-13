@@ -6,7 +6,8 @@ bluff-and-challenge game with a 15-card deck (five characters, three copies
 each) and a coin economy. Each player holds two face-down *influence* cards and
 some coins; on a turn the active player takes one action, others may challenge
 or block it, and influence is lost by flipping a card permanently face-up. The
-last player with influence wins. Rules: Tchanturia, 2012.
+last player with influence wins. **Rules source:**
+<https://en.wikipedia.org/wiki/Coup_(card_game)> (Rikki Tahta, 2012).
 
 A turn's actions:
 

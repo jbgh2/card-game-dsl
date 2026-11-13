@@ -9,8 +9,8 @@ here, only rank does. It is played as a single game — deal once, play to the
 finish, most books wins — with no multi-hand match structure to accumulate a
 score across. Pagat allows 3–6 players (2 with 7 cards each); this corpus
 entry fixes **four**, five cards each, the shape that gives every ask a real
-choice of both target and rank. Source:
-[Pagat](https://www.pagat.com/quartet/gofish.html).
+choice of both target and rank. **Rules source:**
+<https://www.pagat.com/quartet/gofish.html>.
 
 Setup and play:
 

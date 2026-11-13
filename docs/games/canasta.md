@@ -5,7 +5,7 @@ listed below. **Players:** 4, in fixed teams — partners sit across
 (seats 0+2 vs 1+3). **Deck:** two standard 52-card packs plus four jokers,
 108 cards (`canasta108`). **Executable spec:**
 [canasta.cardlang](canasta.cardlang). **Rules source:**
-https://www.pagat.com/rummy/canasta.html (fetched live).
+<https://www.pagat.com/rummy/canasta.html>.
 
 **Simplifications** (everything else is the Pagat classic game):
 

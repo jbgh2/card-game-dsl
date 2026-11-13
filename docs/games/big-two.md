@@ -4,8 +4,8 @@ The companion formal file is [big-two.cardlang](big-two.cardlang); this is the
 readable twin. A four-player **climbing / shedding** game (also called Deuces or
 Choh Dai Di) on the standard 52-card deck. The aim is to be the first to play out
 your whole hand; the others lose penalty points for the cards they are caught
-with. Lowest cumulative penalty wins. Rules: [Pagat](https://www.pagat.com/climbing/bigtwo.html)
-(basic game), played **anticlockwise** as the page's basic game is, and **for
+with. Lowest cumulative penalty wins. **Rules source:** <https://www.pagat.com/climbing/bigtwo.html>
+(Pagat's basic game), played **anticlockwise** as the page's basic game is, and **for
 money** at a stake per penalty point. Pagat sets no end to a session; this file's
 match ends when a player's penalty total reaches 100.
 

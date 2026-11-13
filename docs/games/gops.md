@@ -8,7 +8,7 @@ There are no tricks, no draws after the deal, and no hidden deal — every
 card's location is public knowledge from the first round; the *only* secrets
 in the whole game are the order of the face-down prize pile and each
 player's not-yet-revealed bid. It is played as a single 13-round hand.
-Source: [Pagat](https://www.pagat.com/misc/gops.html). This corpus entry
+**Rules source:** <https://www.pagat.com/misc/gops.html>. This corpus entry
 fixes the **tied-bid-discards-the-prize** variant (Pagat's main text instead
 keeps a tied prize on offer, accumulating it into the next round's stake, and
 records the discard rule as a variant): the discard rule is what OpenSpiel's

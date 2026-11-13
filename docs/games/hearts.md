@@ -11,7 +11,7 @@ their own score and adding 26 to every other player's.
 Hands continue until a player reaches 100 or more, and the lowest total
 wins. **Players:** 4, clockwise. **Deck:** standard 52, aces high.
 **Executable spec:** [hearts.cardlang](hearts.cardlang). **Rules source:**
-https://www.pagat.com/reverse/hearts.html (fetched live).
+<https://www.pagat.com/reverse/hearts.html>.
 
 Where that page lists a variation — points barred from the first trick, the
 queen of spades breaking hearts, a fixed scheme for the moon, a kitty — this

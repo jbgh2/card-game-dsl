@@ -6,8 +6,8 @@ shedding game where every play is a possible lie: cards go down **face
 down**, called out as a rank the player may or may not actually be holding,
 and the only way to find out is to accuse them. This corpus entry fixes the
 **basic game** described on Pagat, at **four players** on a standard 52-card
-deck. Source:
-[Pagat](https://www.pagat.com/beating/cheat.html).
+deck. **Rules source:**
+<https://www.pagat.com/beating/cheat.html>.
 
 Setup and play:
 

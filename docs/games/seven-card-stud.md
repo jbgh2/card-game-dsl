@@ -2,8 +2,8 @@
 
 The companion formal file is
 [seven-card-stud.cardlang](seven-card-stud.cardlang); this is the readable twin.
-Fixed-limit Seven-Card Stud — the corpus's first **betting** game. Source:
-[Pagat](https://www.pagat.com/poker/variants/7stud.html). **Players:** 4.
+Fixed-limit Seven-Card Stud — the corpus's first **betting** game. **Rules source:**
+<https://www.pagat.com/poker/variants/7stud.html>. **Players:** 4.
 **Deck:** standard 52. **Chips:** each player starts with 100 and antes 1 each
 hand.
 

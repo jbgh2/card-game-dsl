@@ -6,7 +6,7 @@ sit across) with spades always trump. Each player bids the number of tricks
 they expect to take (a bid of zero is *nil*); the team's contract is the
 sum of its non-nil bids. After thirteen tricks the hand is scored and the deal
 rotates. The game runs until a team reaches +500 (a win) or −200 (a loss).
-**Deck:** standard 52.
+**Deck:** standard 52. **Rules source:** <https://www.pagat.com/auctionwhist/spades.html>.
 
 Scoring (the variant formalized here — Spades has several; this one is kept
 internally consistent so each hand's score reconciles):
