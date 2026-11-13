@@ -2073,6 +2073,9 @@ def test_the_hosted_poll_remedy_is_accepted(monkeypatch: pytest.MonkeyPatch) -> 
 _CROSSING_HELPERS = frozenset({
     "_definition_closure", "_reaches", "_reachable_definitions", "_reachable_nodes",
     "_call_reads", "_actor_needs_in", "_writes",
+    # The reach producers a guard and the position record both iterate
+    # (`cardlang/resolve/reaches.py`).
+    "_answer_reaches", "_rule_function_reads", "_hosted_units",
 })
 _DEFINITION_POOLS = frozenset({"functions", "procedures", "move_types", "fns", "procs", "pool"})
 _PASSES = ("resolve", "typecheck", "expand")
@@ -2121,6 +2124,7 @@ def _pool_name(node: ast.expr) -> str | None:
 WALKERS: dict[str, str] = {
     "resolve._check_answer_hermeticity": "test_a_row_reaching_a_library_function",
     "resolve._answer_routes": "the routes `_check_answer_hermeticity` locates its refusals by",
+    "resolve._name_positions": "the position record: refuses nothing itself",
     "resolve._check_play_source": (
         "test_a_rule_calling_a_library_function_that_reads_hand; the answer's: "
         "test_a_library_reaching_the_games_text[play-source]"
