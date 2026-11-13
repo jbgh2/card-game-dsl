@@ -35,10 +35,11 @@ RENDERS rather than decides. The compile stages' [[failure-channel]] and the
 runtime's are both already typed, and each
 failure reaches the [[author]] who can act on it (`cardlang/runtime/errors.py`,
 Contract): a `GameDescriptionError` the game author, an `InstallationError`
-whoever installed this checkout. It never discriminates the `GameDescriptionError`
-subtypes; which ROLE of guard fired is the suite's question, not a caller's,
-and the Told Diagnostic it renders a refusal through names the Author the role
-implies (`cardlang.records.refusal_diagnostic`).
+whoever installed this checkout. It never catches a `GameDescriptionError`
+subtype; the Told Diagnostic it renders a refusal through names the Author
+the guard's role implies (`cardlang.records.refusal_diagnostic`), and the exit
+status follows that Author, so a leaked Owner Guard reaches a caller as the
+engine's failure rather than as a bad game, as the runtime's Contract asks.
 
 `IllegalMove` is rendered beside them and means something else, which the
 message says: the game's own `error(...)` refused, no player was offered the
@@ -66,7 +67,9 @@ not seat, opponents that do not seat every other seat once, a saved game that
 cannot be resumed or saved, a game whose decisions the action space cannot
 number, a broken checkout, a refusal of the line's words; 3 when the engine
 failed -- a refusal told to the engine, a leaked Owner Guard's, or an
-exception outside the typed channels. A refusal of the line's words is told
+exception outside the typed channels raised while the command is carried
+out, once the line is read and its path probed; an `OSError` the path probe
+itself meets escapes as a traceback (issue #1097). A refusal of the line's words is told
 by `_refuse` and leaves through argparse's own exit, `SystemExit`, as
 argparse's usage errors do.
 The statuses are split by who must act, not by how badly it went: every
@@ -1235,7 +1238,7 @@ def _demo(
     if result.ended_by is EndedBy.LENGTH and telling.as_json:
         # The stop leads the summary in both forms, and is a record too.
         stop = Diagnostic(
-            Severity.ERROR, length_stop_line(game, made), code=Code.RANDOM_PLAY_REACHES_MAX_LENGTH
+            Severity.ERROR, length_stop_line(game, made), code=Code.RANDOM_PLAY_REACHES_LENGTH_STOP
         )
         telling.told.append(Told(stop, Author.GAME))
 
@@ -1247,7 +1250,7 @@ def _demo(
         return cannot(
             f"{path} reached its end without a decision, so the "
             "engine exposes no world to project a seat's view from",
-            Code.VIEW_NEEDS_A_DECISION,
+            Code.SEAT_VIEW_NEEDS_A_DECISION,
         )
     if at is not None and at >= len(decisions):
         # Naming the range rather than clamping: the nearest decision is an

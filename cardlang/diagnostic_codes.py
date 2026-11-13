@@ -53,7 +53,7 @@ class Code(Enum):
     EXTRA_WORD = ("extra-word", "the command reads one game file and no other word; drop the word")
     MISSING_GAME_FILE = ("missing-game-file", "the command needs a game file and the line names none; name one")
     COMMAND_LINE_USAGE = ("command-line-usage", "the command line does not read as the command's; write what the message says it expects")
-    VIEW_NEEDS_A_DECISION = ("view-needs-a-decision", "a seat's view is shown at a decision, and the playout made none; leave out --view and --info-state")
+    SEAT_VIEW_NEEDS_A_DECISION = ("seat-view-needs-a-decision", "a Seat View is shown at a decision, and the playout made none; leave out --view and --info-state")
     TABLE_CANNOT_NUMBER_A_DECISION = ("table-cannot-number-a-decision", "the game has a decision whose picks a table cannot number yet; watch it played with `cardlang demo`")
     SAVED_GAME_NOT_RESUMABLE = ("saved-game-not-resumable", "the file --resume names holds no game this game can go on with; name another file, or start a new game")
     CONTRADICTS_SAVED_GAME = ("contradicts-saved-game", "a --seat, --seed or --vs names another than the saved game was played with; leave it out")
@@ -162,7 +162,7 @@ class Code(Enum):
     # --- play time and the installation -----------------------------------
     REFUSED_DURING_PLAY = ("refused-during-play", "a rule only a playout reaches refused the game")
     GAME_ERROR_RAISED = ("game-error-raised", "the game's own `error(...)` refused a move no player was offered")
-    RANDOM_PLAY_REACHES_MAX_LENGTH = ("random-play-reaches-max-length", "uniform-random play reached the game's max_length without its rules ending it; raise the bound, or end the loop that should have ended")
+    RANDOM_PLAY_REACHES_LENGTH_STOP = ("random-play-reaches-length-stop", "uniform-random play met the game's Length Stop, its max_length reached without its rules ending it; raise the bound, or end the loop that should have ended")
     ENGINE_GAP = ("engine-gap", "the engine refused what an earlier check should have refused; the engine must change")
     INCOMPLETE_INSTALLATION = ("incomplete-installation", "the checkout is missing files the engine loads; reinstall it")
     UNREGISTRABLE_GAME = ("unregistrable-game", "a game file offered for registration cannot be registered by that name")

@@ -17,11 +17,18 @@ property:        every refusal the command line tells once the line is read
 domain:          the authors, crossed with the status each names; every
                  runtime refusal type, derived as tests/test_records.py
                  derives them, raised where a check, a playout, a table's
-                 load and a table's session raise, crossed with the two
-                 output forms; an exception outside the typed channels under
+                 load and a table's session raise, and where a query's check
+                 raises, crossed with the two
+                 output forms; an exception outside the typed channels, raised
+                 while the command is carried out (an `OSError` the path
+                 probe meets before it is issue #1097's), under
                  every command, crossed with the two forms; and the command
                  lines `_LINES` lists, one or more per refusal the command
-                 line composes, crossed with the two forms. The lines are
+                 line composes, crossed with the two forms; three of those
+                 refusals no input on disk reaches (a save failing at the
+                 table, a resumed game's picks that no longer replay, a
+                 decision a table cannot number), so their rows plant the
+                 raise where it is met. The lines are
                  hand-written, and every Diagnostic Code `cardlang/cli.py`
                  names is either a code a row of `_LINES` tells, a refusal of
                  the line's words (`_LINE_REFUSALS`, refused before the line
@@ -187,6 +194,7 @@ _WHERE: dict[str, tuple[Callable[[pytest.MonkeyPatch, BaseException], None], lis
         lambda mp, exc: mp.setattr(play_session.Session, "run", _raising(exc)),
         ["play", KUHN, "--seed", "1", "--vs", "all=random"],
     ),
+    "query": (lambda mp, exc: mp.setattr(cli, "check_source", _raising(exc)), ["query", KUHN, "--at", "76:24"]),
 }
 
 
@@ -310,14 +318,14 @@ _LINES: dict[str, _Line] = {
         lambda _t: ["demo", KUHN, "--seed", "1", "--at", "999", "--view", "0"], (Code.OUT_OF_RANGE,)
     ),
     "demo: a view of a playout with no decision": _Line(
-        lambda _t: ["demo", SKELETON, "--seed", "5", "--view", "0"], (Code.VIEW_NEEDS_A_DECISION,)
+        lambda _t: ["demo", SKELETON, "--seed", "5", "--view", "0"], (Code.SEAT_VIEW_NEEDS_A_DECISION,)
     ),
     "demo: random play reaches max_length": _Line(
-        lambda t: ["demo", _bounded(t), "--seed", _STOPS], (Code.RANDOM_PLAY_REACHES_MAX_LENGTH,)
+        lambda t: ["demo", _bounded(t), "--seed", _STOPS], (Code.RANDOM_PLAY_REACHES_LENGTH_STOP,)
     ),
     "demo: max_length reached, then --at past the last decision": _Line(
         lambda t: ["demo", _bounded(t), "--seed", _STOPS, "--view", "0", "--at", "99"],
-        (Code.RANDOM_PLAY_REACHES_MAX_LENGTH, Code.OUT_OF_RANGE),
+        (Code.RANDOM_PLAY_REACHES_LENGTH_STOP, Code.OUT_OF_RANGE),
     ),
     "play: --seat names no seat": _Line(
         lambda _t: ["play", KUHN, "--seat", "5", "--vs", "all=random"], (Code.OUT_OF_RANGE,)
@@ -392,7 +400,7 @@ def test_a_command_s_own_refusal_is_its_record_in_both_forms(
     assert tuple(r["code"] for r in records) == tuple(c.slug for c in line.codes)
     statuses = [STATUS[Author(r["author"])] for r in records if r["severity"] == "error"]
     assert text.status == as_json.status == max(statuses)
-    if Code.RANDOM_PLAY_REACHES_MAX_LENGTH in line.codes:
+    if Code.RANDOM_PLAY_REACHES_LENGTH_STOP in line.codes:
         # The Length Stop's line leads the transcript; the record carries it.
         stop, *rest = records
         assert text.out.splitlines()[0] == stop["message"]

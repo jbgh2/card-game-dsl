@@ -67,7 +67,10 @@ does not prove:  that a report site no rejection case reaches keeps its code:
                  standard-library codes, nor `BoardMisuse.NO_LINES` through
                  `check_dsl`, which the board-need gate refuses first: their
                  rows here run the standard library's loader and the teller
-                 directly. Nor that a `requires`-row refusal `REQUIRES_ROWS`
+                 directly. Nor does any game on disk reach
+                 `table-cannot-number-a-decision`: its row plants the action
+                 space's refusal where `play` loads the game. Nor that a
+                 `requires`-row refusal `REQUIRES_ROWS`
                  does not list tells the code of its fix: the list is written
                  by hand, not scraped.
 """
@@ -131,7 +134,7 @@ SHIPPED: dict[str, str] = {
     "extra-word": "the command reads one game file and no other word; drop the word",
     "missing-game-file": "the command needs a game file and the line names none; name one",
     "command-line-usage": "the command line does not read as the command's; write what the message says it expects",
-    "view-needs-a-decision": "a seat's view is shown at a decision, and the playout made none; leave out --view and --info-state",
+    "seat-view-needs-a-decision": "a Seat View is shown at a decision, and the playout made none; leave out --view and --info-state",
     "table-cannot-number-a-decision": "the game has a decision whose picks a table cannot number yet; watch it played with `cardlang demo`",
     "saved-game-not-resumable": "the file --resume names holds no game this game can go on with; name another file, or start a new game",
     "contradicts-saved-game": "a --seat, --seed or --vs names another than the saved game was played with; leave it out",
@@ -226,7 +229,7 @@ SHIPPED: dict[str, str] = {
     "outcome-read-before-produced": "an outcome is consumed before the phase producing it has run",
     "refused-during-play": "a rule only a playout reaches refused the game",
     "game-error-raised": "the game's own `error(...)` refused a move no player was offered",
-    "random-play-reaches-max-length": "uniform-random play reached the game's max_length without its rules ending it; raise the bound, or end the loop that should have ended",
+    "random-play-reaches-length-stop": "uniform-random play met the game's Length Stop, its max_length reached without its rules ending it; raise the bound, or end the loop that should have ended",
     "engine-gap": "the engine refused what an earlier check should have refused; the engine must change",
     "incomplete-installation": "the checkout is missing files the engine loads; reinstall it",
     "unregistrable-game": "a game file offered for registration cannot be registered by that name",
@@ -568,7 +571,7 @@ WITNESSES: dict[Code, Tells] = {
     Code.MISSING_GAME_FILE: _refused_line(lambda _tmp: ["check"]),
     Code.COMMAND_LINE_USAGE: _refused_line(lambda _tmp: ["demo", _HEARTS, "--seed", "x"]),
     Code.UNREADABLE_FILE: _cli(lambda tmp: ["check", str(tmp / "missing.cardlang")]),
-    Code.VIEW_NEEDS_A_DECISION: _cli(
+    Code.SEAT_VIEW_NEEDS_A_DECISION: _cli(
         lambda _tmp: ["demo", str(_ROOT / "tests" / "fixtures" / "skeleton.md"), "--seed", "5", "--view", "0"]
     ),
     Code.TABLE_CANNOT_NUMBER_A_DECISION: _table_cannot_number,
@@ -579,7 +582,7 @@ WITNESSES: dict[Code, Tells] = {
     Code.UNWRITABLE_SAVE_FILE: _cli(
         lambda tmp: ["play", _KUHN, "--vs", "all=random", "--save", str(tmp / "nodir" / "x.json")]
     ),
-    Code.RANDOM_PLAY_REACHES_MAX_LENGTH: _cli(lambda tmp: ["demo", _bounded(tmp), "--seed", "0"]),
+    Code.RANDOM_PLAY_REACHES_LENGTH_STOP: _cli(lambda tmp: ["demo", _bounded(tmp), "--seed", "0"]),
     Code.FAMILY_LIBRARY_REQUIREMENT_UNMET: _using("requires { probe_s : Integer }\nfunction probe_fn() = probe_s"),
     Code.REQUIREMENT_MATCHES_SEVERAL: _using(
         "requires { probe_f(c : Card) : Boolean }",
