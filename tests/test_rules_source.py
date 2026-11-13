@@ -25,7 +25,7 @@ Completeness ledger:
 - does not prove: that the URL resolves, that the page holds the variant the
   rulebook's header names, or that the `.cardlang` plays those rules. Whether
   a game has been read against its source is epic #469's checklist, not this
-  pin. ADR-0023 records the ruling.
+  pin. ADR-0024 records the ruling.
 """
 
 from __future__ import annotations
