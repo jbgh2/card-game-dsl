@@ -22,8 +22,8 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
               takes where it stands is typecheck's, and this pass derives
               none: the bare-name and round `trump` refusals carry their
               whole ranking (``Diagnostic.ranked_near_misses``), which the
-              pipeline narrows by checking, through parse, resolve and
-              typecheck, the text each Near Miss makes (``pipeline._judged``).
+              pipeline narrows by checking the game each Near Miss makes
+              (``pipeline._judged``).
               Asked for one (``resolve(scopes=...)``), the pass fills the
               Scope Record: at every node the classifying walk visits, keyed by
               ``n.node_key``, the names a bare name written there classifies
