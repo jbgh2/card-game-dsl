@@ -260,7 +260,7 @@ class _Vis:
 
 @dataclass(frozen=True, slots=True)
 class _Lvalue:
-    name: str
+    target: n.NameRef
     index: object | None  # Expr | None
 
 
@@ -438,6 +438,19 @@ class _Builder(Transformer[Token, n.Game]):
             end=meta.end_pos,
             line=meta.line + self._line_offset,
             column=meta.column,
+        )
+
+    def _name(self, token: Token) -> n.NameRef:
+        """A name, spanning its own spelling."""
+        return n.NameRef(
+            str(token),
+            span=Span(
+                source_name=self._source_name,
+                start=int(token.start_pos or 0),
+                end=int(token.end_pos or 0),
+                line=int(token.line or 0) + self._line_offset,
+                column=int(token.column or 0),
+            ),
         )
 
     # --- game-level items ---
@@ -1407,9 +1420,9 @@ class _Builder(Transformer[Token, n.Game]):
         return tuple(str(x) for x in c)
 
     def rotate_stmt(self, meta: Meta, c: list[object]) -> n.RotateStmt:
-        assert isinstance(c[1], tuple)
+        assert isinstance(c[0], Token) and isinstance(c[1], tuple)
         return n.RotateStmt(
-            target=n.NameRef(name=str(c[0]), span=self._span(meta)),
+            target=self._name(c[0]),
             values=c[1],
             span=self._span(meta),
         )
@@ -1526,8 +1539,9 @@ class _Builder(Transformer[Token, n.Game]):
         )
 
     def lvalue(self, meta: Meta, c: list[object]) -> _Lvalue:
+        assert isinstance(c[0], Token)
         index = _as_expr(c[1]) if len(c) > 1 and c[1] is not None else None
-        return _Lvalue(name=str(c[0]), index=index)
+        return _Lvalue(target=self._name(c[0]), index=index)
 
     def assign_op(self, meta: Meta, c: list[Token]) -> str:
         return str(c[0])
@@ -1535,7 +1549,7 @@ class _Builder(Transformer[Token, n.Game]):
     def assign_stmt(self, meta: Meta, c: list[object]) -> n.AssignStmt:
         assert isinstance(c[0], _Lvalue)
         return n.AssignStmt(
-            target=n.NameRef(name=c[0].name, span=self._span(meta)),
+            target=c[0].target,
             index=c[0].index,  # type: ignore[arg-type]
             op=str(c[1]),
             value=_as_expr(c[2]),
@@ -2055,7 +2069,8 @@ class _Builder(Transformer[Token, n.Game]):
         return _as_expr(c[0])
 
     def zone_expr(self, meta: Meta, c: list[object]) -> object:
-        base: object = n.NameRef(str(c[0]), span=self._span(meta))
+        assert isinstance(c[0], Token)
+        base: object = self._name(c[0])
         if len(c) > 1 and c[1] is not None:
             return n.Subscript(obj=base, index=_as_expr(c[1]), span=self._span(meta))  # type: ignore[arg-type]
         return base
