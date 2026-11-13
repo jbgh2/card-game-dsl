@@ -16,13 +16,17 @@ property:        a word written where the grammar accepts a keyword it nearly
                  Misses carried as data (`Diagnostic.near_misses`) and
                  rendered as the one `did you mean` clause: by the parser
                  where the text does not derive, every keyword offered
-                 getting the file past that refusal; by the checker's
+                 getting the file past that refusal with the refusal told
+                 next standing after the word; by the checker's
                  unresolved-name refusal where it derives, every keyword
                  offered giving text that parses with the keyword read as
-                 itself, and the refusal told as a misspelled keyword where a
-                 keyword is its first Near Miss. A word whose keyword reading
-                 does not get past, does not derive, or derives only as a
-                 name is offered no keyword.
+                 itself, ranked after a declared name it ties with, and the
+                 refusal told as a misspelled keyword where a keyword is its
+                 first Near Miss. A word whose keyword reading does not get
+                 past, does not derive, or derives only as a name is offered
+                 no keyword. Either search costs a bounded count of parses
+                 whatever the file's size (`cardlang.parse.SLIP_PARSES`,
+                 `cardlang.parse.KEYWORD_LOOKUPS`).
 domain:          two grids. Block items: every element of a repetition in the
                  compiled grammar whose first words include a keyword, crossed
                  with every keyword spelling that may begin an item there,
@@ -43,10 +47,15 @@ domain:          two grids. Block items: every element of a repetition in the
                  slot, the clause heads of one production's fixed sequence,
                  the slips offered nothing at the parse, the names offered no
                  keyword at the checker (`_NOT_OFFERED_AS_A_NAME`), the code
-                 a declared name nearer than the keyword keeps, the two
-                 issue witnesses in `docs/games/hearts.cardlang` and one in a
-                 Markdown game, and the slips another site refuses or the
-                 look-back does not reach, each a strict xfail. The
+                 a declared name nearer than the keyword or tying with it
+                 keeps, the two issue witnesses in `docs/games/hearts.cardlang`
+                 and one in a Markdown game, the corpus slips the review
+                 measured (`_CORPUS_SLIPS`, `_UNREACHED_CORPUS_SLIPS`), the
+                 counts of parses on its slow inputs (`_SYNTAX_ERRORS`,
+                 `_UNRESOLVED`), and the slips another site refuses or the
+                 look-back does not reach, each a strict xfail. A word the
+                 text writes more than once is a name the designer means
+                 and is never searched (`cardlang.parse._written_once`). The
                  productions only a library file reaches hold no name
                  position (`test_a_library_reaches_no_name_position_a_game_file_does_not`),
                  so the game-file sentences reach every one.
@@ -69,7 +78,10 @@ does not prove:  that a position is offered in every sentence holding it: a
                  whose reading depends on the words after it in a longer
                  sentence is outside what the cell runs. Nor that the text
                  checks once the keyword is written, which a game whose other
-                 words are clean shows only for the hearts witnesses.
+                 words are clean shows only for the hearts witnesses. Nor
+                 that a bound costs no offer: a count bound holds on every
+                 input, but which slips lie past it is measured only on the
+                 inputs named here.
 """
 
 from __future__ import annotations
@@ -77,6 +89,7 @@ from __future__ import annotations
 import re
 import shutil
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -85,9 +98,16 @@ import pytest
 from lark.exceptions import UnexpectedInput
 from lark.grammar import NonTerminal, Symbol, Terminal
 
-from cardlang import libraries, parse
+from cardlang import libraries, parse, pipeline
 from cardlang.diagnostic_codes import Code
-from cardlang.diagnostics import NEAR_MISS_CUTOFF, Diagnostic, DiagnosticError, Span, resemblance
+from cardlang.diagnostics import (
+    NEAR_MISS_CUTOFF,
+    NEAR_MISS_LIMIT,
+    Diagnostic,
+    DiagnosticError,
+    Span,
+    resemblance,
+)
 from cardlang.pipeline import check_dsl, check_markdown, check_source
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -528,7 +548,7 @@ def test_a_keyword_nearer_than_a_declared_name_is_told_as_a_misspelled_keyword()
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
-    reason="issue #TBD-keyword: a call's unknown function is refused with no keyword offered",
+    reason="issue #1129: a call's unknown function is refused with no keyword offered",
 )
 def test_a_slip_read_as_a_call_is_offered_the_keyword() -> None:
     game, at = _in_the_clean_host(
@@ -552,7 +572,7 @@ def test_a_slip_in_a_markdown_game_is_offered_the_keyword() -> None:
     strict=True,
     raises=AssertionError,
     reason=(
-        "issue #TBD-keyword: the look-back starts at the items the parser was "
+        "issue #1129: the look-back starts at the items the parser was "
         "scanning, which begin after an index the slip is followed by"
     ),
 )
@@ -565,7 +585,7 @@ def test_a_slip_followed_by_an_index_is_offered_the_keyword() -> None:
     strict=True,
     raises=AssertionError,
     reason=(
-        "issue #TBD-keyword: a word after a produces arm list is read as one "
+        "issue #1129: a word after a produces arm list is read as one "
         "more arm, refused as an unknown outcome with no keyword offered"
     ),
 )
@@ -584,8 +604,8 @@ def test_a_slip_after_a_produces_arm_list_is_offered_the_keyword() -> None:
     strict=True,
     raises=AssertionError,
     reason=(
-        "issue #TBD-keyword: a family library's text is not the text resolve "
-        "is handed, so a slip in it is offered no keyword"
+        "issue #1129: a slip in a family library is refused by the library "
+        "contract's check of what the library reads, which offers no keyword"
     ),
 )
 def test_a_slip_inside_a_family_library_is_offered_the_keyword(
@@ -616,10 +636,214 @@ def test_a_name_in_library_text_reads_no_game_text() -> None:
     `cardlang.parse.keywords_in_place_of`."""
     text = _GAME.replace(_HOLE, "deal som cards from deck to each hand")
     at = text.index("som")
+    lookups = parse.KeywordLookups(parse.SourceText("probe.cardlang", text))
     elsewhere = Span("library.cardlang", at, at + 3, 1, 1)
-    assert parse.keywords_in_place_of(parse.SourceText("probe.cardlang", text), elsewhere) == ()
+    assert parse.keywords_in_place_of(lookups, elsewhere) == ()
     here = Span("probe.cardlang", at, at + 3, 1, 1)
-    assert parse.keywords_in_place_of(parse.SourceText("probe.cardlang", text), here) == ("some",)
+    assert parse.keywords_in_place_of(lookups, here) == ("some",)
+
+
+# (the corpus game, its line, the keyword slipped and the slip)
+_CORPUS_SLIPS: dict[str, tuple[str, str, str, str]] = {
+    **{
+        f"tic-tac-toe `{slip}`": ("tic-tac-toe", "if any line in lines(3)", "any", slip)
+        for slip in ("ay", "anny", "ayn", "axy", "anys")
+    },
+    "nine-mens-morris `nt`": ("nine-mens-morris", "all cells where (not mine(cell, p))", "not", "nt"),
+}
+
+
+@pytest.mark.parametrize("probe", sorted(_CORPUS_SLIPS))
+def test_a_slip_before_a_word_the_keyword_resembles_is_the_one_offered(probe: str) -> None:
+    """The word after the slip nearly spells a keyword too (`line` and
+    `mine`, `in`), and is written elsewhere in the file: the refusal stands
+    on the slip."""
+    game, line, keyword, slip = _CORPUS_SLIPS[probe]
+    text = (_ROOT / "docs" / "games" / f"{game}.cardlang").read_text()
+    assert line in text
+    slipped = text.replace(line, line.replace(keyword, slip, 1), 1)
+    _assert_offered_at("start", slipped, text.index(line) + line.index(keyword), slip, keyword)
+
+
+def test_an_offer_whose_next_refusal_stands_before_it_is_not_made() -> None:
+    """`line`, written once, nearly spells `in`, which written in its place
+    parses past it, but the refusal told then stands on `ay` before it, so
+    the slip offered is `ay`. red under: `shown` defaulting to False in
+    `cardlang.parse._past_with`."""
+    game, at = _in_the_clean_host("if @@ay line in deck where true { }")
+    _assert_offered_at("start", game, at, "ay", "any")
+
+
+# (the corpus game, its line, the keyword slipped and the slip)
+_UNREACHED_CORPUS_SLIPS = {
+    "big-two `numer`, read as a card literal": (
+        "big-two", "trick_lead := number of cards in trick_pile", "number", "numer"),
+    "go-fish `numer`, refused at `card`": (
+        "go-fish", "let target_holds = number of cards in hand[target] where", "number", "numer"),
+}
+
+
+@pytest.mark.parametrize("probe", sorted(_UNREACHED_CORPUS_SLIPS))
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "issue #1129: `numer of cards` reads as a card literal, refused as an "
+        "unknown rank in big-two and at `card` in go-fish, where the look-back "
+        "does not reach the slip; neither offers `number`"
+    ),
+)
+def test_a_slip_read_as_a_card_literal_is_offered_the_keyword(probe: str) -> None:
+    game, line, keyword, slip = _UNREACHED_CORPUS_SLIPS[probe]
+    text = (_ROOT / "docs" / "games" / f"{game}.cardlang").read_text()
+    assert line in text
+    slipped = text.replace(line, line.replace(keyword, slip, 1), 1)
+    with pytest.raises(DiagnosticError) as refused:
+        check_dsl(slipped, f"{game}.cardlang")
+    told = refused.value.diagnostic
+    assert told.span is not None and told.span.start == text.index(line) + line.index(keyword)
+    assert keyword in told.near_misses, told.format()
+
+
+def _hearts_declaring(name: str) -> str:
+    text = (_ROOT / "docs/games/hearts.cardlang").read_text()
+    state = "    cumulative_score[player] : Integer = 0\n"
+    assert state in text
+    return text.replace(state, f"{state}    {name} : Integer = 0\n", 1)
+
+
+@pytest.mark.parametrize("declared", ["val", "ala"])
+def test_a_declared_name_tying_with_the_keyword_ranks_first_and_keeps_the_code(
+    declared: str,
+) -> None:
+    """`al` is as near `all` as it is `val` or `ala`: the name the designer
+    declared ranks first, and the refusal keeps the unknown-name code.
+    red under: `cardlang.diagnostics.near_misses` sorting a keyword before
+    a declared name it ties with."""
+    written = _hearts_declaring(declared)
+    check_dsl(written, "hearts.cardlang")
+    slipped = written.replace("move all cards to deck", "move al cards to deck", 1)
+    with pytest.raises(DiagnosticError) as refused:
+        check_dsl(slipped, "hearts.cardlang")
+    told = refused.value.diagnostic
+    assert told.near_misses == (declared, "all", "A"), told.format()
+    assert told.code is Code.UNKNOWN_NAME, told.format()
+
+
+# --------------------------------------------------------------------------
+# What a refusal's search costs: a count of parses, bounded whatever the
+# file's size and wherever the refusal stands.
+# --------------------------------------------------------------------------
+
+
+def _with(game: str, change: Callable[[str], str]) -> Callable[[], str]:
+    return lambda: change((_ROOT / "docs" / "games" / f"{game}.cardlang").read_text())
+
+
+def _before_the_game_closes(text: str) -> str:
+    """`  )` on a line of its own before the `}` closing the game block."""
+    opened = re.search(r"^game \w+ \{", text, re.M)
+    assert opened is not None
+    lbrace, rbrace = parse._brace_terminals()
+    depth = 1
+    for token in parse._scan(text).tokens:
+        if (token.start_pos or 0) < opened.end():
+            continue
+        depth += {lbrace: 1, rbrace: -1}.get(token.type, 0)
+        if depth == 0:
+            at = int(token.start_pos or 0)
+            return text[:at] + "  )\n" + text[at:]
+    raise AssertionError("the game block never closes")
+
+
+def _renamed(*declarations: str) -> Callable[[str], str]:
+    """Each state variable's declaration renamed, its uses left."""
+
+    def rename(text: str) -> str:
+        for name in declarations:
+            declared = re.search(rf"^(\s*){name}(\s*):", text, re.M)
+            assert declared is not None, name
+            text = text[: declared.start(2) - len(name)] + name + "_x" + text[declared.start(2) :]
+        return text
+
+    return rename
+
+
+# The review's inputs: a syntax error whose search reads words a block wide
+# where it is not bounded, and declarations whose many uses become unresolved.
+_SYNTAX_ERRORS: dict[str, Callable[[], str]] = {
+    **{f"{g}: `)` before the game closes": _with(g, _before_the_game_closes)
+       for g in ("canasta", "doppelkopf", "tichu")},
+    "canasta: `)` at the end": _with("canasta", lambda t: t + ")\n"),
+    "canasta: `zz` after the last function": _with(
+        "canasta", lambda t: t[: t.rindex("\nfunction ")] + "\nzz" + t[t.rindex("\nfunction ") :]),
+    "a statement of slips": lambda: _GAME.replace(_HOLE, "let n = al aany numer ssum players where x"),
+}
+_UNRESOLVED: dict[str, Callable[[], str]] = {
+    "canasta: `meld_rank` renamed": _with("canasta", _renamed("meld_rank")),
+    "tichu: `out_first` renamed": _with("tichu", _renamed("out_first")),
+    "tichu: three renamed": _with("tichu", _renamed("out_first", "quiet", "leader")),
+    "hearts: names nearly spelling keywords": _with(
+        "hearts", lambda t: t.replace("deal 13 cards", "deal som cards", 1).replace(
+            "move all cards to deck", "move al cards to deck", 1).replace(
+            "move all cards from trick_pile", "move alll cards from trick_pile", 1).replace(
+            "    shuffle deck\n", "    move sme cards from deck to deck\n", 1)),
+}
+
+
+def _parses_told(text: str, monkeypatch: pytest.MonkeyPatch) -> tuple[int, Diagnostic]:
+    """The parses `check_dsl` makes refusing `text`, and its first refusal."""
+    check_dsl((_ROOT / "docs/games/hearts.cardlang").read_text(), "warm.cardlang")
+    parse._parse_text_cached.cache_clear()
+    parse._scan.cache_clear()
+    pipeline._check.cache_clear()
+    made = [0]
+    for lark in (parse._parser(), parse._diagnostic_parser()):
+        real = lark.parse
+
+        def counted(*args: object, _real: Callable[..., object] = real, **kwargs: object) -> object:
+            made[0] += 1
+            return _real(*args, **kwargs)
+
+        monkeypatch.setattr(lark, "parse", counted)
+    with pytest.raises(DiagnosticError) as refused:
+        check_dsl(text, "probe.cardlang")
+    monkeypatch.undo()
+    return made[0], refused.value.diagnostic
+
+
+@pytest.mark.parametrize("case", sorted(_SYNTAX_ERRORS))
+def test_a_syntax_error_searches_a_bounded_number_of_parses(
+    case: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two parses refuse the text, the main grammar's and the composed one,
+    and the search for a misspelled keyword makes at most `SLIP_PARSES`
+    more; on the review's inputs, whose words before the refusal are
+    written elsewhere or nearly spell no keyword, it makes none. red under:
+    for the count of none, `cardlang.parse._read_before` reading every word
+    back to the earliest Earley item, unbounded by `_in_a_clause`,
+    `SLIP_WORDS` and `_written_once`; for the bound, that walk with
+    `SLIP_PARSES` unbounded too."""
+    made, told = _parses_told(_SYNTAX_ERRORS[case](), monkeypatch)
+    assert made <= 2 + parse.SLIP_PARSES, (made, told.format())
+    if case != "a statement of slips":
+        assert made == 2, (made, told.format())
+
+
+@pytest.mark.parametrize("case", sorted(_UNRESOLVED))
+def test_unresolved_names_look_up_a_bounded_number_of_keywords(
+    case: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One parse derives the text, and the unresolved names' keyword lookups
+    make at most `KEYWORD_LOOKUPS` times one parse at the word and one per
+    keyword tried; a name the text spells more than once looks up nothing.
+    red under: `cardlang.parse.keywords_in_place_of` ignoring
+    `KeywordLookups.left` and `_written_once`."""
+    made, told = _parses_told(_UNRESOLVED[case](), monkeypatch)
+    bound = 1 + parse.KEYWORD_LOOKUPS * (1 + NEAR_MISS_LIMIT)
+    assert made <= bound, (made, told.format())
+    if case != "hearts: names nearly spelling keywords":
+        assert made == 1, (made, told.format())
 
 
 # --------------------------------------------------------------------------
@@ -954,10 +1178,17 @@ def _assert_told_the_keyword(text: str, at: int, slip: str, meant: str) -> Diagn
 
 NAME_CELLS = _name_cells()
 
-_QUERY_NOUN = "issue #TBD-keyword: a query noun's refusal stands on its query, not on the noun"
-_AFTER_A_RANKING = (
-    "issue #TBD-keyword: a word after a ranking list is read as one more rank, "
-    "refused at the clause, not at the word"
+_QUERY_NOUN = (
+    "issue #1129: a query noun's refusal, an unknown position domain, offers the "
+    "noun but stands on the query, not on the noun"
+)
+_USES_AFTER_A_RANKING = (
+    "issue #1129: a word after a ranking list is read as one more entry of it, "
+    "and the list's refusal names its first unknown entry, never the slip"
+)
+_SUIT_AFTER_A_RANKING = (
+    "issue #1129: a word after a ranking list is read as one more entry of it and "
+    "the clause after it as a repeated `ranking:`; no refusal stands on the slip"
 )
 # The positions whose refusal another site of the checker tells, by keyword
 # and position.
@@ -967,13 +1198,13 @@ _TOLD_ELSEWHERE: dict[tuple[str, str], str] = {
         for noun in ("player", "players", "rank", "ranks", "suit", "suits", "team", "teams")
     },
     ("else", "card_points_table.3~1"): (
-        "issue #TBD-keyword: a card_points key is refused as an unknown rank, "
-        "which offers no keyword"
+        "issue #1129: a card_points key is refused as an unknown rank, which "
+        "offers no keyword"
     ),
-    ("suit", "__game_star_4.1~1"): _AFTER_A_RANKING,
-    ("suit", "__game_star_4.1~2"): _AFTER_A_RANKING,
-    ("uses", "__game_star_4.1~1"): _AFTER_A_RANKING,
-    ("uses", "__game_star_4.1~2"): _AFTER_A_RANKING,
+    ("suit", "__game_star_4.1~1"): _SUIT_AFTER_A_RANKING,
+    ("suit", "__game_star_4.1~2"): _SUIT_AFTER_A_RANKING,
+    ("uses", "__game_star_4.1~1"): _USES_AFTER_A_RANKING,
+    ("uses", "__game_star_4.1~2"): _USES_AFTER_A_RANKING,
 }
 
 

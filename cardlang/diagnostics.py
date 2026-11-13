@@ -19,9 +19,10 @@ Establishes:  `resemblance` is the one measure of how alike two spellings
               that set's Near Misses as data (`Diagnostic.near_misses`), as a
               parse refusal of a misspelled keyword carries the keywords the
               grammar accepts in its place (`cardlang.parse`); keywords handed
-              to it rank among the set's by the same measure, and a refusal
-              whose first Near Miss is a keyword the set does not hold is told
-              as a misspelled keyword;
+              to it rank among the set's in that one ranking, a declared name
+              before a keyword it ties with, and a refusal whose first Near
+              Miss is a keyword the set does not hold is told as a misspelled
+              keyword, the call site's code standing otherwise;
               `Diagnostic.format` is the one place the `did you mean` clause
               is worded. Every diagnostic carries its Diagnostic Code
               (`cardlang.diagnostic_codes.Code`), which `format` never shows;
@@ -178,14 +179,21 @@ def resemblance(typed: str, declared: str) -> float:
     return SequenceMatcher(None, typed.casefold(), declared.casefold()).ratio()
 
 
-def near_misses(spelled: str, among: Iterable[str]) -> tuple[str, ...]:
-    """The declared names in `among` that `spelled` nearly spells: at most
-    `NEAR_MISS_LIMIT`, most alike first and alphabetical among equals, each
+def near_misses(
+    spelled: str, among: Iterable[str], keywords: Iterable[str] = ()
+) -> tuple[str, ...]:
+    """The declared names in `among`, and the `keywords` of the language,
+    that `spelled` nearly spells: at most `NEAR_MISS_LIMIT`, most alike
+    first, a declared name before a keyword it ties with (a name the
+    designer declared is the nearer guess), alphabetical among equals, each
     at least `NEAR_MISS_CUTOFF` alike, and never `spelled` itself."""
+    declared = set(among)
     scored = sorted(
-        (-resemblance(spelled, name), name) for name in set(among) if name != spelled
+        (-resemblance(spelled, name), name not in declared, name)
+        for name in declared | set(keywords)
+        if name != spelled
     )
-    return tuple(name for score, name in scored if -score >= NEAR_MISS_CUTOFF)[:NEAR_MISS_LIMIT]
+    return tuple(name for score, _kw, name in scored if -score >= NEAR_MISS_CUTOFF)[:NEAR_MISS_LIMIT]
 
 
 def listed(words: Sequence[str], conjunction: str = "or") -> str:
@@ -366,18 +374,16 @@ class DiagnosticBag:
         spells it where the refusal stands (a numeric rank in a string
         position is written quoted). `keywords` are the keywords the grammar
         accepts where `spelled` stands that it nearly spells, ranked with the
-        set's by the one measure; where one the set does not also hold ranks
+        set's by `near_misses`; where one the set does not also hold ranks
         first, the refusal is told as a misspelled keyword."""
         self.error(
             message, span, code=code, route=route, for_game=for_game, stands_on=stands_on
         )
-        near = near_misses(spelled, among)
+        held = frozenset(among)
+        offered = frozenset(keywords) - held
+        near = near_misses(spelled, held, offered)
         if written is not None:
-            near = tuple(written(name) for name in near)
-        offered = frozenset(keywords) - frozenset(near)
-        if offered:
-            ranked = sorted({*near, *offered}, key=lambda w: (-resemblance(spelled, w), w))
-            near = tuple(ranked)[:NEAR_MISS_LIMIT]
+            near = tuple(name if name in offered else written(name) for name in near)
         told = Code.MISSPELLED_KEYWORD if near[:1] and near[0] in offered else code
         self.items[-1] = replace(self.items[-1], near_misses=near, code=told)
 

@@ -36,12 +36,19 @@ Establishes:  a syntactically valid frozen AST; every node carries a
               the word ending the item before those the parser had in
               progress at the failure -- is refused standing on that word, its
               Near Misses those keywords that, written there, carry the parse
-              past the failure (``_misspelled_keyword``). For a word the
-              grammar derives as a name, ``keywords_in_place_of`` gives a
-              later pass the keywords it nearly spells that the grammar
-              accepts there and derives read as those keywords. Both Derived
-              and Pinned, by tests/test_keyword_near_misses.py, since which
-              words a position takes is the grammar's and no type holds it.
+              past the failure with the next refusal told after the word
+              (``_misspelled_keyword``). For a word the grammar derives as a
+              name, ``keywords_in_place_of`` gives a later pass the keywords
+              it nearly spells that the grammar accepts there and derives
+              read as those keywords. Both search only words the text writes
+              once, and both are bounded by a count of parses, whatever the
+              file's size: a refusal's search makes at most ``SLIP_PARSES``
+              and reads at most ``SLIP_WORDS`` words of the statement or
+              clause it is in, and a check looks up at most
+              ``KEYWORD_LOOKUPS`` names; a slip past a bound is refused as it
+              would be with no search. Derived and Pinned, by
+              tests/test_keyword_near_misses.py, since which words a position
+              takes is the grammar's and no type holds it.
               No semantic claims —
               names carry no
               [[ref-kind]] yet (``NameRef.ref_kind`` is ``None``) and
@@ -127,6 +134,7 @@ from cardlang.diagnostics import (
     Severity,
     Span,
     Told,
+    NEAR_MISS_LIMIT,
     near_misses,
     resemblance,
 )
@@ -2811,66 +2819,149 @@ def _is_word(token: Token) -> bool:
     return _WORD_RUN.fullmatch(value) is not None and value[:1].isalpha()
 
 
-def _refused_at(text: str, start: str) -> int | None:
-    """The offset the main grammar refuses `text` at, or None where it
-    derives it."""
-    try:
-        _parser().parse(text, start=start)
-    except UnexpectedInput as exc:
-        reported = getattr(exc, "pos_in_stream", None)
-        return len(text) if reported is None or reported < 0 else int(reported)
-    return None
+#: The most parses one refusal's search for a misspelled keyword makes past
+#: the parse that refused: one to read what the grammar accepts at a word,
+#: one for each keyword tried in its place. A designed bound, so the search
+#: costs the same whatever the file's size: a slip it does not reach within
+#: the bound is refused as the parser refused it.
+SLIP_PARSES = 6
+
+#: The most words before a refusal the search tries as the slip, nearest
+#: first. A slip read as a name ends the item before the failure a few words
+#: back, never a block back.
+SLIP_WORDS = 4
+
+
+class _Spent(Exception):
+    """A search's parses are spent."""
+
+
+@dataclass(slots=True)
+class _Parses:
+    """The parses left to one search, and the one door every parse of it
+    passes through."""
+
+    left: int
+
+    def parse(self, text: str, start: str) -> Tree[Token] | UnexpectedInput:
+        """The main grammar's tree of `text`, or its refusal."""
+        if self.left <= 0:
+            raise _Spent
+        self.left -= 1
+        try:
+            tree = _parser().parse(text, start=start)
+        except UnexpectedInput as refused:
+            return refused
+        assert isinstance(tree, Tree)
+        return tree
+
+
+def _offset_of(refused: UnexpectedInput, text: str) -> int:
+    reported = getattr(refused, "pos_in_stream", None)
+    return len(text) if reported is None or reported < 0 else int(reported)
 
 
 def _past_with(
-    text: str, start: str, word: Token, past: int, names: Iterable[object]
+    text: str,
+    start: str,
+    word: Token,
+    past: int,
+    names: Iterable[object],
+    parses: _Parses,
+    shown: bool = True,
 ) -> tuple[str, ...]:
     """The keywords among `names` that `word` nearly spells and that, written
-    in its place, carry the main grammar's parse beyond offset `past`.
+    in its place, carry the main grammar's parse beyond offset `past` --
+    and, where `shown`, whose next refusal, as this module would tell it,
+    stands after the word.
 
     A keyword whose reading is refused at the same place is no fix for the
-    refusal, so it is not offered; nor is a spelling only a twin of the
-    Diagnostic Grammar takes there, which the main grammar refuses."""
+    refusal, so it is not offered; nor is one whose next refusal would be
+    told standing on the word or before it, which sends the designer back;
+    nor a spelling only a twin of the Diagnostic Grammar takes there, which
+    the main grammar refuses."""
     begin, end = int(word.start_pos or 0), int(word.end_pos or 0)
     offered: list[str] = []
     for keyword in near_misses(str(word.value), _words_of(names)):
-        refused = _refused_at(text[:begin] + keyword + text[end:], start)
-        if refused is None or refused > past + len(keyword) - (end - begin):
+        fixed = text[:begin] + keyword + text[end:]
+        refused = parses.parse(fixed, start)
+        if not isinstance(refused, UnexpectedInput):
             offered.append(keyword)
+            continue
+        at = _offset_of(refused, fixed)
+        if at <= past + len(keyword) - (end - begin):
+            continue
+        if shown and _told_by_then(refused, fixed, start, at, begin, parses):
+            continue
+        offered.append(keyword)
     return tuple(offered)
 
 
-def _accepted_at(text: str, start: str, word: Token) -> tuple[object, ...]:
+def _told_by_then(
+    refused: UnexpectedInput, text: str, start: str, pos: int, by: int, parses: _Parses
+) -> bool:
+    """Whether a refusal of `text` at `pos` would be told standing on a word
+    that begins at offset `by` or before it, the look-back's offers judged
+    by where the parse is refused alone."""
+    for word in _read_before(refused, _scan(text).tokens, pos):
+        if int(word.start_pos or 0) > by:
+            continue
+        names = _accepted_at(text, start, word, parses)
+        if _past_with(text, start, word, pos, names, parses, shown=False):
+            return True
+    return False
+
+
+def _accepted_at(text: str, start: str, word: Token, parses: _Parses) -> tuple[object, ...]:
     """The terminals the main grammar accepts where `word` stands, for a word
-    that nearly spells some keyword; none for any other."""
+    that nearly spells some keyword; none for any other. The text before
+    the word is a prefix the grammar accepts, so the parse is refused at the
+    word's offset."""
     if not near_misses(str(word.value), _keyword_words()):
         return ()
-    try:
-        _parser().parse(text[: word.start_pos] + "\x00", start=start)
-    except UnexpectedInput as at_word:
-        if getattr(at_word, "pos_in_stream", None) != word.start_pos:
-            return ()
-        return tuple(getattr(at_word, "allowed", None) or getattr(at_word, "expected", None) or ())
-    return ()
+    at_word = parses.parse(text[: word.start_pos] + "\x00", start)
+    if not isinstance(at_word, UnexpectedInput):
+        return ()
+    return tuple(getattr(at_word, "allowed", None) or getattr(at_word, "expected", None) or ())
+
+
+def _in_a_clause(item: object) -> bool:
+    """Whether an Earley item is part of the statement or clause the parser
+    is in, not the block holding it: it has read no `{` and it is not a
+    repetition taking its next element."""
+    rule = getattr(item, "rule", None)
+    ptr = getattr(item, "ptr", None)
+    if rule is None or not isinstance(ptr, int):
+        return False
+    lbrace, _ = _brace_terminals()
+    read = rule.expansion[:ptr]
+    repeating = bool(read) and read[0].name == rule.origin.name
+    return not repeating and all(symbol.name != lbrace for symbol in read)
 
 
 def _read_before(exc: UnexpectedInput, tokens: tuple[Token, ...], pos: int) -> list[Token]:
     """The words before a refusal at `pos` the parser may have read as a
-    name, nearest first: the word just before it, then those inside the
-    items it had in progress there (the Earley items the refusal reports,
-    from the earliest one's start) and the word that ends the item before
-    them, which a slip read as a name completes. Past the word just before
-    the refusal, a word that spells a keyword is the keyword written, not a
-    slip."""
+    name, nearest first and at most `SLIP_WORDS`: the word just before it,
+    then those inside the statement or clause it was in there (the Earley
+    items the refusal reports that ``_in_a_clause``, from the earliest
+    one's start) and the word that ends the item before them, which a slip
+    read as a name completes. Past the word just before the refusal, a word
+    that spells a keyword is the keyword written, not a slip."""
     before = [t for t in tokens if (t.end_pos or 0) <= pos]
     items = getattr(exc, "considered_tokens", None) or ()
-    starts = [s for s in (getattr(item, "start", None) for item in items) if isinstance(s, int)]
+    starts = [int(item.start) for item in items if _in_a_clause(item)]
     earliest = min(starts, default=pos)
     inside = [t for t in before[:-1] if (t.start_pos or 0) >= earliest]
     ending = [t for t in before[:-1] if (t.end_pos or 0) <= earliest][-1:]
     keywords = _keyword_words()
     farther = [t for t in reversed(ending + inside) if str(t.value) not in keywords]
-    return [t for t in (*before[-1:], *farther) if _is_word(t)]
+    return [t for t in (*before[-1:], *farther) if _is_word(t) and _written_once(tokens, t)][:SLIP_WORDS]
+
+
+def _written_once(tokens: tuple[Token, ...], word: Token) -> bool:
+    """Whether the text spells `word` nowhere else: a word written twice is a
+    name the designer means, not a slip, and is never searched."""
+    return sum(1 for t in tokens if t.value == word.value) == 1
 
 
 def _misspelled_keyword(
@@ -2884,19 +2975,24 @@ def _misspelled_keyword(
     and refused what follows (`shufle deck` is refused at `deck`, `let n =
     al players where x` at `where`; ``_read_before``). Either is offered the
     keywords the grammar accepts in its place that it nearly spells and that
-    carry the parse past the refusal."""
+    carry the parse past the refusal. The search makes at most
+    `SLIP_PARSES` parses."""
+    parses = _Parses(SLIP_PARSES)
     tokens = _scan(text).tokens
-    after = [t for t in tokens if (t.start_pos or 0) >= pos]
-    if after and after[0].start_pos == pos and _is_word(after[0]):
-        following = int(after[1].start_pos or 0) if len(after) > 1 else len(text)
-        names = getattr(exc, "allowed", None) or getattr(exc, "expected", None) or ()
-        offered = _past_with(text, start, after[0], following, names)
-        if offered:
-            return after[0], offered
-    for word in _read_before(exc, tokens, pos):
-        offered = _past_with(text, start, word, pos, _accepted_at(text, start, word))
-        if offered:
-            return word, offered
+    try:
+        after = [t for t in tokens if (t.start_pos or 0) >= pos]
+        if after and after[0].start_pos == pos and _is_word(after[0]) and _written_once(tokens, after[0]):
+            following = int(after[1].start_pos or 0) if len(after) > 1 else len(text)
+            names = getattr(exc, "allowed", None) or getattr(exc, "expected", None) or ()
+            offered = _past_with(text, start, after[0], following, names, parses)
+            if offered:
+                return after[0], offered
+        for word in _read_before(exc, tokens, pos):
+            offered = _past_with(text, start, word, pos, _accepted_at(text, start, word, parses), parses)
+            if offered:
+                return word, offered
+    except _Spent:
+        return None
     return None
 
 
@@ -2911,33 +3007,56 @@ class SourceText:
     start: str = "start"
 
 
-def keywords_in_place_of(source: SourceText | None, span: Span | None) -> tuple[str, ...]:
+#: The most unresolved names one check looks up keywords for. A designed
+#: bound, so a check costs the same parses whatever the number of names it
+#: refuses: past it, a name is refused with its declared Near Misses alone.
+KEYWORD_LOOKUPS = 3
+
+
+@dataclass(slots=True)
+class KeywordLookups:
+    """The keyword lookups one check has left in the text it was parsed
+    from (`KEYWORD_LOOKUPS`), each at most one parse to read what the
+    grammar accepts at a word and one per keyword tried there."""
+
+    source: SourceText
+    left: int = KEYWORD_LOOKUPS
+
+
+def keywords_in_place_of(lookups: KeywordLookups | None, span: Span | None) -> tuple[str, ...]:
     """The keywords the grammar accepts where the word at `span` stands in
-    `source`, that the word nearly spells and that, written in its place,
-    give text the grammar derives reading them as those keywords; none for a
-    span outside `source`."""
-    if source is None or span is None or span.source_name != source.name:
+    the looked-up text, that the word nearly spells and that, written in its
+    place, give text the grammar derives reading them as those keywords;
+    none for a span outside the text, for a word the text spells elsewhere
+    (``_written_once``), and once the lookups are spent. A word nearly
+    spelling no keyword costs no lookup."""
+    if lookups is None or span is None or span.source_name != lookups.source.name:
         return ()
+    source = lookups.source
     spelled = source.text[span.start : span.end]
     if _WORD_RUN.fullmatch(spelled) is None or not spelled[:1].isalpha():
         return ()
     word = Token("NAME", spelled, start_pos=span.start, end_pos=span.end)
+    if not near_misses(spelled, _keyword_words()) or lookups.left <= 0:
+        return ()
+    if not _written_once(_scan(source.text).tokens, word):
+        return ()
+    lookups.left -= 1
+    parses = _Parses(1 + NEAR_MISS_LIMIT)
     return tuple(
         keyword
-        for keyword in near_misses(spelled, _words_of(_accepted_at(source.text, source.start, word)))
-        if _derives_reading(keyword, source, span)
+        for keyword in near_misses(spelled, _words_of(_accepted_at(source.text, source.start, word, parses)))
+        if _derives_reading(keyword, source, span, parses)
     )
 
 
-def _derives_reading(keyword: str, source: SourceText, span: Span) -> bool:
+def _derives_reading(keyword: str, source: SourceText, span: Span, parses: _Parses) -> bool:
     """Whether the main grammar derives `source` with `keyword` in place of
     the word at `span`, reading it as that keyword rather than as a name:
     the tree keeps a token there only where a terminal that does not spell
     the keyword read it."""
-    text = source.text[: span.start] + keyword + source.text[span.end :]
-    try:
-        tree = _parser().parse(text, start=source.start)
-    except UnexpectedInput:
+    tree = parses.parse(source.text[: span.start] + keyword + source.text[span.end :], source.start)
+    if isinstance(tree, UnexpectedInput):
         return False
     read = [t for t in tree.scan_values(lambda v: isinstance(v, Token)) if t.start_pos == span.start]
     return all(keyword in _words_of([t.type]) for t in read)
@@ -3293,21 +3412,20 @@ def parse_to_tree(
     try:
         tree = _parser().parse(text, start=start)
     except UnexpectedInput as exc:
-        main_error, main_pos = _syntax_error(exc, text, source_name, line_offset, start)
         try:
             composed = _diagnostic_parser().parse(text, start=start)
         except UnexpectedInput as later:
-            later_error, later_pos = _syntax_error(later, text, source_name, line_offset, start)
-            raise DiagnosticError(
-                Told(later_error if later_pos > main_pos else main_error, author_of(start))
-            ) from exc
+            told = later if _offset_of(later, text) > _offset_of(exc, text) else exc
+            error = _syntax_error(told, text, source_name, line_offset, start)
+            raise DiagnosticError(Told(error, author_of(start))) from exc
         # Every twin's builder method raises, and `compare` raises on the
         # operators `COMP_OP` gains (tools.dead_surface.refusing_methods and
         # the operator goldens, pinned by tests/test_diagnostic_grammar.py); a
         # composed tree the builder accepts is a defect there, and the main
         # error still stands.
         _transform(_Builder(source_name, line_offset, text, author=author_of(start)), composed)
-        raise DiagnosticError(Told(main_error, author_of(start))) from exc
+        error = _syntax_error(exc, text, source_name, line_offset, start)
+        raise DiagnosticError(Told(error, author_of(start))) from exc
     assert isinstance(tree, Tree)
     return tree
 
@@ -3320,8 +3438,8 @@ def author_of(start: str) -> Author:
 
 def _syntax_error(
     exc: UnexpectedInput, text: str, source_name: str, line_offset: int, start: str
-) -> tuple[Diagnostic, int]:
-    """The designer's syntax error for ``exc``, and the offset it stands at.
+) -> Diagnostic:
+    """The designer's syntax error for ``exc``.
 
     The expectations are rendered through the MAIN grammar's terminal table
     whichever parser raised ``exc``: a terminal only the diagnostic grammar
@@ -3349,7 +3467,7 @@ def _syntax_error(
             int(word.column or 1),
         )
         message = f"syntax error: unexpected `{word.value}`"
-        return Diagnostic(Severity.ERROR, message, at, near_misses=offered, code=Code.MISSPELLED_KEYWORD), pos
+        return Diagnostic(Severity.ERROR, message, at, near_misses=offered, code=Code.MISSPELLED_KEYWORD)
     raw_line: int = _line_of(text, pos) if at_end else int(getattr(exc, "line", 1))
     column: int = (
         pos - text.rfind("\n", 0, pos) if at_end else int(getattr(exc, "column", 1))
@@ -3366,7 +3484,7 @@ def _syntax_error(
     # outranks a clause keyword's reminder of where its clause belongs.
     hint = _reserved_result_name_hint(exc, lexeme) or _parse_hint(text, pos, raw_line, start)
     message = f"syntax error: unexpected {lexeme}{structural}{expected}{hint}"
-    return Diagnostic(Severity.ERROR, message, span, code=Code.SYNTAX_ERROR), pos
+    return Diagnostic(Severity.ERROR, message, span, code=Code.SYNTAX_ERROR)
 
 
 def _transform(builder: _Builder, tree: Tree[Token]) -> object:

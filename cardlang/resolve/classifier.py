@@ -26,7 +26,7 @@ from cardlang.board_domains import LINE_NOUN
 from cardlang.builtins.functions import VALUE_NAMES
 from cardlang.primitives_block import walled_namespace_of
 from cardlang.diagnostics import DiagnosticBag, Span
-from cardlang.parse import SourceText, keywords_in_place_of
+from cardlang.parse import KeywordLookups, keywords_in_place_of
 from cardlang.domains import Role, role_names, role_of
 from cardlang.catalogue_pass import shape_labels
 from cardlang.runtime.values import content_noun
@@ -97,9 +97,10 @@ class _Categories:
     # The Scope Record a Checker Query asks for (`resolve(scopes=...)`),
     # filled by `_rewrite` at every node it classifies under; None otherwise.
     scopes: dict[n.NodeKey, NamesInScope] | None = None
-    # The text the game was parsed from (`resolve(source=...)`), which an
-    # unresolved name's refusal reads for the keywords it nearly spells.
-    source: SourceText | None = None
+    # The keyword lookups left in the text the game was parsed from
+    # (`resolve(source=...)`), which an unresolved name's refusal reads for
+    # the keywords it nearly spells; shared by the whole classification.
+    keywords: KeywordLookups | None = None
 
 
 @dataclass(frozen=True)
@@ -487,7 +488,7 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
                 ),
                 node.span,
                 code=Code.UNKNOWN_NAME,
-                keywords=keywords_in_place_of(cats.source, node.span),
+                keywords=keywords_in_place_of(cats.keywords, node.span),
             )
         return replace(node, ref_kind=kind)
     if isinstance(node, n.Produces):

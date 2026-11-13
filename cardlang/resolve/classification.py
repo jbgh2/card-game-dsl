@@ -24,8 +24,11 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
               also offers the keywords the grammar accepts where the name
               stands that it nearly spells and that, written there, derive
               read as those keywords (``cardlang.parse.keywords_in_place_of``),
-              ranked with the names by the one measure, and is told as a
-              misspelled keyword where a keyword ranks first. Held by Derived
+              ranked with the names by the one measure (a declared name
+              first on a tie), and is told as a misspelled keyword where a
+              keyword ranks first; the first ``cardlang.parse.KEYWORD_LOOKUPS`` names that
+              nearly spell a keyword are looked up, and a name past them is
+              refused with its declared Near Misses alone. Held by Derived
               and Pinned (tests/test_keyword_near_misses.py).
               Asked for one (``resolve(scopes=...)``), the pass fills the
               Scope Record: at every node the classifying walk visits, keyed by
@@ -45,7 +48,7 @@ from dataclasses import replace
 from cardlang.ast import nodes as n
 from cardlang.builtins.functions import BUILTIN_IMPLICIT_READS
 from cardlang.diagnostics import DiagnosticBag
-from cardlang.parse import SourceText
+from cardlang.parse import KeywordLookups, SourceText
 from cardlang.resolve.walk import _child_nodes, _walk
 from cardlang.resolve.slots import _NAME_SLOTS, _slot_root
 from cardlang.resolve.declared import _map_climb_rounds
@@ -73,7 +76,8 @@ def step(
     with the Scope Record."""
     # Deep name resolution: classify every bare name and validate calls,
     # card literals, and the rotate/winner targets.
-    cats = replace(_categories(game), refused_binders=refused_binders, scopes=scopes, source=source)
+    keywords = KeywordLookups(source) if source is not None else None
+    cats = replace(_categories(game), refused_binders=refused_binders, scopes=scopes, keywords=keywords)
     game = _classify_names(game, cats, bag)
     game = _stamp_follows_reads(game)
     return game, cats
