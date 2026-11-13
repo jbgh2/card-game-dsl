@@ -45,9 +45,10 @@ move, and the game author is who can act — so the file is where to look
 without the file being called illegal. Both carry the sentence they escaped
 and print it the way a compile diagnostic prints one.
 
-An exception outside those channels keeps its traceback. For the engine's own
-assertions that is right — they address the engine maintainer, and the
-traceback is what that reader needs.
+An exception outside those channels is an engine failure: it keeps its
+traceback, printed on stderr as Python prints it, since it addresses the
+engine maintainer and the traceback is what that reader needs, and it exits
+with a status of its own.
 
 A game that reaches its `max_length` ends there, a [[length-stop]], and is not
 a refusal: `demo` leads its summary with the stop, in the uniform-random voice,
@@ -62,10 +63,14 @@ it, which the sizing rule says it does not; 2 when the
 invocation cannot be carried out — an unreadable path, a seat the game does
 not seat, opponents that do not seat every other seat once, a saved game that
 cannot be resumed or saved, a game whose decisions the action space cannot
-number, a broken checkout, a refusal of the line's words. That last is told
+number, a broken checkout, a refusal of the line's words; 3 when the engine
+failed -- a refusal told to the engine, a leaked Owner Guard's, or an
+exception outside the typed channels. A refusal of the line's words is told
 by `_refuse` and leaves through argparse's own exit, `SystemExit`, as
 argparse's usage errors do.
-The two are split by who must act, not by how badly it went.
+The statuses are split by who must act, not by how badly it went: every
+other status is the one `_status` names for the author of the refusal told,
+the highest of them where one run tells several.
 
 `check --json` prints one Record Envelope (`cardlang.records`) on stdout in
 place of the text, whatever the outcome, with the same exit code; every
@@ -87,7 +92,8 @@ import random
 import re
 import shlex
 import sys
-from collections.abc import Callable
+import traceback
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn, assert_never, cast
@@ -138,7 +144,7 @@ from cardlang.records import (
     query_envelope,
     refusal_diagnostic,
 )
-from cardlang.runtime.errors import GameDescriptionError, InstallationError
+from cardlang.runtime.errors import GameDescriptionError, GameRegistrationError, InstallationError
 from cardlang.runtime.observe import render
 from cardlang.runtime.state import IllegalMove, RuntimeState
 from cardlang.runtime.values import Player
@@ -369,6 +375,29 @@ _READ_AS_BARE = f"no command is named, so the line is read as {_BARE}"
 _EXIT_OK = 0
 _EXIT_GAME_AT_FAULT = 1
 _EXIT_CANNOT_PROCEED = 2
+_EXIT_ENGINE_FAILED = 3
+
+
+def _status(author: Author) -> int:
+    """The exit status of a refusal told to `author`: who must act."""
+    match author:
+        case Author.GAME | Author.LIBRARY:
+            return _EXIT_GAME_AT_FAULT
+        case Author.INVOCATION | Author.INSTALLATION | Author.REGISTRATION:
+            return _EXIT_CANNOT_PROCEED
+        case Author.ENGINE:
+            return _EXIT_ENGINE_FAILED
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+def _told_status(told: Sequence[Told]) -> int:
+    """The exit status of a run telling `told`: the highest its errors' authors
+    name, 0 when it tells no error."""
+    return max(
+        (_status(t.author) for t in told if t.diagnostic.severity is Severity.ERROR),
+        default=_EXIT_OK,
+    )
 
 
 def build_parser() -> _Parser:
@@ -690,7 +719,7 @@ def main(argv: list[str] | None = None) -> int:
         print(exc.diagnostic.format(), file=sys.stderr)
         for note in getattr(exc, "__notes__", []):
             print(note, file=sys.stderr)
-        return _EXIT_GAME_AT_FAULT
+        return _told_status(exc.told)
     except GameDescriptionError as exc:
         print(f"cardlang: playing {path} failed", file=sys.stderr)
         _print_refusal(exc)
@@ -699,7 +728,7 @@ def main(argv: list[str] | None = None) -> int:
             "reaches, and the line played was uniform-random",
             file=sys.stderr,
         )
-        return _EXIT_GAME_AT_FAULT
+        return _status(refusal_diagnostic(exc).author)
     except IllegalMove as exc:
         print(f"cardlang: playing {path} failed", file=sys.stderr)
         _print_refusal(exc)
@@ -716,12 +745,18 @@ def main(argv: list[str] | None = None) -> int:
             "rule: widen its `demands:`, or give it a card set to fall back on",
             file=sys.stderr,
         )
-        return _EXIT_GAME_AT_FAULT
+        return _status(refusal_diagnostic(exc).author)
     except InstallationError as exc:
         print("cardlang: this checkout of cardlang is incomplete", file=sys.stderr)
         print(f"  {exc}", file=sys.stderr)
         print("  reinstall the package, or restore what the message names", file=sys.stderr)
-        return _EXIT_CANNOT_PROCEED
+        return _status(refusal_diagnostic(exc).author)
+    except GameRegistrationError as exc:
+        print(f"cardlang: {exc}", file=sys.stderr)
+        return _status(refusal_diagnostic(exc).author)
+    except Exception:
+        traceback.print_exc()
+        return _EXIT_ENGINE_FAILED
 
 
 def _print_refusal(exc: GameDescriptionError | IllegalMove) -> None:
@@ -746,14 +781,11 @@ def _print_refusal(exc: GameDescriptionError | IllegalMove) -> None:
         print(f"  {', '.join(where)}", file=sys.stderr)
 
 
-def _checked(
-    path: Path, unreadable: str | None, crashed: Callable[[Told], None]
-) -> tuple[tuple[Told, ...], int]:
+def _checked(path: Path, unreadable: str | None) -> tuple[tuple[Told, ...], int]:
     """What `check --json` and `query --json` record of the check: every
     refusal it told, and the exit code the text output would give. An engine
-    failure outside the typed channels is handed to `crashed` as an
-    `engine-gap` record and re-raised, so its traceback and exit status stay
-    the text output's (issue #1104)."""
+    failure outside the typed channels is an `engine-gap` record told to the
+    engine, its traceback printed on stderr as the text output prints it."""
     if unreadable is not None:
         told = Told(
             Diagnostic(Severity.ERROR, unreadable, code=Code.UNREADABLE_FILE),
@@ -763,22 +795,19 @@ def _checked(
     try:
         check_source(path)
     except DiagnosticError as exc:
-        return exc.told, _EXIT_GAME_AT_FAULT
+        return exc.told, _told_status(exc.told)
     except RUNTIME_REFUSALS as exc:
         refused = refusal_diagnostic(cast(RuntimeRefusal, exc))
-        exit_code = (
-            _EXIT_CANNOT_PROCEED
-            if refused.author in (Author.INSTALLATION, Author.REGISTRATION)
-            else _EXIT_GAME_AT_FAULT
-        )
-        return (refused,), exit_code
+        return (refused,), _status(refused.author)
     except Exception as exc:
-        crashed(_engine_gap(exc))
-        raise
+        return (_engine_gap(exc),), _EXIT_ENGINE_FAILED
     return (), _EXIT_OK
 
 
 def _engine_gap(exc: Exception) -> Told:
+    """An exception outside the typed channels, its traceback printed on
+    stderr, as a record told to the engine."""
+    traceback.print_exc()
     return Told(
         Diagnostic(Severity.ERROR, str(exc) or type(exc).__name__, code=Code.ENGINE_GAP),
         Author.ENGINE,
@@ -788,9 +817,7 @@ def _engine_gap(exc: Exception) -> Told:
 def _check_json(path: Path, unreadable: str | None) -> int:
     """`check --json`: one Record Envelope on stdout, whatever the outcome,
     and the exit code the text output would give."""
-    told, exit_code = _checked(
-        path, unreadable, lambda crash: print(json.dumps(envelope((crash,)), indent=2))
-    )
+    told, exit_code = _checked(path, unreadable)
     print(json.dumps(envelope(told), indent=2))
     return exit_code
 
@@ -811,20 +838,15 @@ def _query_json(path: Path, unreadable: str | None, at: tuple[int, int]) -> int:
     the check or in the query's own run of the passes, as `check --json`
     records one."""
     line, column = at
-
-    def crashed(crash: Told) -> None:
-        answer = query.refused(str(path), line, column, (crash,), _EXIT_GAME_AT_FAULT)
-        print(json.dumps(query_envelope(answer), indent=2))
-
-    refused, exit_code = _checked(path, unreadable, crashed)
+    refused, exit_code = _checked(path, unreadable)
     if refused:
         answer = query.refused(str(path), line, column, refused, exit_code)
     else:
         try:
             answer = query.ask_path(path, line, column)
         except Exception as exc:
-            crashed(_engine_gap(exc))
-            raise
+            crash = (_engine_gap(exc),)
+            answer = query.refused(str(path), line, column, crash, _EXIT_ENGINE_FAILED)
     print(json.dumps(query_envelope(answer), indent=2))
     return answer.exit_code
 
@@ -965,7 +987,7 @@ def _play(
             f"{session.who_played()}",
             file=sys.stderr,
         )
-        return _EXIT_GAME_AT_FAULT
+        return _status(refusal_diagnostic(exc).author)
     except IllegalMove as exc:
         print(f"cardlang: playing {path} failed", file=sys.stderr)
         _print_refusal(exc)
@@ -975,7 +997,7 @@ def _play(
             "rule: widen its `demands:`, or give it a card set to fall back on",
             file=sys.stderr,
         )
-        return _EXIT_GAME_AT_FAULT
+        return _status(refusal_diagnostic(exc).author)
     return _EXIT_OK
 
 

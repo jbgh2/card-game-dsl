@@ -432,10 +432,11 @@ $ cardlang check bad.cardlang
 bad.cardlang:7:16: error: `deal all ... to each` would give the whole source to the first player; use `as-equally-as-possible` to distribute it
 ```
 
-Exit codes separate the two kinds of failure: `1` when the game file is at
-fault, whether a compile stage or the playout says so, and `2` when the
-invocation cannot be carried out at all — an unreadable path, a seat the game
-does not seat, a broken checkout.
+Exit codes say who must act: `1` when the game file is at fault, whether a
+compile stage or the playout says so; `2` when the invocation cannot be
+carried out at all — an unreadable path, a seat the game does not seat, a
+broken checkout; and `3` when cardlang itself failed, which is a bug to
+report rather than anything in your file to change.
 
 A **syntax** error — the class a first file is likeliest to hit, since it
 arrives before any other stage runs — speaks the same terms. It quotes what you
