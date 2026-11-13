@@ -362,7 +362,7 @@ def test_a_dropped_qualifier_leaves_an_overlap_refused(label: str, dropped: str,
     ("rows", "expected"),
     [
         (("single: 1 card", "solo: 1 card"), _refused("both", "`single`", "`solo`")),
-        (("single: 1 card", "single: 2 of a kind"), _refused("`single`", "twice")),
+        (("single: 1 card", "single: 2 of a kind"), _refused("`single`", "labels two rows", "rename one")),
     ],
 )
 def test_two_rows_naming_one_play_or_one_label_are_refused(rows: tuple[str, ...], expected: Expected) -> None:

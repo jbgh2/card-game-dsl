@@ -223,17 +223,17 @@ def _refusal(cls: type[BaseException]) -> RuntimeRefusal:
 
 
 @pytest.mark.parametrize(
-    "cls",
+    "name",
     [
         pytest.param(
-            c,
-            marks=[pytest.mark.expects_shadow_guard] if c is errors.ShadowGuardError else [],
-            id=c.__name__,
+            name,
+            marks=[pytest.mark.expects_shadow_guard] if name == errors.ShadowGuardError.__name__ else [],
         )
-        for c in _refusal_types()
+        for name in sorted(EXPECTED)
     ],
 )
-def test_every_runtime_refusal_is_told_by_its_type(cls: type[BaseException]) -> None:
+def test_every_runtime_refusal_is_told_by_its_type(name: str) -> None:
+    (cls,) = (c for c in _refusal_types() if c.__name__ == name)
     exc = _refusal(cls)
     span = Span("g.cardlang", 3, 7, 2, 4)
     if isinstance(exc, errors.Located):
