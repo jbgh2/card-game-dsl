@@ -98,6 +98,12 @@ def read_item(text: str) -> Item | str:
     return Item(who, opponent)
 
 
+class NoSuchSeat(str):
+    """The refusal of a `--vs` item whose seat number the table does not
+    seat: a number out of range, where every other refusal of the items is
+    a seating that cannot stand."""
+
+
 def seated(items: Sequence[Item], seats: int, person: int, path: str) -> dict[int, str] | Unnamed | str:
     """The opponent at each seat but `person`'s at a table of `seats`, the seats
     the items leave unnamed, or why the items seat nobody."""
@@ -121,7 +127,7 @@ def seated(items: Sequence[Item], seats: int, person: int, path: str) -> dict[in
         if item.who in (ALL, REST):
             continue
         if item.who not in numbered:
-            return f"{path} seats 0..{seats - 1}; --vs {item} names no seat at this table"
+            return NoSuchSeat(f"{path} seats 0..{seats - 1}; --vs {item} names no seat at this table")
         if numbered[item.who] == person:
             return f"--vs {item} names P{person}, your own seat; --vs names the other seats"
         if item.who in named:

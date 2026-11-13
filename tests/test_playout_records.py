@@ -19,16 +19,18 @@ domain:          the authors, crossed with the status each names; every
                  derives them, raised where a check, a playout, a table's
                  load and a table's session raise, and where a query's check
                  raises, crossed with the two
-                 output forms; an exception outside the typed channels, raised
+                 output forms; an exception outside the typed Failure Channel, raised
                  while the command is carried out (an `OSError` the path
                  probe meets before it is issue #1097's), under
                  every command, crossed with the two forms; and the command
                  lines `_LINES` lists, one or more per refusal the command
-                 line composes, crossed with the two forms; three of those
-                 refusals no input on disk reaches (a save failing at the
-                 table, a resumed game's picks that no longer replay, a
-                 decision a table cannot number), so their rows plant the
-                 raise where it is met. The lines are
+                 line composes, crossed with the two forms; a save failing at
+                 the table and a decision a table cannot number are reached
+                 by no input on disk, so their rows plant the raise where it
+                 is met. The command line's own streams -- a reader that has
+                 gone, a stdout that cannot encode what is printed -- are run
+                 as real processes, and so is a name a Primitive module reads
+                 renamed in the game. The lines are
                  hand-written, and every Diagnostic Code `cardlang/cli.py`
                  names is either a code a row of `_LINES` tells, a refusal of
                  the line's words (`_LINE_REFUSALS`, refused before the line
@@ -55,6 +57,9 @@ from __future__ import annotations
 import ast
 import io
 import json
+import os
+import re
+import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -69,12 +74,13 @@ from cardlang.pipeline import check_source, game_identity
 from cardlang.play import session as play_session
 from cardlang.records import read_envelope
 from cardlang.runtime import errors
-from cardlang.openspiel.replay import HistoryMismatch
 from tests.test_records import EXPECTED as REFUSAL_EXPECTED
 from tests.test_records import _refusal, _refusal_types
 
 _ROOT = Path(__file__).resolve().parent.parent
 KUHN = str(_ROOT / "docs" / "games" / "kuhn-poker.cardlang")
+HEARTS = str(_ROOT / "docs" / "games" / "hearts.cardlang")
+TICHU = _ROOT / "docs" / "games" / "tichu.cardlang"
 # Deals and scores without asking anyone to choose.
 SKELETON = str(_ROOT / "tests" / "fixtures" / "skeleton.md")
 
@@ -157,6 +163,7 @@ _LAYOUT: dict[str, Callable[[dict[str, object]], str]] = {
     Code.ENGINE_GAP.slug: _as_a_playout,
     Code.INCOMPLETE_INSTALLATION.slug: _as_a_playout,
     Code.UNREGISTRABLE_GAME.slug: _as_a_line,
+    Code.PRIMITIVE_READS_A_NAME_THE_GAME_LACKS.slug: _as_a_playout,
 }
 
 
@@ -226,9 +233,19 @@ def test_a_runtime_refusal_is_its_record_in_both_forms(
     assert text.out == as_json.err, "the transcript moves to stderr word for word"
     assert text.err == _rendered(records)
     assert ("in phase deal, moving from deck" in _lines(record)) is isinstance(exc, errors.Located)
+    aimed_at_the_game = [
+        line for line in _lines(record) if "static checks passed" in line or "your game's own" in line
+    ]
+    if author is Author.ENGINE:
+        assert _ENGINE_FIXES_IT in _lines(record)
+        assert aimed_at_the_game == []
 
 
-# --- an exception outside the typed channels ---------------------------------
+# What a refusal told to the engine says in place of advice to the game.
+_ENGINE_FIXES_IT = "this is cardlang's own failure, not your game's: report it"
+
+
+# --- an exception outside the typed Failure Channel --------------------------
 
 
 _CRASHING: dict[str, list[str]] = {
@@ -266,6 +283,122 @@ def test_an_engine_failure_exits_3_and_keeps_its_traceback(
     )
 
 
+@pytest.mark.parametrize("broken", ["raises", "cannot be serialized"])
+@pytest.mark.parametrize("command", sorted(_CRASHING))
+def test_a_crash_printing_the_envelope_is_an_engine_failure(
+    command: str, broken: str, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """red under: the envelope printed outside the engine-failure catch."""
+    made = "query_envelope" if command == "query" else "envelope"
+    if broken == "raises":
+        monkeypatch.setattr(cli, made, _raising(AssertionError("a serializer invariant")))
+    else:
+        monkeypatch.setattr(cli, made, lambda *_args: {"schema": object()})
+    ran = _run([*_CRASHING[command], "--json"], capsys, monkeypatch)
+    assert ran.status == 3
+    assert "Traceback (most recent call last)" in ran.err
+
+
+# --- the caller's own streams --------------------------------------------------
+
+
+def _cardlang(argv: list[str], *, closed_stdout: bool = False, env: dict[str, str] | None = None) -> _Ran:
+    """`python -m cardlang`, as a real process: stdout a pipe whose reader has
+    already gone where `closed_stdout`, so the first write meets a broken pipe."""
+    read, write = os.pipe()
+    if closed_stdout:
+        os.close(read)
+    try:
+        done = subprocess.run(
+            [sys.executable, "-m", "cardlang", *argv],
+            stdin=subprocess.DEVNULL,
+            stdout=write if closed_stdout else subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env={**os.environ, "PYTHONPATH": str(_ROOT), **(env or {})},
+            cwd=_ROOT,
+            check=False,
+        )
+    finally:
+        os.close(write)
+        if not closed_stdout:
+            os.close(read)
+    out = "" if closed_stdout else done.stdout.decode("utf-8", "replace")
+    return _Ran(done.returncode, out, done.stderr.decode("utf-8", "replace"))
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["check", HEARTS, "--emit-ir"],
+        ["demo", HEARTS, "--seed", "1", "--decisions", "--view", "0"],
+        ["demo", KUHN, "--seed", "1", "--json"],
+        ["play", KUHN, "--seed", "1", "--vs", "all=random"],
+    ],
+    ids=lambda argv: " ".join(Path(a).name if a.endswith(".cardlang") else a for a in argv),
+)
+def test_a_reader_that_has_gone_ends_the_run_quietly(argv: list[str]) -> None:
+    """A broken pipe is the caller's: no traceback, no refusal printed, the
+    invocation's status. Under `--json` stderr holds the transcript, as it
+    does whoever reads stdout."""
+    ran = _cardlang(argv, closed_stdout=True)
+    assert ran.status == STATUS[Author.INVOCATION]
+    if "--json" in argv:
+        assert ran.err == _cardlang([a for a in argv if a != "--json"]).out
+    else:
+        assert ran.err == ""
+
+
+def test_a_stdout_that_cannot_encode_the_output_is_told_to_the_invocation() -> None:
+    ran = _cardlang(["demo", KUHN, "--seed", "1"], env={"PYTHONIOENCODING": "ascii"})
+    assert ran.status == STATUS[Author.INVOCATION]
+    assert "Traceback" not in ran.err
+    (told,) = [line for line in ran.err.splitlines() if line.startswith("cardlang: ")]
+    assert "cannot write to stdout" in told and "ascii" in told and "PYTHONIOENCODING" in told
+
+
+def test_under_json_an_ascii_stdout_still_holds_the_envelope() -> None:
+    """The envelope is ASCII and the transcript goes to stderr, which escapes
+    what it cannot encode, so nothing is refused."""
+    ran = _cardlang(["demo", KUHN, "--seed", "1", "--json"], env={"PYTHONIOENCODING": "ascii"})
+    assert ran.status == 0
+    assert _records(ran) == []
+
+
+# --- a name a Primitive module reads, renamed in the game ---------------------
+
+
+def _renamed_tichu(tmp: Path) -> str:
+    """Tichu with its state variable `wish` renamed `hope` wherever the game
+    text names it; the comments are left as they are. It checks clean."""
+    lines = []
+    for line in TICHU.read_text().splitlines(keepends=True):
+        code, mark, comment = line.partition("//")
+        lines.append(re.sub(r"\bwish\b", "hope", code) + mark + comment)
+    path = tmp / "tichu.cardlang"
+    path.write_text("".join(lines))
+    return str(path)
+
+
+def test_a_name_a_primitive_reads_renamed_is_the_game_s_refusal(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _renamed_tichu(tmp_path)
+    assert _run(["check", path], capsys, monkeypatch).status == 0
+    text, as_json, records = _both(["demo", path, "--seed", "1"], capsys, monkeypatch)
+    (record,) = records
+    assert (record["code"], record["author"]) == ("primitive-reads-a-name-the-game-lacks", "game")
+    assert text.status == as_json.status == STATUS[Author.GAME]
+    assert "`wish`" in str(record["message"]) and "cardlang/runtime/tichu.py" in str(record["message"])
+    assert "Traceback" not in text.err
+    assert text.err == _rendered(records)
+
+
+def test_a_name_a_primitive_reads_renamed_exits_1_in_a_real_run(tmp_path: Path) -> None:
+    ran = _cardlang(["demo", _renamed_tichu(tmp_path), "--seed", "1"])
+    assert ran.status == STATUS[Author.GAME]
+    assert "Traceback" not in ran.err
+
+
 # --- the command's own refusals ----------------------------------------------
 
 
@@ -296,6 +429,13 @@ class _Line:
     patch: Callable[[pytest.MonkeyPatch], None] = field(default=lambda _mp: None)
 
 
+def _protected(tmp: Path) -> str:
+    """A file that holds something other than a saved game."""
+    path = tmp / "notes.txt"
+    path.write_text("my notes\n")
+    return str(path)
+
+
 def _bounded(tmp: Path) -> str:
     from tests.test_length_stop import bounded_tic_tac_toe
 
@@ -318,7 +458,7 @@ _LINES: dict[str, _Line] = {
         lambda _t: ["demo", KUHN, "--seed", "1", "--at", "999", "--view", "0"], (Code.OUT_OF_RANGE,)
     ),
     "demo: a view of a playout with no decision": _Line(
-        lambda _t: ["demo", SKELETON, "--seed", "5", "--view", "0"], (Code.SEAT_VIEW_NEEDS_A_DECISION,)
+        lambda _t: ["demo", SKELETON, "--seed", "5", "--view", "0"], (Code.SEAT_VIEW_OF_A_PLAYOUT_WITH_NO_DECISION,)
     ),
     "demo: random play reaches max_length": _Line(
         lambda t: ["demo", _bounded(t), "--seed", _STOPS], (Code.RANDOM_PLAY_REACHES_LENGTH_STOP,)
@@ -337,7 +477,19 @@ _LINES: dict[str, _Line] = {
     "play: --vs names the person's own seat": _Line(
         lambda _t: ["play", KUHN, "--vs", "0=random"], (Code.OPPONENTS_SEATED_WRONGLY,)
     ),
-    "play: --vs names no seat": _Line(lambda _t: ["play", KUHN, "--vs", "7=random"], (Code.OPPONENTS_SEATED_WRONGLY,)),
+    "play: --vs names no seat": _Line(lambda _t: ["play", KUHN, "--vs", "7=random"], (Code.OUT_OF_RANGE,)),
+    "play: --vs all beside another item": _Line(
+        lambda _t: ["play", KUHN, "--vs", "all=random", "--vs", "1=first"], (Code.OPPONENTS_SEATED_WRONGLY,)
+    ),
+    "play: --vs rest twice": _Line(
+        lambda _t: ["play", KUHN, "--vs", "rest=random", "--vs", "rest=first"], (Code.OPPONENTS_SEATED_WRONGLY,)
+    ),
+    "play: --vs rest with no seat named": _Line(
+        lambda _t: ["play", KUHN, "--vs", "rest=random"], (Code.OPPONENTS_SEATED_WRONGLY,)
+    ),
+    "play: --vs rest with every seat named": _Line(
+        lambda _t: ["play", KUHN, "--vs", "1=first", "--vs", "rest=random"], (Code.OPPONENTS_SEATED_WRONGLY,)
+    ),
     "play: resume a missing file": _Line(
         lambda t: ["play", KUHN, "--resume", str(t / "missing.json")], (Code.SAVED_GAME_NOT_RESUMABLE,)
     ),
@@ -351,9 +503,11 @@ _LINES: dict[str, _Line] = {
         lambda t: ["play", KUHN, "--resume", _saved(t, opponents={"1": "nobody"})], (Code.SAVED_GAME_NOT_RESUMABLE,)
     ),
     "play: resume, its picks no longer replay": _Line(
-        lambda t: ["play", KUHN, "--resume", _saved(t)],
-        (Code.SAVED_GAME_NOT_RESUMABLE,),
-        lambda mp: mp.setattr(play_session.Session, "run", _raising(HistoryMismatch("pick 3 is not offered"))),
+        lambda t: ["play", KUHN, "--resume", _saved(t, history=[99])], (Code.SAVED_GAME_NOT_RESUMABLE,)
+    ),
+    "play: resume a directory": _Line(lambda t: ["play", KUHN, "--resume", str(t)], (Code.SAVED_GAME_NOT_RESUMABLE,)),
+    "play: resume a game saved from another game": _Line(
+        lambda t: ["play", KUHN, "--resume", _saved(t, identity="another")], (Code.SAVED_GAME_NOT_RESUMABLE,)
     ),
     "play: resume at another seat": _Line(
         lambda t: ["play", KUHN, "--resume", _saved(t), "--seat", "1"], (Code.CONTRADICTS_SAVED_GAME,)
@@ -369,11 +523,17 @@ _LINES: dict[str, _Line] = {
     ),
     "play: save into a directory that is not there": _Line(
         lambda t: ["play", KUHN, "--vs", "all=random", "--save", str(t / "nodir" / "x.json")],
-        (Code.UNWRITABLE_SAVE_FILE,),
+        (Code.CANNOT_SAVE_TO_FILE,),
+    ),
+    "play: save into a directory": _Line(
+        lambda t: ["play", KUHN, "--vs", "all=random", "--save", str(t)], (Code.CANNOT_SAVE_TO_FILE,)
+    ),
+    "play: save over a file that holds no saved game": _Line(
+        lambda t: ["play", KUHN, "--vs", "all=random", "--save", _protected(t)], (Code.CANNOT_SAVE_TO_FILE,)
     ),
     "play: a save failing at the table": _Line(
         lambda t: ["play", KUHN, "--vs", "all=random", "--save", str(t / "x.json")],
-        (Code.UNWRITABLE_SAVE_FILE,),
+        (Code.CANNOT_SAVE_TO_FILE,),
         lambda mp: mp.setattr(play_session.Session, "run", _raising(play_session.SaveFailed("cannot save to x.json: disk full"))),
     ),
     "play: a decision a table cannot number": _Line(
@@ -443,11 +603,16 @@ def _codes_named_in_cli() -> set[Code]:
     }
 
 
+# A stream the caller set up that cannot be written: run as real processes,
+# above.
+_STREAM_REFUSALS: frozenset[Code] = frozenset({Code.UNWRITABLE_OUTPUT})
+
+
 def test_every_code_the_command_line_names_has_a_line() -> None:
     """red under: `_play`'s numbering refusal coded `Code.NOT_YET_SUPPORTED`,
     a code no row of `_LINES` tells."""
     told = {c for line in _LINES.values() for c in line.codes}
-    assert _codes_named_in_cli() - _LINE_REFUSALS - {Code.ENGINE_GAP} <= told
+    assert _codes_named_in_cli() - _LINE_REFUSALS - _STREAM_REFUSALS - {Code.ENGINE_GAP} <= told
     assert not _LINE_REFUSALS & told
 
 

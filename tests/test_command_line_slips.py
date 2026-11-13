@@ -73,8 +73,10 @@ domain:          the commands, crossed with the slips generated from each
                  of an option is told is authored by hand at the anchors,
                  `_ANCHORS`, where no offer is right as well as where one is;
                  the anchors the measure answers otherwise are marked for
-                 issue #1098. A slip argparse reads as a prefix of an option,
-                 and every option prefix, is issue #624's. `-h` after any
+                 issue #1098. Every proper prefix of every option a command
+                 declares, derived from the parser's own table, is refused
+                 under that command as typed, never read as the option it
+                 begins. `-h` after any
                  line prints that command's help and refuses nothing. The
                  property reads every line above, the command-word grid's
                  included; a game file's own refusals name its path as
@@ -392,7 +394,8 @@ def _owners(option: str) -> tuple[str, ...]:
 
 
 def _prefix_of_declared(word: str, command: str) -> bool:
-    """argparse reads a unique prefix of an option as the option (issue #624)."""
+    """Whether `word` begins an option `command` declares: a prefix, which
+    `test_no_command_takes_an_option_by_a_prefix` refuses."""
     return any(opt.startswith(word) for opt in _DECLARED[command])
 
 
@@ -482,8 +485,8 @@ def _option_slips(option: str) -> dict[str, str]:
 
 def _slipped_option_cells() -> dict[str, tuple[_Cell, str]]:
     """A command's own option, slipped, after the file: each with the option
-    it slips. A slip argparse reads as a prefix of an option is issue #624's,
-    and a slip that spells another declared option is that option."""
+    it slips. A slip that is a prefix of an option is the prefix grid's, and
+    a slip that spells another declared option is that option."""
     cells: dict[str, tuple[_Cell, str]] = {}
     for command in _WHO:
         here = "check" if command is None else command
@@ -985,6 +988,33 @@ def test_an_anchor_slip_is_offered_what_was_meant(
     assert _printed_words(said.err) == _ANCHORS[anchor], said.err
     if not _ANCHORS[anchor]:
         assert _hint(command) in said.err, said.err
+
+
+def _option_prefixes() -> list[tuple[str, str]]:
+    """Every proper prefix of every option each command declares, from the
+    parser's own table: `--` and at least one letter, short of the whole."""
+    return sorted(
+        {
+            (command, option[:size])
+            for command in COMMANDS
+            for option in build_parser().commands[command].options()
+            if option.startswith("--")
+            for size in range(3, len(option))
+        }
+    )
+
+
+@pytest.mark.parametrize("cell", _option_prefixes(), ids=lambda c: f"{c[0]} {c[1]}")
+def test_no_command_takes_an_option_by_a_prefix(
+    cell: tuple[str, str], table: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A prefix is a slip, refused naming it as typed, never read as the
+    option it begins. red under: `allow_abbrev=False` dropped from the
+    command parsers in `cli.build_parser`."""
+    command, prefix = cell
+    said = _run_at_table((command, _F, prefix), monkeypatch, capsys)
+    assert (said.code, said.raised) == (2, True), said.err
+    assert f"takes no {prefix}" in said.err, said.err
 
 
 def test_every_generated_option_slip_resembles_its_option() -> None:

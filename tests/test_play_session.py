@@ -527,7 +527,7 @@ def test_an_interrupt_while_the_other_seats_pick_leaves_and_keeps_the_game(
 def test_an_engine_failure_mid_session_keeps_the_picks_before_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sit: _Sit
 ) -> None:
-    """An exception outside the rendered channels keeps its traceback and
+    """An exception outside the rendered Failure Channel keeps its traceback and
     exits 3, the engine's status, and the person's game survives it.
 
     red under: re-raise it in `Session.run` without keeping the line."""

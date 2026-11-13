@@ -77,17 +77,15 @@ registry:        commands and options: `cardlang.cli.build_parser` via
                  diagnostic rendering shared with the checker:
                  tests/test_rejections.py; the runtime failure hierarchy this
                  module renders: tests/test_failure_taxonomy.py; the file-shape
-                 dispatch: tests/test_command_line_slips.py; the append-only
+                 dispatch: tests/test_command_line_slips.py; an option
+                 written by a prefix of its name:
+                 tests/test_command_line_slips.py::test_no_command_takes_an_option_by_a_prefix;
+                 the append-only
                  observation log a mid-hand view is projected from:
                  tests/openspiel_ready/harness.py; the text `--view` prints,
                  `cardlang.play.view.render_view`, certified by
                  tests/test_play_view.py.
-does not prove:  Only the exact long spelling of each option. The parser is
-                 built without `allow_abbrev=False`, so every unambiguous
-                 prefix (`--info`, `--se`) reaches the same destination and no
-                 cell here crosses one; that axis is open and unmeasured
-                 (issue #624).
-                 A green here says nothing about whether a playout's REPORTED
+does not prove:  A green here says nothing about whether a playout's REPORTED
                  outcome is the right one — the returns and the decision count
                  are read back from the driver's and the adapter's own
                  derivations, and their correctness is those suites' claim,

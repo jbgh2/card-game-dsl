@@ -441,8 +441,11 @@ goes to stderr word for word. Beside `--emit-ir` it is a usage error, and a
 command line refused before it is read is refused as text. The exit code
 says who must act, by the author of the refusal told: the game's or a
 library's 1, the invocation's, the installation's or a registration's 2, the
-engine's 3, an exception outside the typed channels raised while the
-command is carried out included.
+engine's 3, an exception outside the typed Failure Channel raised while
+the command is carried out included. A stream the caller set up that cannot
+be written -- its reader gone, its encoding unable to spell the output -- is
+told to the invocation, and a broken pipe ends the run quietly. No command
+takes an option by a prefix of its name.
 
 ### Allow-list, never deny-list
 

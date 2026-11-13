@@ -94,7 +94,7 @@ import pytest
 import cardlang.resolve as resolve
 from cardlang import cli, libraries, pipeline
 from cardlang.diagnostic_codes import Code
-from cardlang.diagnostics import Diagnostic, DiagnosticBag, DiagnosticError
+from cardlang.diagnostics import Diagnostic, DiagnosticBag, DiagnosticError, Told
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl, check_markdown, check_source
 from cardlang.records import RuntimeRefusal, refusal_diagnostic
@@ -108,6 +108,7 @@ from cardlang.runtime.errors import (
 from cardlang.runtime.state import IllegalMove
 from cardlang.stdlib.boards import BoardMisuse, BoardRefusal, board_entry
 from cardlang.stdlib.rules import STDLIB_NAME, STDLIB_SOURCE_NAME, load_stdlib
+from tests.test_playout_records import _renamed_tichu
 from tests.test_rejections import REJECTIONS_DIR, case_paths
 from tools import glossary_index
 from tools.dead_surface import start_for
@@ -134,13 +135,14 @@ SHIPPED: dict[str, str] = {
     "extra-word": "the command reads one game file and no other word; drop the word",
     "missing-game-file": "the command needs a game file and the line names none; name one",
     "command-line-usage": "the command line does not read as the command's; write what the message says it expects",
-    "seat-view-needs-a-decision": "a Seat View is shown at a decision, and the playout made none; leave out --view and --info-state",
+    "seat-view-of-a-playout-with-no-decision": "the engine takes a seat's view only from a playout that has made a decision, and this one made none; leave out --view and --info-state",
     "table-cannot-number-a-decision": "the game has a decision whose picks a table cannot number yet; watch it played with `cardlang demo`",
     "saved-game-not-resumable": "the file --resume names holds no game this game can go on with; name another file, or start a new game",
     "contradicts-saved-game": "a --seat, --seed or --vs names another than the saved game was played with; leave it out",
-    "opponents-seated-wrongly": "the --vs items do not seat each other seat once; name each seat you do not take exactly once",
+    "opponents-seated-wrongly": "the --vs items cannot seat the seats you do not take as written: a seat named twice, your own seat named, `all` beside another item, `rest` given twice or alone, or a --vs with no seat left to fill; write them as the message says",
     "unnamed-opponents": "a seat you do not take has no opponent; name one for it with --vs",
-    "unwritable-save-file": "the file --save or --resume names cannot be written; name a file that can",
+    "cannot-save-to-file": "the file --save or --resume names cannot take the saved game: it cannot be written, or it holds something saving would replace; name another file",
+    "unwritable-output": "the command's own output cannot be written where the caller sent it: its reader has gone, or its encoding cannot spell what the command prints; read the output to its end, or give the stream an encoding that can",
     "unknown-name": "a name nothing in scope declares, refused where the checker cannot tell which sort of name was meant; read the suggestions, spell a declared name, or declare it",
     "unknown-zone": "a zone no `zones { }` entry declares; spell a declared zone, or declare it",
     "unknown-state-variable": "a state variable no `state { }` block declares; spell a declared one, or declare it",
@@ -229,7 +231,8 @@ SHIPPED: dict[str, str] = {
     "outcome-read-before-produced": "an outcome is consumed before the phase producing it has run",
     "refused-during-play": "a rule only a playout reaches refused the game",
     "game-error-raised": "the game's own `error(...)` refused a move no player was offered",
-    "random-play-reaches-length-stop": "uniform-random play met the game's Length Stop, its max_length reached without its rules ending it; raise the bound, or end the loop that should have ended",
+    "primitive-reads-a-name-the-game-lacks": "a Primitive module the game uses reads, by its name, a state variable or zone the game no longer declares; declare it under that name",
+    "random-play-reaches-length-stop": "uniform-random play met the game's Length Stop, its max_length reached without its rules ending it; raise the bound, end the loop that should have ended, or, if a table can lawfully play on without end, say so in the game's twin",
     "engine-gap": "the engine refused what an earlier check should have refused; the engine must change",
     "incomplete-installation": "the checkout is missing files the engine loads; reinstall it",
     "unregistrable-game": "a game file offered for registration cannot be registered by that name",
@@ -467,6 +470,24 @@ def _table_cannot_number(mp: pytest.MonkeyPatch, tmp: Path) -> frozenset[Code]:
     return _cli(lambda _tmp: ["play", _KUHN, "--vs", "all=random"])(mp, tmp)
 
 
+def _ascii_stdout(mp: pytest.MonkeyPatch, _tmp: Path) -> frozenset[Code]:
+    """A playout printed to a stdout that cannot encode its em dashes, the
+    refusal caught where the command tells it: under `--json` stdout holds
+    only the envelope, which is ASCII, so the text form is the one that
+    meets it."""
+    told: list[Code] = []
+    tell = cli._Telling.refuse
+
+    def recording(self: cli._Telling, refusal: Told, show: Callable[[Told], None]) -> None:
+        told.append(refusal.diagnostic.code)
+        tell(self, refusal, show)
+
+    mp.setattr(cli._Telling, "refuse", recording)
+    mp.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="ascii"))
+    cli.main(["demo", _KUHN, "--seed", "1"])
+    return frozenset(told)
+
+
 def _constructed(made: Callable[[], RuntimeRefusal]) -> Tells:
     """A refusal no clean run raises, told through the one converter: an
     engine gap is a leaked Owner Guard, and registration needs the OpenSpiel
@@ -571,7 +592,9 @@ WITNESSES: dict[Code, Tells] = {
     Code.MISSING_GAME_FILE: _refused_line(lambda _tmp: ["check"]),
     Code.COMMAND_LINE_USAGE: _refused_line(lambda _tmp: ["demo", _HEARTS, "--seed", "x"]),
     Code.UNREADABLE_FILE: _cli(lambda tmp: ["check", str(tmp / "missing.cardlang")]),
-    Code.SEAT_VIEW_NEEDS_A_DECISION: _cli(
+    Code.UNWRITABLE_OUTPUT: _ascii_stdout,
+    Code.PRIMITIVE_READS_A_NAME_THE_GAME_LACKS: _cli(lambda tmp: ["demo", _renamed_tichu(tmp), "--seed", "1"]),
+    Code.SEAT_VIEW_OF_A_PLAYOUT_WITH_NO_DECISION: _cli(
         lambda _tmp: ["demo", str(_ROOT / "tests" / "fixtures" / "skeleton.md"), "--seed", "5", "--view", "0"]
     ),
     Code.TABLE_CANNOT_NUMBER_A_DECISION: _table_cannot_number,
@@ -579,7 +602,7 @@ WITNESSES: dict[Code, Tells] = {
     Code.CONTRADICTS_SAVED_GAME: _cli(lambda tmp: ["play", _KUHN, "--resume", _saved_kuhn(tmp), "--seed", "9"]),
     Code.OPPONENTS_SEATED_WRONGLY: _cli(lambda _tmp: ["play", _KUHN, "--vs", "0=random"]),
     Code.UNNAMED_OPPONENTS: _cli(lambda _tmp: ["play", _KUHN]),
-    Code.UNWRITABLE_SAVE_FILE: _cli(
+    Code.CANNOT_SAVE_TO_FILE: _cli(
         lambda tmp: ["play", _KUHN, "--vs", "all=random", "--save", str(tmp / "nodir" / "x.json")]
     ),
     Code.RANDOM_PLAY_REACHES_LENGTH_STOP: _cli(lambda tmp: ["demo", _bounded(tmp), "--seed", "0"]),

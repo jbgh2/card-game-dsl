@@ -11,7 +11,8 @@ property:        once the command line is read, `check --json` prints exactly
                  error.
 domain:          the outcomes of a check -- a game that checks clean, a
                  game refused, a file of an extension the checker does not
-                 read, a path that cannot be read -- crossed with the two
+                 read, a path that cannot be read, a leaked Owner Guard told
+                 to the engine -- crossed with the two
                  output forms, text and `--json`; a runtime refusal a check
                  raises, under both forms, is tests/test_playout_records.py's. A command line
                  refused before it is read (a usage error, a first word that
@@ -32,7 +33,7 @@ import pytest
 
 from cardlang import cli
 from cardlang.records import read_envelope
-from cardlang.runtime.errors import GameRegistrationError
+from cardlang.runtime.errors import GameRegistrationError, ShadowGuardError
 
 _ROOT = Path(__file__).resolve().parent.parent
 HEARTS = _ROOT / "docs" / "games" / "hearts.cardlang"
@@ -65,11 +66,27 @@ def _cases(tmp_path: Path) -> dict[str, Path]:
     }
 
 
-@pytest.mark.parametrize("case", ["clean", "refused", "extension", "unreadable"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "clean",
+        "refused",
+        "extension",
+        "unreadable",
+        pytest.param("a leaked Owner Guard", marks=pytest.mark.expects_shadow_guard),
+    ],
+)
 def test_json_prints_one_envelope_and_exits_as_the_text_does(
-    case: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    case: str, tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    path = str(_cases(tmp_path)[case])
+    """red under: `cli._status` naming 1 for the engine."""
+    if case == "a leaked Owner Guard":
+
+        def leaked(_path: object) -> None:
+            raise ShadowGuardError("resolve", "a refusal that leaked")
+
+        monkeypatch.setattr(cli, "check_source", leaked)
+    path = str(_cases(tmp_path).get(case, HEARTS))
     text_exit, _out, _err = _run(["check", path], capsys)
     json_exit, out, err = _run(["check", path, "--json"], capsys)
     assert (json_exit, err) == (text_exit, "")
@@ -79,6 +96,7 @@ def test_json_prints_one_envelope_and_exits_as_the_text_does(
     assert (errors == []) == (json_exit == 0)
     if errors:
         assert (json_exit == 1) == all(r["author"] in _FILE_AUTHORS for r in errors)
+        assert (json_exit == 3) == any(r["author"] == "engine" for r in errors)
 
 
 def test_the_witness_a_typo_in_hearts(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -116,7 +134,7 @@ def test_a_registration_refusal_is_a_record_and_exits_2(
 def test_an_engine_failure_prints_its_envelope_and_exits_3(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """An exception outside the typed channels: the envelope tells the
+    """An exception outside the typed Failure Channel: the envelope tells the
     engine, the traceback goes to stderr, and the status is the engine's 3,
     never the 1 a game at fault gets."""
 

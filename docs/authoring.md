@@ -492,7 +492,9 @@ deck`, are notes with no place. The text output never shows a code
 `play` and `demo` take `--json` too. stdout then holds the one envelope and
 nothing else, printed when the command ends, and everything else the command
 prints, `demo`'s summary and views or `play`'s whole table, goes to stderr
-word for word; `play` still reads your picks from stdin. Every refusal is a
+word for word; `play` still reads your picks from stdin. Two lines print no
+envelope under any command: `-h` prints its help, and a command line that
+cannot be read is refused as text on stderr, with nothing on stdout. Every refusal is a
 record: the checker's, the playout's, and the command's own, such as a seat
 the game does not seat or a saved game it cannot resume, each told to
 `invocation`. A `demo` playout that reaches its `max_length` is a record

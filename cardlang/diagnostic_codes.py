@@ -53,13 +53,14 @@ class Code(Enum):
     EXTRA_WORD = ("extra-word", "the command reads one game file and no other word; drop the word")
     MISSING_GAME_FILE = ("missing-game-file", "the command needs a game file and the line names none; name one")
     COMMAND_LINE_USAGE = ("command-line-usage", "the command line does not read as the command's; write what the message says it expects")
-    SEAT_VIEW_NEEDS_A_DECISION = ("seat-view-needs-a-decision", "a Seat View is shown at a decision, and the playout made none; leave out --view and --info-state")
+    SEAT_VIEW_OF_A_PLAYOUT_WITH_NO_DECISION = ("seat-view-of-a-playout-with-no-decision", "the engine takes a seat's view only from a playout that has made a decision, and this one made none; leave out --view and --info-state")
     TABLE_CANNOT_NUMBER_A_DECISION = ("table-cannot-number-a-decision", "the game has a decision whose picks a table cannot number yet; watch it played with `cardlang demo`")
     SAVED_GAME_NOT_RESUMABLE = ("saved-game-not-resumable", "the file --resume names holds no game this game can go on with; name another file, or start a new game")
     CONTRADICTS_SAVED_GAME = ("contradicts-saved-game", "a --seat, --seed or --vs names another than the saved game was played with; leave it out")
-    OPPONENTS_SEATED_WRONGLY = ("opponents-seated-wrongly", "the --vs items do not seat each other seat once; name each seat you do not take exactly once")
+    OPPONENTS_SEATED_WRONGLY = ("opponents-seated-wrongly", "the --vs items cannot seat the seats you do not take as written: a seat named twice, your own seat named, `all` beside another item, `rest` given twice or alone, or a --vs with no seat left to fill; write them as the message says")
     UNNAMED_OPPONENTS = ("unnamed-opponents", "a seat you do not take has no opponent; name one for it with --vs")
-    UNWRITABLE_SAVE_FILE = ("unwritable-save-file", "the file --save or --resume names cannot be written; name a file that can")
+    CANNOT_SAVE_TO_FILE = ("cannot-save-to-file", "the file --save or --resume names cannot take the saved game: it cannot be written, or it holds something saving would replace; name another file")
+    UNWRITABLE_OUTPUT = ("unwritable-output", "the command's own output cannot be written where the caller sent it: its reader has gone, or its encoding cannot spell what the command prints; read the output to its end, or give the stream an encoding that can")
 
     # --- names ------------------------------------------------------------
     UNKNOWN_NAME = ("unknown-name", "a name nothing in scope declares, refused where the checker cannot tell which sort of name was meant; read the suggestions, spell a declared name, or declare it")
@@ -162,7 +163,8 @@ class Code(Enum):
     # --- play time and the installation -----------------------------------
     REFUSED_DURING_PLAY = ("refused-during-play", "a rule only a playout reaches refused the game")
     GAME_ERROR_RAISED = ("game-error-raised", "the game's own `error(...)` refused a move no player was offered")
-    RANDOM_PLAY_REACHES_LENGTH_STOP = ("random-play-reaches-length-stop", "uniform-random play met the game's Length Stop, its max_length reached without its rules ending it; raise the bound, or end the loop that should have ended")
+    PRIMITIVE_READS_A_NAME_THE_GAME_LACKS = ("primitive-reads-a-name-the-game-lacks", "a Primitive module the game uses reads, by its name, a state variable or zone the game no longer declares; declare it under that name")
+    RANDOM_PLAY_REACHES_LENGTH_STOP = ("random-play-reaches-length-stop", "uniform-random play met the game's Length Stop, its max_length reached without its rules ending it; raise the bound, end the loop that should have ended, or, if a table can lawfully play on without end, say so in the game's twin")
     ENGINE_GAP = ("engine-gap", "the engine refused what an earlier check should have refused; the engine must change")
     INCOMPLETE_INSTALLATION = ("incomplete-installation", "the checkout is missing files the engine loads; reinstall it")
     UNREGISTRABLE_GAME = ("unregistrable-game", "a game file offered for registration cannot be registered by that name")

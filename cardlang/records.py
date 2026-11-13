@@ -67,6 +67,7 @@ from cardlang.runtime.errors import (
     InstallationError,
     ShadowGuardError,
 )
+from cardlang.runtime.reads import PrimitiveNameMissing
 from cardlang.runtime.state import IllegalMove
 
 #: The Record Envelope's format version. A change a reader could misread
@@ -352,14 +353,18 @@ def _is_query_answer(value: object) -> bool:
 
 
 #: Every refusal the command line renders from a playout or a load: the
-#: runtime's typed failure channel (`cardlang.runtime.errors`) and the game's
-#: own `error(...)`, as a type and as the classes a caller catches.
-RuntimeRefusal = GameDescriptionError | IllegalMove | InstallationError | GameRegistrationError
+#: runtime's typed Failure Channel (`cardlang.runtime.errors`), the game's
+#: own `error(...)`, and a name a Primitive module reads that the game no
+#: longer declares, as a type and as the classes a caller catches.
+RuntimeRefusal = (
+    GameDescriptionError | IllegalMove | InstallationError | GameRegistrationError | PrimitiveNameMissing
+)
 RUNTIME_REFUSALS: tuple[type[Exception], ...] = (
     GameDescriptionError,
     IllegalMove,
     InstallationError,
     GameRegistrationError,
+    PrimitiveNameMissing,
 )
 
 
@@ -380,6 +385,8 @@ def refusal_diagnostic(exc: RuntimeRefusal) -> Told:
             code, author = Code.INCOMPLETE_INSTALLATION, Author.INSTALLATION
         case GameRegistrationError():
             code, author = Code.UNREGISTRABLE_GAME, Author.REGISTRATION
+        case PrimitiveNameMissing():
+            code, author = Code.PRIMITIVE_READS_A_NAME_THE_GAME_LACKS, Author.GAME
         case _:
             assert_never(exc)
     return Told(Diagnostic(Severity.ERROR, str(exc), span, code=code), author)
