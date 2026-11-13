@@ -25,15 +25,39 @@ Establishes:  `resemblance` is the one measure of how alike two spellings
               a `DiagnosticError` carries every diagnostic it tells as a
               Told Diagnostic (`Told`), each with its Author, and renders the
               text a designer reads from them.
+              `DiagnosticBag.settle` is the one decision of which refusals a
+              refused spelling's consequences leave untold: a refusal that
+              marks what clears it (`Unless`) is withheld when one assignment
+              of fixes, a member of each cause's set (`Refused`), clears every
+              marked refusal those causes reach, and told otherwise; a refusal
+              no member of a cause's set clears is told, and so is every cause
+              no other cause clears. A refusal is withheld only through a
+              cause that is told, so a check never passes while one is
+              withheld, and a withheld refusal is told on the check after its
+              cause is fixed. `cardlang.attribution` settles a bag before it
+              tells it, so no told diagnostic carries a mark.
 Now illegal:  a check composing an unknown-name refusal with
               `DiagnosticBag.error` (tests/test_near_misses.py census), a
               second resemblance measure, and a Near Miss applied to a
               designer's text for them: it can name the wrong declared
               thing, so it is only ever offered; a diagnostic made without a
-              code, and a `DiagnosticError` raised without an author.
+              code, and a `DiagnosticError` raised without an author; a check
+              withholding a refusal of its own because another refusal
+              exists, rather than marking what clears it. Two checks decide
+              without the owner, each because the text it would refuse is
+              not a reference another refusal leaves undecided: the
+              classifier leaves unrefused a name a refused binder source's
+              fix would bind (`_Categories.withheld`), which binds or not by
+              lexical scope, and `_check_unread_clauses` says nothing of a
+              clause its own guard refused (its `refused` set), which would
+              tell the one refused clause twice.
 Held by:      Derived and Pinned for the routing -- a refusal's sentence is a
               `str`, which no union tells apart, so the census holds it;
               Unrepresentable for the code and the author, required fields.
+              The settling has one owner (`settle`); which fixes clear a
+              marked refusal is a fact of the marking check's body, held by
+              its member's row, which executes the fix
+              (tests/test_refusal_consequences.py).
 """
 
 from __future__ import annotations
@@ -235,6 +259,72 @@ def line_kind(line: str) -> str | None:
     return None if found is None else found.group(1)
 
 
+class SlotKind(Enum):
+    """What a refused spelling stands in: the kind of declaration or
+    reference its fix names."""
+
+    DECK = "deck"
+    CONTENT_KIND = "content kind"
+    BOARD = "board"
+    ZONE_INDEX = "zone index"
+    PROCEDURE = "procedure"
+    MOVE_TYPE = "move type"
+    RULE = "rule"
+    FUNCTION = "function"
+    MODE = "mode"
+    SIMULTANEOUS_ROLE = "simultaneous role"
+    TYPE = "type"
+    TEXT = "text"
+
+
+@dataclass(frozen=True, slots=True)
+class Slot:
+    """One place a refused spelling stands: its kind, and which one of that
+    kind (a zone's name, a phase's, or the spelling's own text)."""
+
+    kind: SlotKind
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
+class Refused:
+    """A cause: the slot a refused spelling stands in, and the set it was
+    looked up in, any member of which is a fix."""
+
+    slot: Slot
+    fixes: frozenset[str]
+
+
+@dataclass(frozen=True, slots=True)
+class Unless:
+    """What clears a consequence: a fix in `clears` of a refused spelling of
+    `kind`, in a slot `names` holds, or in any slot of the kind when `names`
+    is None."""
+
+    kind: SlotKind
+    clears: frozenset[str]
+    names: frozenset[str] | None = None
+
+    def reaches(self, cause: Refused) -> bool:
+        return (
+            cause.slot.kind is self.kind
+            and (self.names is None or cause.slot.name in self.names)
+            and not self.clears.isdisjoint(cause.fixes)
+        )
+
+
+def text_slot(span: Span) -> Slot:
+    """The slot of a bare spelling: its own text."""
+    return Slot(SlotKind.TEXT, f"{span.source_name}:{span.start}:{span.end}")
+
+
+#: The most causes `DiagnosticBag.settle` assigns fixes to in one group, and
+#: the most clearing tests it makes for one group: past either, the group's
+#: consequences are told whole.
+SETTLE_CAUSES = 32
+SETTLE_LIMIT = 50_000
+
+
 @dataclass(frozen=True, slots=True)
 class Diagnostic:
     """A single problem found by any stage, located in the source, with the
@@ -253,7 +343,11 @@ class Diagnostic:
 
     `code` is the kind of fix the refusal asks for (`Code`), required where
     the diagnostic is made and kept by every retelling; `format` never
-    shows it."""
+    shows it.
+
+    `refuses` marks a cause, the refused spelling's slot and its fixes, and
+    `unless` a consequence, what clears it: read only by
+    `DiagnosticBag.settle`, which leaves no told diagnostic carrying either."""
 
     severity: Severity
     message: str
@@ -263,6 +357,8 @@ class Diagnostic:
     notes: tuple[Note, ...] = ()
     stands_on: tuple[Span, ...] = ()
     near_misses: tuple[str, ...] = ()
+    refuses: Refused | None = None
+    unless: tuple[Unless, ...] = ()
     code: Code = field(kw_only=True)
 
     def format(self) -> str:
@@ -334,10 +430,13 @@ class DiagnosticBag:
         route: Route | None = None,
         for_game: Said | None = None,
         stands_on: Span | tuple[Span, ...] | None = None,
+        refuses: Refused | None = None,
+        unless: Unless | tuple[Unless, ...] = (),
     ) -> None:
         """`code` is the kind of fix the refusal asks for. `stands_on` is
         library text the refusal reached that its sentences do not name; the library text they name, in `message` and in
-        `for_game`, stands on their citations."""
+        `for_game`, stands on their citations. `refuses` marks the refusal a
+        cause, `unless` a consequence (`settle`)."""
         on = (stands_on,) if isinstance(stands_on, Span) else stands_on or ()
         words, cited = rendered(message)
         game_words: str | None = None
@@ -346,7 +445,15 @@ class DiagnosticBag:
             cited += game_cited
         self.items.append(
             Diagnostic(
-                Severity.ERROR, words, span, route, game_words, stands_on=on + cited, code=code
+                Severity.ERROR,
+                words,
+                span,
+                route,
+                game_words,
+                stands_on=on + cited,
+                refuses=refuses,
+                unless=(unless,) if isinstance(unless, Unless) else unless,
+                code=code,
             )
         )
 
@@ -362,18 +469,76 @@ class DiagnosticBag:
         for_game: Said | None = None,
         stands_on: Span | tuple[Span, ...] | None = None,
         written: Callable[[str], str] | None = None,
+        slot: Slot | None = None,
+        fixes: Iterable[str] | None = None,
+        unless: Unless | tuple[Unless, ...] = (),
     ) -> None:
         """Refuse `spelled`, absent from `among`, the set it was looked up in:
         `error`, with the set's Near Misses carried as data, each as `written`
         spells it where the refusal stands (a numeric rank in a string
-        position is written quoted)."""
+        position is written quoted). `slot` is where `spelled` stands, and
+        marks the refusal a cause whose fixes are `fixes`, the members of
+        `among` that may stand there, `among` itself where the check names
+        none; `unless` is as for `error`."""
+        among = frozenset(among)
         self.error(
-            message, span, code=code, route=route, for_game=for_game, stands_on=stands_on
+            message,
+            span,
+            code=code,
+            route=route,
+            for_game=for_game,
+            stands_on=stands_on,
+            refuses=None if slot is None else Refused(slot, among if fixes is None else frozenset(fixes)),
+            unless=unless,
         )
         near = near_misses(spelled, among)
         if written is not None:
             near = tuple(written(name) for name in near)
         self.items[-1] = replace(self.items[-1], near_misses=near)
+
+    def settle(self) -> None:
+        """Withhold the refusals a refused spelling's fix would clear, and
+        strip every mark. A cause marking no consequence is told, and so is
+        a cause that no such cause reaches. The rest are grouped by the
+        causes that reach them; a group is withheld when one fix of each
+        cause clears all of it (`_assignable`), and told otherwise."""
+        items = self.items
+        if not any(d.unless for d in items):
+            if any(d.refuses is not None for d in items):
+                items[:] = [replace(d, refuses=None) for d in items]
+            return
+        roots = [i for i, d in enumerate(items) if d.refuses is not None and not d.unless]
+        marked = [c for c, d in enumerate(items) if d.unless]
+        # A cause that is itself a consequence is cleared only by a root, and
+        # one no root reaches is told; every other consequence is cleared by
+        # a cause that is told.
+        doubles = {c for c in marked if items[c].refuses is not None and _reaching(items, c, roots)}
+        causes = roots + [c for c in marked if items[c].refuses is not None and c not in doubles]
+        clearers = {
+            c: _reaching(items, c, roots if c in doubles else causes)
+            for c in marked
+            if items[c].refuses is None or c in doubles
+        }
+        group_of: dict[int, int] = {}
+        groups: dict[int, tuple[set[int], set[int]]] = {}
+        for c, by in clearers.items():
+            if not by:
+                continue
+            consequences, reaching = {c}, set(by)
+            for g in {group_of[i] for i in by if i in group_of}:
+                more, also = groups.pop(g)
+                consequences |= more
+                reaching |= also
+            for i in reaching:
+                group_of[i] = c
+            groups[c] = (consequences, reaching)
+        withheld: set[int] = set()
+        for consequences, reaching in groups.values():
+            if _assignable(items, sorted(consequences), sorted(reaching), clearers):
+                withheld |= consequences
+        items[:] = [
+            replace(d, refuses=None, unless=()) for i, d in enumerate(items) if i not in withheld
+        ]
 
     @property
     def has_errors(self) -> bool:
@@ -381,3 +546,77 @@ class DiagnosticBag:
 
     def format(self) -> str:
         return "\n".join(d.format() for d in self.items)
+
+
+def _reaching(items: list[Diagnostic], c: int, causes: Iterable[int]) -> list[int]:
+    """The causes among `causes`, other than `c`, that a fix of could clear
+    the consequence `items[c]`."""
+    found: list[int] = []
+    for i in causes:
+        refused = items[i].refuses
+        if i != c and refused is not None and any(u.reaches(refused) for u in items[c].unless):
+            found.append(i)
+    return found
+
+
+def _assignable(
+    items: list[Diagnostic], consequences: list[int], causes: list[int], clearers: dict[int, list[int]]
+) -> bool:
+    """Whether one fix of each cause, a member of its set or none, clears
+    every consequence: some `Unless` of each reaching a cause whose fix is in
+    its `clears`. Searched depth first over at most `SETTLE_CAUSES` causes, so
+    the search is never deeper than that, each consequence tested once its
+    last clearing cause is chosen, and answered no past `SETTLE_LIMIT` fixes
+    tried and tests made together."""
+    if len(causes) > SETTLE_CAUSES:
+        return False
+
+    def refused(i: int) -> Refused:
+        cause = items[i].refuses
+        assert cause is not None
+        return cause
+
+    clears: dict[int, dict[int, frozenset[str]]] = {
+        c: {
+            i: frozenset(
+                value
+                for u in items[c].unless
+                if u.reaches(refused(i))
+                for value in u.clears & refused(i).fixes
+            )
+            for i in clearers[c]
+        }
+        for c in consequences
+    }
+    depth = {i: k for k, i in enumerate(causes)}
+    due: dict[int, list[int]] = {}
+    for c in consequences:
+        due.setdefault(max(depth[i] for i in clears[c]), []).append(c)
+    domains = {
+        i: [*sorted({v for c in consequences for v in clears[c].get(i, ())}), None] for i in causes
+    }
+    chosen: dict[int, str | None] = {}
+    budget = SETTLE_LIMIT
+
+    def search(at: int) -> bool:
+        nonlocal budget
+        if at == len(causes):
+            return True
+        cause = causes[at]
+        for value in domains[cause]:
+            budget -= 1
+            if budget < 0:
+                break
+            chosen[cause] = value
+            settled = True
+            for c in due.get(at, ()):
+                budget -= 1
+                if not any(chosen[i] is not None and chosen[i] in fixes for i, fixes in clears[c].items()):
+                    settled = False
+                    break
+            if settled and search(at + 1):
+                return True
+        chosen.pop(cause, None)
+        return False
+
+    return search(0)

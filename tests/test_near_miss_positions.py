@@ -31,7 +31,8 @@ domain:          every slip the Near Miss census holds (`WITNESSES`,
                  (`POSITIONAL_GUARDS`) or a trick round's winner
                  (`_winner_refusals`' reasons), and one for the refusal of
                  any name where a `Positive` parameter's argument stands
-                 (`_check_positive_arguments`, which reads no `ref_kind`),
+                 (`_check_positive_arguments`, which reads no `ref_kind` and
+                 joins the record by its producer, `positive_arguments`),
                  and slips beside a second slip, crossed with every Near
                  Miss each one offers. A cell whose offer no joined guard
                  judges is a strict xfail naming its issue (`RESIDUAL`, and
@@ -262,7 +263,6 @@ RESIDUAL: dict[str, str] = {
         "checker gives no Type, is accepted for one (issue #1125)"),
     "a seat's family bare where no player acts": "the hidden-read walk judges off the record (issue #1089)",
     "a hidden read beside a second slip": "the hidden-read walk judges off the record (issue #1089)",
-    "a Positive argument": "a `Positive` parameter takes a written number, which no record holds (issue #1089)",
 }
 
 # The position probes whose whole offer is wrong where the oracle cannot see

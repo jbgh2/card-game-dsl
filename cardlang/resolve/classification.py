@@ -17,7 +17,9 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
               ``_position_refuses``, the disjunction of the guards'
               predicates); a trick round's winner is offered the winners that
               round admits (``_winner_refusals``, the one producer the
-              guards refusing a round's winner dispatch on). Held by Derived and Pinned
+              guards refusing a round's winner dispatch on); no name is
+              offered where a `Positive` parameter's argument stands
+              (``positive_arguments``). Held by Derived and Pinned
               (tests/test_near_miss_positions.py). Not established: the
               alias-comparison and hidden-read guards judge by walk state the
               record does not hold (issue #1089), and no Near Miss is judged by
@@ -53,7 +55,7 @@ from cardlang.builtins.functions import BUILTIN_IMPLICIT_READS
 from cardlang.diagnostics import DiagnosticBag
 from cardlang.resolve.walk import _child_nodes, _walk
 from cardlang.resolve.slots import _NAME_SLOTS, _slot_root
-from cardlang.resolve.declared import _map_climb_rounds
+from cardlang.resolve.declared import _map_climb_rounds, positive_arguments
 from cardlang.resolve.scope import (
     _DEFAULT_REFUSED_PRONOUNS,
     _default_reads,
@@ -223,6 +225,13 @@ def _name_positions(game: n.Game, facts: Mapping[int, _ScopeFacts] | None = None
     keyed = _keyed_ids(game)
     piles = {id(ref) for _call, _arg, ref in _arrival_piles(game) if ref is not None}
     subscripted = _subscripted_ids(game)
+    procedures = {p.name: p for p in game.procedures}
+    positive = {
+        id(arg)
+        for run in _walk(game)
+        if isinstance(run, n.RunStmt) and run.name in procedures
+        for _param, arg in positive_arguments(procedures[run.name], run)
+    }
     return {
         id(ref): _NamePosition(
             scope=scope[id(ref)],
@@ -231,6 +240,7 @@ def _name_positions(game: n.Game, facts: Mapping[int, _ScopeFacts] | None = None
             keyed=id(ref) in keyed,
             arrival_pile=id(ref) in piles,
             subscripted=id(ref) in subscripted,
+            positive_argument=id(ref) in positive,
         )
         for ref in _walk(game)
         if isinstance(ref, n.NameRef)

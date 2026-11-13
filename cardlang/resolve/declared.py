@@ -5,22 +5,30 @@ A shared module: the steps read it, and it imports no step.
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 Establishes:  the deck, the board, the minted directions and the declared
-              types as every step reads them, each derived once here.
+              types as every step reads them, each derived once here; the
+              slot each of the game's component set, content kind, board and
+              zone indexes stands in, and what clears a refusal resting on
+              each (`DECK_SLOT`, `sets_naming`, `content_kind_unless`,
+              `board_mints`, `kept_per_player`), stated once for every step
+              that marks one; and the arguments a `run` binds to a
+              `Positive` parameter (`positive_arguments`), read by its guard
+              and by the position record.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import assert_never
 from dataclasses import replace
 from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, board_directions, directions_of
-from cardlang.diagnostics import DiagnosticBag, Span
-from cardlang.domains import SIMULTANEOUS_ROLES, role_of
+from cardlang.diagnostics import DiagnosticBag, Refused, Slot, SlotKind, Span, Unless
+from cardlang.domains import SIMULTANEOUS_ROLES, Role, role_names, role_of
 from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, BoardMisuse, BoardRefusal, board_entry
+from cardlang.stdlib.enums import enum_values, rank_names, suit_names
 from cardlang.stdlib.rules import STDLIB_NAME, stdlib_rules
-from cardlang.typecheck import COMBINATION_TYPE_NAME, KNOWN_TYPE_NAMES
+from cardlang.typecheck import COMBINATION_TYPE_NAME, KNOWN_TYPE_NAMES, POSITIVE_PARAM_DOMAIN
 from cardlang.resolve.walk import _traverse
 # The zone family a move type's `Card` parameter takes its card from: the
 # acting seat's own instance (`DECISION_POOLS`' Card-parameter row).
@@ -107,7 +115,7 @@ def _tell_board_refusal(
     does not register is a name refused against `BOARD_FAMILIES`."""
     match refused.misuse:
         case BoardMisuse.UNKNOWN_FAMILY:
-            bag.unknown(str(refused), family, BOARD_FAMILIES, span, code=Code.UNKNOWN_BOARD)
+            bag.unknown(str(refused), family, BOARD_FAMILIES, span, code=Code.UNKNOWN_BOARD, slot=BOARD_SLOT)
         case BoardMisuse.WRONG_ARGUMENT_COUNT:
             bag.error(str(refused), span, code=Code.WRONG_ARGUMENT_COUNT)
         case BoardMisuse.ARGUMENT_OUT_OF_RANGE | BoardMisuse.UNDECLARED_LINE_LENGTH:
@@ -120,6 +128,94 @@ def _tell_board_refusal(
 
 def _family_shape(index: str | None) -> str:
     return "a single zone" if index is None else f"one zone per {index}"
+
+
+# The slot of the game's `cards:`/`pieces:` set, and of its content kind.
+DECK_SLOT = Slot(SlotKind.DECK, "")
+CONTENT_KIND_SLOT = Slot(SlotKind.CONTENT_KIND, "")
+
+
+BOARD_SLOT = Slot(SlotKind.BOARD, "")
+
+
+def board_mints(name: str) -> tuple[Unless, ...]:
+    """What clears a refusal of a position name a board mints: the game's
+    refused `board:` fixed to a family that mints it, `cell` by every family
+    and `dir` by every family with a movement frame, or its set declared as
+    pieces, which a board needs; nothing for any other name."""
+    if name not in (BOARD_DOMAIN, DIRECTION_DOMAIN):
+        return ()
+    if name == BOARD_DOMAIN:
+        families = frozenset(BOARD_FAMILIES)
+    elif name == DIRECTION_DOMAIN:
+        families = frozenset(
+            f for f, family in BOARD_FAMILIES.items()
+            if family.build(tuple(p.lo for p in family.params)).frame is not None
+        )
+    return (Unless(SlotKind.BOARD, families), Unless(SlotKind.CONTENT_KIND, frozenset({"piece"})))
+
+
+def index_slot(zone: str) -> Slot:
+    """The slot of a zone's index role."""
+    return Slot(SlotKind.ZONE_INDEX, zone)
+
+
+def kept_per_player(zone: str) -> Unless:
+    """What clears a refusal of a zone not kept per player: its refused
+    index fixed to `player`."""
+    return Unless(SlotKind.ZONE_INDEX, frozenset(role_names(frozenset({Role.PLAYER}))), frozenset({zone}))
+
+
+def content_kind_refused(flavor: str) -> Refused:
+    """A component set declared with the other content kind's keyword: the
+    cause, whose one fix is that kind."""
+    return Refused(CONTENT_KIND_SLOT, frozenset({flavor}))
+
+
+def content_kind_unless(game: n.Game) -> Unless:
+    """What clears a refusal of a game's card content in a piece game: its
+    set declared as cards."""
+    return Unless(SlotKind.CONTENT_KIND, frozenset({"card"}) - {game.content_flavor})
+
+
+def type_slot(where: str, name: str) -> Slot:
+    """The slot of a declared type: a state variable's (`where` "state") or a
+    function parameter's (`where` the function)."""
+    return Slot(SlotKind.TYPE, f"{where}:{name}")
+
+
+def content_nouns_naming(name: str) -> frozenset[str]:
+    """The content kinds whose noun `name` is: what clears its refusal under
+    a set declared with the other kind's keyword."""
+    from cardlang.runtime.values import content_noun
+
+    return frozenset(
+        flavor for flavor in ("card", "piece")
+        if name in (content_noun(flavor, plural=False), content_noun(flavor, plural=True))
+    )
+
+
+def sets_naming(name: str) -> frozenset[str]:
+    """The component sets in which `name` is a bare enum value: what clears
+    its refusal under a refused set."""
+    from cardlang.runtime.values import COMPONENT_SETS
+
+    return frozenset(s for s in COMPONENT_SETS if name in enum_values(s))
+
+
+def sets_holding(rank: str, suit: str) -> frozenset[str]:
+    """The component sets whose cards include `rank of suit`."""
+    from cardlang.runtime.values import COMPONENT_SETS
+
+    return frozenset(s for s in COMPONENT_SETS if rank in rank_names(s) and suit in suit_names(s))
+
+
+def positive_arguments(proc: n.ProcedureDef, run: n.RunStmt) -> Iterator[tuple[n.Parameter, n.Expr]]:
+    """Each argument `run` binds to a `Positive` parameter of `proc`, which
+    takes a written number and no name."""
+    for param, arg in zip(proc.params, run.args):
+        if param.type_name == POSITIVE_PARAM_DOMAIN:
+            yield param, arg
 
 
 def _deck_known(deck: str) -> bool:
@@ -158,6 +254,11 @@ def _declared_suits_phrase(deck: str) -> str:
     if specials:
         phrase += f", optionally with its special suits ({', '.join(specials)}),"
     return phrase
+
+
+def simultaneous_role_slot(nd: n.EachSimultaneous) -> Slot:
+    """The slot of a simultaneous block's role."""
+    return Slot(SlotKind.SIMULTANEOUS_ROLE, f"{nd.span}")
 
 
 def _simultaneous_role_refused(nd: n.EachSimultaneous) -> bool:

@@ -25,7 +25,7 @@ from cardlang.ast import nodes as n
 from cardlang.board_domains import LINE_NOUN
 from cardlang.builtins.functions import VALUE_NAMES
 from cardlang.primitives_block import walled_namespace_of
-from cardlang.diagnostics import DiagnosticBag, Span
+from cardlang.diagnostics import DiagnosticBag, SlotKind, Span, Unless, text_slot
 from cardlang.domains import Role, role_names, role_of
 from cardlang.catalogue_pass import shape_labels
 from cardlang.runtime.values import content_noun
@@ -35,7 +35,7 @@ from cardlang.resolve.walk import _traverse, _walk
 from cardlang.resolve.binders import _BINDER_SCOPE_FIELDS, _introduced_binders
 from cardlang.resolve.reserved import PLAY_SOURCE_NAME, _PRONOUNS, _SUBSCRIPTED_PLAY_SOURCE
 from cardlang.resolve.slots import _ROUND_QUERY_SLOT_SPELLINGS
-from cardlang.resolve.declared import _component_known
+from cardlang.resolve.declared import _component_known, sets_naming, board_mints, content_nouns_naming
 from cardlang.resolve.reaches import (
     _ReadLimits,
     _answer_read_refusal,
@@ -192,8 +192,10 @@ class _NamePosition:
     name slot the name roots takes (`_NAME_SLOTS`), `each_destination` marks a
     `to each` destination, `keyed` a name a subscript keys or a `to each`
     names whole (`_keyed_ids`), `arrival_pile` an Arrival Record call's pile
-    (`_arrival_piles`), and `subscripted` a name a subscript keys
-    (`_subscripted_ids`)."""
+    (`_arrival_piles`), `subscripted` a name a subscript keys
+    (`_subscripted_ids`), and `positive_argument` an argument a `run` binds
+    to a `Positive` parameter (`positive_arguments`,
+    `_check_positive_arguments`), where no name stands."""
 
     scope: _ScopeFacts = _ScopeFacts()
     slot: frozenset[n.RefKind] | None = None
@@ -201,6 +203,7 @@ class _NamePosition:
     keyed: bool = False
     arrival_pile: bool = False
     subscripted: bool = False
+    positive_argument: bool = False
 
 
 def _scope_refuses(facts: _ScopeFacts, name: str, kind: n.RefKind, *, subscripted: bool) -> bool:
@@ -235,6 +238,7 @@ def _position_refuses(
             and _bare_seat_family_in_default(zone_index, name, kind, position.keyed)
         )
         or (position.arrival_pile and _arrival_pile_refusal(name, kind, position.scope.limits) is not None)
+        or position.positive_argument
     )
 
 
@@ -537,20 +541,30 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             elif node.name == "max_length":
                 bag.error(MAX_LENGTH_AS_VALUE, node.span, code=Code.WRONG_SORT_OF_NAME)
                 return replace(node, ref_kind=kind)
+            here = _resolving_here(
+                node,
+                (
+                    *cats.locals, *cats.state_vars, *cats.zones, *cats.enums,
+                    *_PRONOUNS, "none", "true", "false",
+                    *((PLAY_SOURCE_NAME,) if cats.rule_clause else ()),
+                ),
+                cats,
+            )
+            slot = None if node.span is None else text_slot(node.span)
             bag.unknown(
                 f"unresolved name '{node.name}'{hint}",
                 node.name,
-                _resolving_here(
-                    node,
-                    (
-                        *cats.locals, *cats.state_vars, *cats.zones, *cats.enums,
-                        *_PRONOUNS, "none", "true", "false",
-                        *((PLAY_SOURCE_NAME,) if cats.rule_clause else ()),
-                    ),
-                    cats,
-                ),
+                here,
                 node.span,
                 code=Code.UNKNOWN_NAME,
+                slot=slot,
+                # The same text refused by another check, and a name a
+                # refused component set would hold.
+                unless=(
+                    *(() if slot is None else (Unless(SlotKind.TEXT, frozenset(here), frozenset({slot.name})),)),
+                    Unless(SlotKind.DECK, sets_naming(node.name)),
+                    Unless(SlotKind.CONTENT_KIND, content_nouns_naming(node.name)),
+                ),
             )
         return replace(node, ref_kind=kind)
     if isinstance(node, n.Produces):
@@ -828,6 +842,7 @@ def _membership_capture(
             {noun + "s" for noun in fixes},
             nd.span,
             code=Code.UNKNOWN_NAME,
+            unless=board_mints(nd.binder),
         )
         return fixes
     source = n.short_spelling(nd.source)

@@ -2124,6 +2124,7 @@ def _pool_name(node: ast.expr) -> str | None:
 WALKERS: dict[str, str] = {
     "resolve._check_answer_hermeticity": "test_a_row_reaching_a_library_function",
     "resolve._answer_routes": "the routes `_check_answer_hermeticity` locates its refusals by",
+    "resolve._name_positions": "the position record: refuses nothing itself",
     "resolve._scope_facts": "the position record's scope facts: refuses nothing itself",
     "resolve._check_play_source": (
         "test_a_rule_calling_a_library_function_that_reads_hand; the answer's: "
