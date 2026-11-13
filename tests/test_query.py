@@ -65,11 +65,14 @@ does not prove:  that an answer is the RIGHT one at a position no corpus game
                  family where no player acts, each refused when written
                  there. At a node that is no name it lists a zone family of
                  any index, which the bare-family rule refuses written bare
-                 there: that rule judges a name alone. The reach rules (a
-                 Hosted Poll's body, a kernel answer and the functions it
-                 reaches, a function a rule's clauses reach) are run by
-                 apply-the-read at one position each, never over the
-                 corpus. A zone family's name answers with the Type
+                 there: that rule judges a name alone. The Hosted Poll
+                 rule and the kernel-answer rule are
+                 run by apply-the-read at one position each, never over the
+                 corpus; the rule of a function a rule's clauses reach is
+                 run by no cell here, since the one answer cell's answer
+                 rule refuses the same names first, and it is held by
+                 tests/test_near_miss_positions.py alone. A zone family's
+                 name answers with the Type
                  the checker gives it, one zone's content: the checker holds
                  a family's content (`TypeEnv.zones`) and the Type of its key
                  (`TypeEnv.zone_families`) apart, and no Type of the family
