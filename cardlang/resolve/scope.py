@@ -19,26 +19,29 @@ from cardlang.resolve.walk import _child_nodes, _walk
 from cardlang.resolve.reserved import _CALL_SITE_PRONOUNS
 
 
-def _default_reads(game: n.Game) -> Iterator[tuple[n.StateDecl, object, frozenset[str]]]:
-    """Every node of every `state { }` default, with its declaration and the
-    state a default may read there: the names declared earlier in the same
-    block and every name of an enclosing block. The one walk
-    `_check_state_default_scope` refuses by and `_name_positions` records."""
+def _state_declarations(
+    game: n.Game,
+) -> Iterator[tuple[n.StateBlock, n.StateDecl | None, frozenset[str]]]:
+    """Every `state { }` block, with the state a default written in it may
+    read: the block itself (no declaration) with every name of an enclosing
+    block, then each declaration with those and the names declared earlier
+    in the same block. The one rule `_default_reads` and `_scope_facts`
+    read."""
 
     def declared(
         block: n.StateBlock | None, enclosing: frozenset[str]
-    ) -> Iterator[tuple[n.StateDecl, object, frozenset[str]]]:
+    ) -> Iterator[tuple[n.StateBlock, n.StateDecl | None, frozenset[str]]]:
         if block is None:
             return
+        yield block, None, enclosing
         in_scope = enclosing
         for decl in block.decls:
-            for node in _walk(decl.default):
-                yield decl, node, in_scope
+            yield block, decl, in_scope
             in_scope = in_scope | {decl.name}
 
     def descend(
         phase: n.Phase, enclosing: frozenset[str]
-    ) -> Iterator[tuple[n.StateDecl, object, frozenset[str]]]:
+    ) -> Iterator[tuple[n.StateBlock, n.StateDecl | None, frozenset[str]]]:
         block = next((i for i in phase.items if isinstance(i, n.StateBlock)), None)
         yield from declared(block, enclosing)
         inner = enclosing | _phase_state_names(phase)
@@ -50,6 +53,16 @@ def _default_reads(game: n.Game) -> Iterator[tuple[n.StateDecl, object, frozense
     top = _game_state_names(game)
     for phase in game.phases:
         yield from descend(phase, top)
+
+
+def _default_reads(game: n.Game) -> Iterator[tuple[n.StateDecl, object, frozenset[str]]]:
+    """Every node of every `state { }` default, with its declaration and the
+    state a default may read there (`_state_declarations`). The one walk
+    `_check_state_default_scope` refuses by and `_scope_facts` records."""
+    for _block, decl, in_scope in _state_declarations(game):
+        if decl is not None:
+            for node in _walk(decl.default):
+                yield decl, node, in_scope
 
 
 #: The pronoun a `state { }` default may not read: it is evaluated outside any
@@ -127,14 +140,25 @@ def _game_state_names(game: n.Game) -> frozenset[str]:
 
 def _phase_scoped_names(game: n.Game) -> Iterator[tuple[n.NameRef, frozenset[str]]]:
     """Every bare name the state-scope rule judges, with the state live where
-    it stands: a phase body's names (its qualifier and outcome cases
-    included) against the game's state and every enclosing phase's, and a
-    game-level clause's against the game's alone. A `state { }` default is
-    `_default_reads`', and a callable body is outside the rule (issue #242).
-    The one walk `_check_state_scope` refuses by and `_name_positions` records."""
+    it stands (`_phase_scoped_nodes`, its names). The one walk
+    `_check_state_scope` refuses by."""
+    for node, in_scope in _phase_scoped_nodes(game):
+        if isinstance(node, n.NameRef):
+            yield node, in_scope
 
-    def descend(phase: n.Phase, enclosing: frozenset[str]) -> Iterator[tuple[n.NameRef, frozenset[str]]]:
+
+def _phase_scoped_nodes(game: n.Game) -> Iterator[tuple[object, frozenset[str]]]:
+    """Every node the state-scope rule judges a name at, with the state live
+    there: a phase and its body (its qualifier and outcome cases included)
+    against the game's state and every enclosing phase's, and the game itself
+    and a game-level clause against the game's alone. A `state { }` block is
+    `_state_declarations`', and a callable body is outside the rule (issue
+    #242).
+    The one walk `_phase_scoped_names` and `_scope_facts` read."""
+
+    def descend(phase: n.Phase, enclosing: frozenset[str]) -> Iterator[tuple[object, frozenset[str]]]:
         inner = enclosing | _phase_state_names(phase)
+        yield phase, inner
         for item in phase.items:
             if isinstance(item, n.Phase):
                 yield from descend(item, inner)
@@ -142,14 +166,12 @@ def _phase_scoped_names(game: n.Game) -> Iterator[tuple[n.NameRef, frozenset[str
                 continue  # `_check_state_default_scope` owns defaults
             else:
                 for node in _walk(item):
-                    if isinstance(node, n.NameRef):
-                        yield node, inner
+                    yield node, inner
         # The qualifier and the outcome cases are part of THIS phase, so its
         # own state is live in them.
         for owned in (phase.qualifier, *phase.outcome_cases):
             for node in _walk(owned):
-                if isinstance(node, n.NameRef):
-                    yield node, inner
+                yield node, inner
 
     top = _game_state_names(game)
     for phase in game.phases:
@@ -160,6 +182,7 @@ def _phase_scoped_names(game: n.Game) -> Iterator[tuple[n.NameRef, frozenset[str
     # `Game` node's own fields and skip the ones another guard owns, so a clause
     # added later is covered the day it exists rather than the day someone
     # remembers it.
+    yield game, top
     for field in game.__dataclass_fields__:
         if field in _GAME_LEVEL_SKIP:
             continue
@@ -169,8 +192,7 @@ def _phase_scoped_names(game: n.Game) -> Iterator[tuple[n.NameRef, frozenset[str
         # loop looks total while checking only the handful of single-node
         # fields.
         for node in _child_nodes(getattr(game, field, None)):
-            if isinstance(node, n.NameRef):
-                yield node, top
+            yield node, top
 
 
 def _state_out_of_scope(name: str, kind: n.RefKind | None, in_scope: frozenset[str] | None) -> bool:

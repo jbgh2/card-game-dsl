@@ -18,7 +18,17 @@ domain:          Two axes. The node axis is every member of the `Node` union,
                  from the language's own partitions: every node has a scope,
                  an expression has a Type and nothing else does, and a site
                  (`SITE_KINDS`) or an expression in a site's clause has an
-                 answer for what each seat sees. The position axis is
+                 answer for what each seat sees; at every position of each
+                 kind in `STATE_POSITION_KINDS` the scope's State Variables
+                 are those a name written there reads, off the declarations
+                 (`_expected_state`), a State Variable read is listed around
+                 the read, and at one position of each kind in Hearts a read
+                 of each State Variable written there checks clean exactly
+                 when it is listed (`_ORACLE_CELLS`); a definition
+                 body's scope lists no Pronoun its body may not read, and a
+                 `state { }` default's lists no `actor` and the State
+                 Variables declared before it and around it
+                 (`_body_and_default_scopes`). The position axis is
                  `POSITION_CELLS`: the places in a file that are in no node or
                  in no game -- a comment, a blank line, past a line's end or
                  the file's, line or column 0, a Markdown file's prose and
@@ -39,11 +49,22 @@ does not prove:  that an answer is the RIGHT one at a position no corpus game
                  a slot no game uses is unrun for it. Nodes the parse builder
                  lowers from one row of text (a `card_points { }` row) share
                  that row's span, and the query answers at the innermost of
-                 them, which is text nobody wrote. The seats column's rule
+                 them for the whole row. The seats column's rule
                  for which enclosing part answers (a site, or an expression in
                  a site's clause) is the one `cardlang.query.seats_at` reads by, so a
                  wrong rule passes here; that each answer is what the engine
-                 shows a seat is tests/test_query_seats.py's claim.
+                 shows a seat is tests/test_query_seats.py's claim. The
+                 State Variables listed in a callable body are held only by
+                 the read-is-listed half: no scope rule judges a callable body
+                 (issue #242). The scope applies neither the rule of who is
+                 acting nor that of a Hosted Poll's body (issue #1089): it
+                 lists `actor` and a bare zone family where no player acts,
+                 and `state` inside a Hosted Poll's body, each refused when
+                 written there. A zone family's name answers with the Type
+                 the checker gives it, one zone's content: the checker holds
+                 a family's content (`TypeEnv.zones`) and the Type of its key
+                 (`TypeEnv.zone_families`) apart, and no Type of the family
+                 keyed by its index, which a keyed State Variable has.
 """
 
 from __future__ import annotations
@@ -60,10 +81,10 @@ from typing import get_args
 
 import pytest
 
-from cardlang import cli, query
+from cardlang import cli, query, resolve
 from cardlang.ast import nodes as n
 from cardlang.diagnostic_codes import Code
-from cardlang.diagnostics import Span, Told
+from cardlang.diagnostics import DiagnosticError, Span, Told
 from cardlang.query import (
     PROJECTION_WORDS,
     Checked,
@@ -76,6 +97,7 @@ from cardlang.query import (
     type_at,
 )
 from cardlang.stdlib.zones import PROJECTION_LEVELS
+from cardlang.pipeline import check_dsl
 from cardlang.records import Kind, UnreadableEnvelope, query_envelope, read_envelope
 from cardlang.runtime.errors import GameRegistrationError
 
@@ -113,9 +135,10 @@ NOT_IN_CHECKED_TEXT: dict[type, str] = {
     n.Block: "made by procedure expansion, after the passes the query reads",
 }
 
-#: The slots whose expression the type checker reads without inferring a
-#: Type, so the Type Record holds none there (issue #1107).
-UNTYPED_SLOTS: frozenset[tuple[type, str]] = frozenset(
+#: The slots no value read of the checker reaches -- a write target, a zone
+#: family's name, a rule clause's whole expression -- which the check types
+#: where it reads them.
+UNREAD_SLOTS: frozenset[tuple[type, str]] = frozenset(
     {
         (n.AssignStmt, "target"),
         (n.RotateStmt, "target"),
@@ -219,13 +242,11 @@ _ASK = {"scope": scope_at, "type": type_at, "seats": seats_at}
 @cache
 def _mismatches() -> dict[tuple[str, str], list[str]]:
     """Every instance whose answer differs from the expected column, by
-    (kind, answer), less the slots `UNTYPED_SLOTS` holds."""
+    (kind, answer)."""
     out: dict[tuple[str, str], list[str]] = defaultdict(list)
     for checked, placed in _corpus():
         for p in placed:
             for answer in ANSWERS:
-                if answer == "type" and p.slot in UNTYPED_SLOTS:
-                    continue
                 got = _outcome(_ASK[answer](checked, p.chain))
                 want = _expected(p, answer)
                 if got not in want:
@@ -276,29 +297,54 @@ def test_node_kind_answer(kind: type, answer: str) -> None:
     assert not wrong, "\n".join(wrong[:5])
 
 
-@pytest.mark.parametrize("slot", sorted(UNTYPED_SLOTS, key=_slot_id), ids=_slot_id)
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1107")
-def test_an_expression_in_an_untyped_slot_has_a_type(slot: tuple[type, str]) -> None:
-    untyped = [
-        f"{getattr(p.node, 'span').line}"
+#: One position of each slot of `UNREAD_SLOTS` in a corpus game, and the
+#: Type the declarations give it there: the variable's declared Type for a
+#: write target, the zone's content for a family's name, a card set for a
+#: rule's card clauses, and the permissive top for an `error(...)` fallback.
+UNREAD_SLOT_TYPES: dict[tuple[type, str], tuple[Path, int, int, str]] = {
+    (n.AssignStmt, "target"): (HEARTS, 86, 7, "Player?"),  # `leader : Player? = none`
+    (n.RotateStmt, "target"): (HEARTS, 54, 14, "SeatDirection"),  # `pass_direction : SeatDirection`
+    (n.Subscript, "obj"): (HEARTS, 66, 16, "Collection<Card>"),  # `hand[player] : Hand<player>`
+    (n.Demands, "expr"): (HEARTS, 124, 12, "Collection<Card>"),
+    (n.RuleDef, "exempts"): (GAMES / "french-tarot.cardlang", 286, 12, "Collection<Card>"),
+    (n.RuleDef, "if_impossible"): (GAMES / "getaway.cardlang", 86, 18, "Any"),
+}
+
+
+def test_every_unread_slot_has_its_named_position() -> None:
+    """red under: add `(n.BinOp, "left")` to `UNREAD_SLOTS`."""
+    assert set(UNREAD_SLOTS) == set(UNREAD_SLOT_TYPES)
+
+
+@pytest.mark.parametrize("slot", sorted(UNREAD_SLOTS, key=_slot_id), ids=_slot_id)
+def test_an_expression_in_an_unread_slot_has_a_type(slot: tuple[type, str]) -> None:
+    """The expression in a slot no value read reaches has the Type the check
+    gave it there, at every instance of the slot the corpus writes, and at
+    the slot's named position the Type its declarations give it. red under:
+    revert `_check_rotate`'s target to `env.state_vars.get(name)`."""
+    instances = [
+        (checked, p)
         for checked, placed in _corpus()
         for p in placed
         if p.slot == slot and isinstance(p.node, EXPR_KINDS)
-        and isinstance(type_at(checked, p.chain), Told)
     ]
-    assert not untyped
-
-
-def test_every_untyped_slot_is_a_real_slot() -> None:
-    """Each slot `UNTYPED_SLOTS` excuses holds an untyped expression in the
-    corpus, so the list shrinks with the fix rather than going stale.
-    red under: add `(n.BinOp, "left")` to `UNTYPED_SLOTS`."""
-    for slot in UNTYPED_SLOTS:
-        assert any(
-            p.slot == slot and isinstance(type_at(checked, p.chain), Told)
-            for checked, placed in _corpus()
-            for p in placed
-        ), slot
+    assert instances, f"no corpus game writes {_slot_id(slot)}"
+    untyped = [
+        f"{getattr(p.node, 'span').source_name}:{getattr(p.node, 'span').line}"
+        for checked, p in instances
+        if isinstance(type_at(checked, p.chain), Told)
+    ]
+    assert not untyped, untyped[:5]
+    path, line, column, expected = UNREAD_SLOT_TYPES[slot]
+    checked = checked_text(path.read_text(), str(path), markdown=False)
+    located = query.locate(checked, line, column)
+    assert not isinstance(located, Told)
+    kind, field = slot
+    holder, node = located.chain[-2], located.chain[-1]
+    assert isinstance(holder, kind) and getattr(holder, field) is node
+    typed = type_at(checked, located.chain)
+    assert not isinstance(typed, Told)
+    assert typed.types == (expected,)
 
 
 # --- the position axis ---------------------------------------------------------
@@ -363,12 +409,211 @@ def test_a_markdown_answer_counts_the_file_s_lines() -> None:
     assert (answer.located.span.line, answer.located.span.column) == (15, 5)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1108")
 def test_scope_lists_only_live_state_at_a_statement() -> None:
     """Hearts' `passing` phase cannot read `play`'s `leader`."""
     answer = ask_path(HEARTS, 65, 9)
     assert answer.scope is not None and not isinstance(answer.scope, Told)
     assert "leader" not in {s.name for s in answer.scope.names}
+
+
+def _declared_state(block: n.StateBlock | None) -> frozenset[str]:
+    return frozenset(d.name for d in block.decls) if block is not None else frozenset()
+
+
+_NO_STATE_RULE = (n.FunctionDef, n.ProcedureDef, n.MoveTypeDef, n.RuleDef)
+
+
+def _phase_state(phase: n.Phase) -> frozenset[str]:
+    return _declared_state(next((i for i in phase.items if isinstance(i, n.StateBlock)), None))
+
+
+def _expected_state(game: n.Game, chain: tuple[object, ...]) -> tuple[str, frozenset[str]]:
+    """The kind of position `chain` ends at, and the State Variables a name
+    written there reads, off the declarations alone: in a `state { }` block,
+    those of every enclosing block and those declared before its declaration;
+    elsewhere, the game's and those of each phase enclosing it."""
+    game_state = _declared_state(game.state)
+    phases = [x for x in chain if isinstance(x, n.Phase)]
+    for i, holder in enumerate(chain):
+        if isinstance(holder, n.StateBlock):
+            owners = [x for x in chain[:i] if isinstance(x, n.Phase)]
+            enclosing = (
+                frozenset()
+                if holder is game.state
+                else game_state.union(*(_phase_state(ph) for ph in owners[:-1]))
+            )
+            if i + 1 == len(chain):
+                return "a `state { }` block", enclosing
+            decl = chain[i + 1]
+            assert isinstance(decl, n.StateDecl)
+            earlier = frozenset(d.name for d in holder.decls[: holder.decls.index(decl)])
+            return "a state declaration", enclosing | earlier
+    live = game_state.union(*(_phase_state(ph) for ph in phases))
+    if len(chain) == 1:
+        return "the game", live
+    return ("a phase" if phases else "a game-level clause"), live
+
+
+#: The kinds of position the State Variable grid covers.
+STATE_POSITION_KINDS = ("the game", "a game-level clause", "a phase", "a `state { }` block", "a state declaration")
+
+
+@cache
+def _state_scope_mismatches() -> tuple[list[str], dict[str, int]]:
+    """Every position, a name or not, outside a callable or rule body (whose
+    state no scope rule judges, issue #242) whose listed State Variables are
+    not what `_expected_state` reads off the declarations; every State
+    Variable a corpus game reads that is not listed at the part of the game
+    holding the read; and how many positions of each kind were judged."""
+    out: list[str] = []
+    judged: dict[str, int] = dict.fromkeys(STATE_POSITION_KINDS, 0)
+    for checked, placed in _corpus():
+        for p in placed:
+            scope = scope_at(checked, p.chain)
+            assert not isinstance(scope, Told)
+            listed = {s.name for s in scope.names if s.sort == "state-variable"}
+            span = getattr(p.node, "span")
+            where = f"{span.source_name}:{span.line}:{span.column} {type(p.node).__name__}"
+            slot_takes_state = not isinstance(p.node, n.NameRef) or "state-variable" in {
+                s.sort for s in scope.names
+            }
+            if slot_takes_state and not any(isinstance(x, _NO_STATE_RULE) for x in p.chain):
+                kind, live = _expected_state(checked.game, p.chain)
+                judged[kind] += 1
+                if listed != live:
+                    out.append(f"{where} ({kind}): lists {sorted(listed ^ live)} wrongly")
+            if isinstance(p.node, n.NameRef) and p.node.ref_kind == "state_var" and len(p.chain) > 1:
+                around = scope_at(checked, p.chain[:-1])
+                assert not isinstance(around, Told)
+                if p.node.name not in {s.name for s in around.names}:
+                    out.append(f"{where}: reads {p.node.name}, unlisted around it")
+    return out, judged
+
+
+@cache
+def _body_and_default_scopes() -> tuple[list[str], list[str], int, int]:
+    """At every position that is no name in a game definition's body, the
+    Pronouns it may not read (`_refused_call_site_pronouns`) are not listed;
+    at every one in a `state { }` default, `actor` is not listed and the State
+    Variables listed are those declared before it in its block and those of
+    every enclosing block, read off the declarations. With how many positions
+    of each kind the corpus holds."""
+    bodies: list[str] = []
+    defaults: list[str] = []
+    in_bodies = in_defaults = 0
+    for checked, placed in _corpus():
+        game_state = _declared_state(checked.game.state)
+        for p in placed:
+            if isinstance(p.node, n.NameRef):
+                continue
+            scope = scope_at(checked, p.chain)
+            assert not isinstance(scope, Told)
+            pronouns = {s.name for s in scope.names if s.sort == "pronoun"}
+            listed = {s.name for s in scope.names if s.sort == "state-variable"}
+            span = getattr(p.node, "span")
+            where = f"{span.source_name}:{span.line}:{span.column} {type(p.node).__name__}"
+            for i, holder in enumerate(p.chain[:-1]):
+                if isinstance(holder, (n.FunctionDef, n.ProcedureDef)):
+                    body = holder.body if isinstance(holder.body, tuple) else (holder.body,)
+                    if any(part is p.chain[i + 1] for part in body):
+                        in_bodies += 1
+                        refused = resolve._refused_call_site_pronouns(holder)
+                        if pronouns & refused:
+                            bodies.append(f"{where}: lists {sorted(pronouns & refused)}")
+                if isinstance(holder, n.StateBlock) and i + 2 < len(p.chain):
+                    decl = p.chain[i + 1]
+                    assert isinstance(decl, n.StateDecl)
+                    if p.chain[i + 2] is not decl.default:
+                        continue
+                    in_defaults += 1
+                    earlier = frozenset(d.name for d in holder.decls[: holder.decls.index(decl)])
+                    phases = [x for x in p.chain[:i] if isinstance(x, n.Phase)]
+                    enclosing = frozenset() if holder is checked.game.state else game_state.union(
+                        *(_declared_state(next((it for it in ph.items if isinstance(it, n.StateBlock)), None)) for ph in phases[:-1])
+                    )
+                    if "actor" in pronouns or listed != earlier | enclosing:
+                        defaults.append(f"{where}: lists {sorted(listed ^ (earlier | enclosing))}, actor {'actor' in pronouns}")
+    return bodies, defaults, in_bodies, in_defaults
+
+
+def test_scope_in_a_definition_body_lists_no_refused_pronoun() -> None:
+    """red under: record `_ScopeFacts.refused_pronouns` at `NameRef` nodes
+    alone in `classification._scope_facts`."""
+    bodies, _defaults, in_bodies, _ = _body_and_default_scopes()
+    assert in_bodies, "no corpus game defines a function or procedure"
+    assert not bodies, "\n".join(bodies[:8])
+
+
+def test_scope_in_a_state_default_is_what_a_default_reads() -> None:
+    """red under: record a default's live state at `NameRef` nodes alone in
+    `classification._scope_facts`."""
+    _bodies, defaults, _, in_defaults = _body_and_default_scopes()
+    assert in_defaults, "no corpus game writes a `state { }` default"
+    assert not defaults, "\n".join(defaults[:8])
+
+
+@pytest.mark.parametrize("kind", STATE_POSITION_KINDS)
+def test_scope_lists_the_state_a_name_there_reads(kind: str) -> None:
+    """At every position of the kind, the State Variables listed are those a
+    name written there reads, off the declarations; and a State Variable the
+    game reads is listed around the read. red under: record `_ScopeFacts` at
+    `NameRef` nodes alone in `classification._scope_facts`; for a game-level
+    clause, yield only `NameRef` nodes from `_phase_scoped_nodes`'
+    game-level loop."""
+    wrong, judged = _state_scope_mismatches()
+    assert judged[kind], f"the corpus holds no position of {kind}"
+    mine = [w for w in wrong if f"({kind})" in w or "unlisted around it" in w]
+    assert not mine, "\n".join(mine[:8])
+
+
+def _state_read(decl: n.StateDecl) -> str:
+    """A read of the variable `decl` declares that types whatever its Type."""
+    read = f"{decl.name}[0]" if decl.index is not None else decl.name
+    return f"if {read} is {read} then 0 else 0"
+
+
+#: Positions of each kind of `STATE_POSITION_KINDS` in Hearts, and the text
+#: that writes a read there: a line inserted before the given line.
+_ORACLE_CELLS: dict[str, tuple[int, int, int, str]] = {
+    "the game": (27, 1, 27, "  loser: READ"),
+    "a game-level clause": (116, 3, 116, "  loser: READ"),
+    "a phase": (65, 9, 64, "      let probe_read = READ"),
+    "a `state { }` block": (44, 5, 47, "      probe_read : Integer = READ"),
+    "a state declaration": (47, 22, 47, "      probe_read : Integer = READ"),
+}
+
+
+def _refusal_codes(text: str) -> list[str]:
+    try:
+        check_dsl(text, "probe.cardlang")
+    except DiagnosticError as refused:
+        return [told.diagnostic.code.slug for told in refused.told]
+    return []
+
+
+@pytest.mark.parametrize("kind", STATE_POSITION_KINDS)
+def test_a_listed_state_variable_reads_there_and_an_unlisted_one_is_refused(kind: str) -> None:
+    """Written at the position, a read of each State Variable the scope
+    lists checks clean, and a read of each it does not list is refused as out
+    of scope. red under: drop the `yield game, top` from
+    `scope._phase_scoped_nodes`."""
+    line, column, before, writes = _ORACLE_CELLS[kind]
+    answer = ask_path(HEARTS, line, column)
+    assert answer.scope is not None and not isinstance(answer.scope, Told)
+    listed = {s.name for s in answer.scope.names if s.sort == "state-variable"}
+    lines = HEARTS.read_text().split("\n")
+    checked = checked_text(HEARTS.read_text(), str(HEARTS), markdown=False)
+    decls = [d for b in resolve._walk(checked.game) if isinstance(b, n.StateBlock) for d in b.decls]
+    assert listed and set(listed) < {d.name for d in decls}
+    wrong = []
+    for decl in decls:
+        text = "\n".join([*lines[: before - 1], writes.replace("READ", _state_read(decl)), *lines[before - 1 :]])
+        codes = _refusal_codes(text)
+        if decl.name in listed and codes:
+            wrong.append(f"{decl.name} is listed and refused {codes}")
+        if decl.name not in listed and Code.OUT_OF_SCOPE.slug not in codes:
+            wrong.append(f"{decl.name} is unlisted and refused {codes}, not out of scope")
+    assert not wrong, wrong
 
 
 def test_scope_at_a_name_lists_only_what_may_stand_there() -> None:

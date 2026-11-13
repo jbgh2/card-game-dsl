@@ -244,6 +244,7 @@ from cardlang.resolve.rule_instantiation import (
 from cardlang.resolve.classification import (
     _classify_names as _classify_names,
     _name_positions as _name_positions,
+    _scope_facts as _scope_facts,
     _stamp_follows_reads as _stamp_follows_reads,
 )
 from cardlang.resolve.references import (
@@ -458,6 +459,7 @@ from cardlang.resolve.declared import (
     _tell_board_refusal as _tell_board_refusal,
     _unminted_direction as _unminted_direction,
     _written_state_name as _written_state_name,
+    _written_state_span as _written_state_span,
 )
 from cardlang.resolve.scope import (
     _DEFAULT_REFUSED_PRONOUNS as _DEFAULT_REFUSED_PRONOUNS,
@@ -470,9 +472,11 @@ from cardlang.resolve.scope import (
     _game_state_names as _game_state_names,
     _keyed_ids as _keyed_ids,
     _phase_scoped_names as _phase_scoped_names,
+    _phase_scoped_nodes as _phase_scoped_nodes,
     _phase_state_names as _phase_state_names,
     _pronoun_refused as _pronoun_refused,
     _refused_call_site_pronouns as _refused_call_site_pronouns,
+    _state_declarations as _state_declarations,
     _state_out_of_scope as _state_out_of_scope,
 )
 from cardlang.resolve.crossings import (
@@ -571,6 +575,7 @@ from cardlang.resolve.classifier import (
     _AlwaysSite as _AlwaysSite,
     _Categories as _Categories,
     _NamePosition as _NamePosition,
+    _ScopeFacts as _ScopeFacts,
     _always_message as _always_message,
     _callback_outside_slot as _callback_outside_slot,
     _categories as _categories,
@@ -584,6 +589,7 @@ from cardlang.resolve.classifier import (
     _position_refuses as _position_refuses,
     _query_nouns as _query_nouns,
     _record_scope as _record_scope,
+    _scope_refuses as _scope_refuses,
     _refuse_bare_always as _refuse_bare_always,
     _resolving_here as _resolving_here,
     _rewrite as _rewrite,

@@ -85,6 +85,10 @@ class _Categories:
     # What a bare name may denote where it stands, by the name's node
     # (`_name_positions`), over the tree `_classify_names` classifies.
     positions: Mapping[int, _NamePosition] = field(default_factory=dict)
+    # What a name written at a node may read whatever slot it fills, by every
+    # node (`_scope_facts`): what the Scope Record reads at a node that is no
+    # name.
+    scope_facts: Mapping[int, _ScopeFacts] = field(default_factory=dict)
     # The names a node's refused binder source would bind were it fixed, by
     # the node (`_refused_binder_sources`): the node binds nothing, and a
     # name in its scope spelled as one of them is withheld.
@@ -101,9 +105,12 @@ class _Categories:
 @dataclass(frozen=True)
 class NamesInScope:
     """What a bare name written at one node would resolve to: each name this
-    pass classifies there, with its classification, less any a positional
-    Owner Guard of this pass refuses where a name stands (recorded at a name
-    only: `_name_positions` holds positional facts for names alone)."""
+    pass classifies there, with its classification, less any the scope rules
+    refuse at the node (`_scope_refuses`: the State Variable scope rules, the
+    Pronouns a definition body may not read, a default's reads) and, at a
+    name, any a positional Owner Guard of this pass refuses in the slot the
+    name fills (`_position_refuses`; `at_a_name`). The rules of who is acting
+    and of a Hosted Poll's body are not applied (issue #1089)."""
 
     names: tuple[tuple[str, n.RefKind], ...]
     at_a_name: bool
@@ -118,6 +125,7 @@ def _record_scope(node: object, cats: _Categories) -> None:
     if key is None:
         return
     position = cats.positions.get(id(node)) if isinstance(node, n.NameRef) else None
+    facts = cats.scope_facts.get(id(node))
     named: list[tuple[str, n.RefKind]] = []
     for name in sorted({*cats.locals, *cats.state_vars, *cats.zones, *cats.enums, *_PRONOUNS}):
         kind: n.RefKind | None = _classify(name, cats)
@@ -125,34 +133,57 @@ def _record_scope(node: object, cats: _Categories) -> None:
             kind = "play_source"
         if kind is None:
             continue
-        if position is not None and _position_refuses(position, name, kind, cats.zone_index):
+        if position is not None:
+            if _position_refuses(position, name, kind, cats.zone_index):
+                continue
+        elif facts is not None and _scope_refuses(facts, name, kind):
             continue
         named.append((name, kind))
     cats.scopes[key] = NamesInScope(tuple(named), at_a_name=position is not None)
 
 
 @dataclass(frozen=True)
-class _NamePosition:
-    """What a bare name may denote where it stands: the facts the positional
-    Owner Guards of this pass refuse a classified name by, each recorded from
-    the walk its guard refuses by.
+class _ScopeFacts:
+    """What a name written at a node may read, whatever slot it fills: the
+    facts the scope rules of this pass refuse a classified name by, each
+    recorded from the walk its rule refuses by.
 
-    `live_state` is the state live at a phase-scoped position
-    (`_phase_scoped_names`, `_check_state_scope`) or at a `state { }` default
-    (`_default_reads`, `_check_state_default_scope`), None where no scope rule
-    judges (a callable body, issue #242). `refused_pronouns` are the pronouns
-    the enclosing definition or default may not read
-    (`_refused_call_site_pronouns`, `_DEFAULT_REFUSED_PRONOUNS`). `slot` is the
-    kinds the name slot the name roots takes (`_NAME_SLOTS`), `each_destination`
-    marks a `to each` destination, `keyed` a name a subscript keys or a
-    `to each` names whole (`_keyed_ids`), and `in_default` a default's name."""
+    `live_state` is the state live at a phase-scoped node
+    (`_phase_scoped_nodes`, `_check_state_scope`) or at a node of a `state { }`
+    default (`_default_reads`, `_check_state_default_scope`), None where no
+    scope rule judges (a callable body, issue #242). `refused_pronouns` are
+    the pronouns the enclosing definition or default may not read
+    (`_refused_call_site_pronouns`, `_DEFAULT_REFUSED_PRONOUNS`), and
+    `in_default` marks a node of a `state { }` block. A rule judging a name
+    wherever it stands joins as a field here, filled by `_scope_facts` from
+    the walk it refuses by, and as a disjunct of `_scope_refuses`."""
 
     live_state: frozenset[str] | None = None
     refused_pronouns: frozenset[str] = frozenset()
+    in_default: bool = False
+
+
+@dataclass(frozen=True)
+class _NamePosition:
+    """What a bare name may denote where it stands: the facts the positional
+    Owner Guards of this pass refuse a classified name by. `scope` is what
+    any name written there may read (`_ScopeFacts`); `slot` is the kinds the
+    name slot the name roots takes (`_NAME_SLOTS`), `each_destination` marks a
+    `to each` destination, and `keyed` a name a subscript keys or a `to each`
+    names whole (`_keyed_ids`)."""
+
+    scope: _ScopeFacts = _ScopeFacts()
     slot: frozenset[n.RefKind] | None = None
     each_destination: bool = False
     keyed: bool = False
-    in_default: bool = False
+
+
+def _scope_refuses(facts: _ScopeFacts, name: str, kind: n.RefKind) -> bool:
+    """Whether a scope rule of this pass refuses a name of `kind` written
+    where `facts` hold, whatever slot it fills."""
+    return _state_out_of_scope(name, kind, facts.live_state) or _pronoun_refused(
+        name, kind, facts.refused_pronouns
+    )
 
 
 def _position_refuses(
@@ -161,12 +192,14 @@ def _position_refuses(
     """Whether some positional Owner Guard of this pass refuses a name of
     `kind` at `position`: each disjunct is the predicate its guard refuses by."""
     return (
-        _state_out_of_scope(name, kind, position.live_state)
-        or _pronoun_refused(name, kind, position.refused_pronouns)
+        _scope_refuses(position.scope, name, kind)
         or (position.slot is not None and _slot_refuses(position.slot, kind))
         or (position.each_destination and _each_destination_refuses(zone_index, name, kind))
         or _bare_family_refused(zone_index, name, kind, position.keyed)
-        or (position.in_default and _bare_seat_family_in_default(zone_index, name, kind, position.keyed))
+        or (
+            position.scope.in_default
+            and _bare_seat_family_in_default(zone_index, name, kind, position.keyed)
+        )
     )
 
 
