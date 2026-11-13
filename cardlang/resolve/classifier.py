@@ -442,7 +442,6 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             _resolving_here(node.trump, (*cats.suits, *cats.state_vars), cats),
             node.trump.span,
             code=Code.UNKNOWN_SUIT,
-            in_place=True,
         )
         rest = _rewrite(replace(node, trump=None), cats, bag)
         assert isinstance(rest, n.TrickRound)
@@ -514,7 +513,6 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
                 ),
                 node.span,
                 code=Code.UNKNOWN_NAME,
-                in_place=True,
             )
         return replace(node, ref_kind=kind)
     if isinstance(node, n.Produces):
