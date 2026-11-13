@@ -6,6 +6,7 @@
     cardlang check docs/games/hearts.cardlang --json          # its refusals as one Record Envelope
     cardlang play docs/games/hearts.cardlang --vs all=random  # take a seat and play it
     cardlang demo docs/games/hearts.cardlang                  # one uniform-random self-play
+    cardlang demo docs/games/hearts.cardlang --json           # its refusals as one Record Envelope
     cardlang query docs/games/hearts.cardlang --at 66:16      # what the checker knows there
 
 `cardlang <file>` names no command: `main` reads it as `check`, so the two
@@ -69,13 +70,20 @@ exception outside the typed channels. A refusal of the line's words is told
 by `_refuse` and leaves through argparse's own exit, `SystemExit`, as
 argparse's usage errors do.
 The statuses are split by who must act, not by how badly it went: every
-other status is the one `_status` names for the author of the refusal told,
+status but 0 is the one `_status` names for the author of the refusal told,
 the highest of them where one run tells several.
 
-`check --json` prints one Record Envelope (`cardlang.records`) on stdout in
-place of the text, whatever the outcome, with the same exit code; every
-refusal it records is a Told Diagnostic, the command line's own (an
-unreadable path) told to whoever ran the command.
+`--json`, which every command takes, prints one Record Envelope
+(`cardlang.records`) on stdout whatever the outcome, with the exit code the
+text would give, and nothing else there: every refusal is a Told Diagnostic
+in it, the command's own (a path it cannot read, a seat the game does not
+seat, a saved game it cannot resume) told to whoever ran the command, with
+the lines the text prints beside it. Under `check`, `play` and `demo` it is
+gathered by `_Telling` and printed at the end, and everything else the
+command prints -- `demo`'s summary, listing and views, `play`'s table, menus
+and prompts -- goes to stderr word for word; `play` still reads the picks
+from stdin. A `demo` playout that reaches its `max_length` is a record too,
+told to the game, since the exit says the file is where to look.
 
 `query` answers a [[checker-query]] (`cardlang.query`) on a file the checker
 accepts, and prints the checker's refusal, as `check` does, for one it
@@ -96,7 +104,7 @@ import traceback
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, NoReturn, assert_never, cast
+from typing import Any, NoReturn, TextIO, assert_never, cast
 
 from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
@@ -210,6 +218,15 @@ def _add_demo_arguments(parser: argparse.ArgumentParser) -> None:
         help="print what --info-state and --view show at decision N — the "
         "position just before that one choice is made — instead of at the "
         "terminal position; --decisions lists the numbers",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help=(
+            "print every refusal, the playout's own included, as a Diagnostic "
+            "Record in one JSON document on stdout, and everything else on "
+            "stderr; a command line that cannot be read is still refused as text"
+        ),
     )
 
 
@@ -342,6 +359,15 @@ def _add_play_arguments(parser: argparse.ArgumentParser) -> None:
         help="go on with the game saved in FILE, at the seat and seed and "
         "against the opponents it was played with, saving back to FILE unless "
         "--save names another",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help=(
+            "print every refusal as a Diagnostic Record in one JSON document on "
+            "stdout when the session ends, and the table on stderr; a command "
+            "line that cannot be read is still refused as text"
+        ),
     )
 
 
@@ -684,8 +710,6 @@ def main(argv: list[str] | None = None) -> int:
     path = Path(args.file)
     unreadable = _unreadable(args.file)
     refusal = None if unreadable is None else _unreadable_told(unreadable, implicit)
-    if args.command == "check" and args.json:
-        return _check_json(path, refusal)
     at = _position(args.at) if args.command == "query" else None
     if isinstance(at, str) and args.json:
         # A query naming no position has no envelope to fill: refused as text,
@@ -695,37 +719,81 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "query" and args.json:
         assert at is not None and not isinstance(at, str)
         return _query_json(path, refusal, at)
+    telling = _Telling(args.json)
+    status = _carried_out(args, path, refusal, at, telling)
+    if telling.as_json:
+        print(json.dumps(envelope(telling.told), indent=2))
+    return status
+
+
+class _Telling:
+    """Where a command tells its refusals and prints its transcript. In text,
+    a refusal prints on stderr and the transcript on stdout; under `--json`,
+    every refusal is kept for the one Record Envelope printed at the end, and
+    the transcript goes to stderr, word for word, so stdout holds the
+    envelope alone."""
+
+    def __init__(self, as_json: bool) -> None:
+        self.as_json = as_json
+        self.told: list[Told] = []
+        self.out: TextIO = sys.stderr if as_json else sys.stdout
+
+    def refuse(self, told: Told, show: Callable[[Told], None]) -> int:
+        """Tell `told`, printed by `show` in text, and return its status."""
+        if self.as_json:
+            self.told.append(told)
+        else:
+            show(told)
+        return _status(told.author)
+
+    def cannot(self, message: str, code: Code) -> int:
+        """A refusal of the command's own, told to whoever ran it."""
+        return self.refuse(
+            Told(Diagnostic(Severity.ERROR, message, code=code), Author.INVOCATION), _print_line
+        )
+
+
+def _carried_out(
+    args: argparse.Namespace,
+    path: Path,
+    refusal: Told | None,
+    at: tuple[int, int] | str | None,
+    telling: _Telling,
+) -> int:
+    """The command the line names, carried out, its refusals told by
+    `telling`; the exit status."""
     if refusal is not None:
-        _print_line(refusal)
-        return _status(refusal.author)
+        return telling.refuse(refusal, _print_line)
     if isinstance(at, str):
         # The path is refused first, as under every command; then the position.
         print(f"cardlang: {at}", file=sys.stderr)
         return _EXIT_CANNOT_PROCEED
-
     try:
         if args.command == "demo":
             return _demo(
-                path, args.seed, args.info_state, args.view, args.at, args.decisions
+                path, args.seed, args.info_state, args.view, args.at, args.decisions, telling
             )
         if args.command == "play":
-            return _play(path, args.seat, args.seed, args.save, args.resume, args.vs)
+            return _play(path, args.seat, args.seed, args.save, args.resume, args.vs, telling)
         if args.command == "query":
             assert at is not None
             return _query(path, at)
         return _check(path, args.emit_ir)
     except DiagnosticError as exc:
-        print(exc.diagnostic.format(), file=sys.stderr)
-        for note in getattr(exc, "__notes__", []):
-            print(note, file=sys.stderr)
+        if telling.as_json:
+            telling.told.extend(exc.told)
+        else:
+            print(exc.diagnostic.format(), file=sys.stderr)
+            for note in getattr(exc, "__notes__", []):
+                print(note, file=sys.stderr)
         return _told_status(exc.told)
     except RUNTIME_REFUSALS as exc:
-        in_play, show = _refused_in_play(path, cast(RuntimeRefusal, exc))
-        show(in_play)
-        return _status(in_play.author)
-    except Exception:
-        traceback.print_exc()
-        return _EXIT_ENGINE_FAILED
+        return telling.refuse(*_refused_in_play(path, cast(RuntimeRefusal, exc)))
+    except Exception as exc:
+        crash = _engine_gap(exc)
+        if telling.as_json:
+            telling.told.append(crash)
+        return _status(crash.author)
 
 
 def _unreadable_told(refusal: str, implicit: bool) -> Told:
@@ -826,7 +894,7 @@ def _print_playout(told: Told) -> None:
 
 
 def _checked(path: Path, unreadable: Told | None) -> tuple[tuple[Told, ...], int]:
-    """What `check --json` and `query --json` record of the check: every
+    """What `query --json` records of the check: every
     refusal it told, and the exit code the text output would give. An engine
     failure outside the typed channels is an `engine-gap` record told to the
     engine, its traceback printed on stderr as the text output prints it."""
@@ -852,14 +920,6 @@ def _engine_gap(exc: Exception) -> Told:
         Diagnostic(Severity.ERROR, str(exc) or type(exc).__name__, code=Code.ENGINE_GAP),
         Author.ENGINE,
     )
-
-
-def _check_json(path: Path, unreadable: Told | None) -> int:
-    """`check --json`: one Record Envelope on stdout, whatever the outcome,
-    and the exit code the text output would give."""
-    told, exit_code = _checked(path, unreadable)
-    print(json.dumps(envelope(told), indent=2))
-    return exit_code
 
 
 def _query(path: Path, at: tuple[int, int]) -> int:
@@ -899,11 +959,6 @@ def _check(path: Path, emit_ir: bool) -> int:
     return _EXIT_OK
 
 
-def _cannot(message: str) -> int:
-    print(f"cardlang: {message}", file=sys.stderr)
-    return _EXIT_CANNOT_PROCEED
-
-
 def _unnamed(
     path: Path,
     seat: int | None,
@@ -937,44 +992,53 @@ def _play(
     save: str | None,
     resume: str | None,
     vs: list[Item] | None,
+    telling: _Telling,
 ) -> int:
+    cannot = telling.cannot
     try:
         game, space = load(str(path))
     except NotImplementedError as exc:
         # `ActionSpace.for_game` refuses a decision it has no numbering for; the
         # game is sound and plays in `demo`, and what cannot proceed is a table
         # whose picks are action ids.
-        return _cannot(
+        return cannot(
             f"{path} cannot be played at a table yet: one of its decisions has no "
-            f"numbering for its picks ({exc})"
+            f"numbering for its picks ({exc})",
+            Code.TABLE_CANNOT_NUMBER_A_DECISION,
         )
     seats = game.players.count
     if seat is not None and not 0 <= seat < seats:
-        return _cannot(f"{path} seats 0..{seats - 1}; --seat {seat} names no seat at this table")
+        return cannot(
+            f"{path} seats 0..{seats - 1}; --seat {seat} names no seat at this table",
+            Code.OUT_OF_RANGE,
+        )
     history: list[Any] = []
     on_file: dict[int, str] | None = None
     if resume is not None:
         saved = read_saved(Path(resume), game_identity(game))
         if isinstance(saved, str):
-            return _cannot(f"cannot resume {resume}: {saved}")
+            return cannot(f"cannot resume {resume}: {saved}", Code.SAVED_GAME_NOT_RESUMABLE)
         if seat is not None and seat != saved.seat:
-            return _cannot(
+            return cannot(
                 f"cannot resume {resume}: it was played at seat {saved.seat}, and "
-                f"--seat {seat} names another; leave --seat out to go on with it"
+                f"--seat {seat} names another; leave --seat out to go on with it",
+                Code.CONTRADICTS_SAVED_GAME,
             )
         if seed is not None and seed != saved.seed:
-            return _cannot(
+            return cannot(
                 f"cannot resume {resume}: it was dealt with seed {saved.seed}, and "
-                f"--seed {seed} names another; leave --seed out to go on with it"
+                f"--seed {seed} names another; leave --seed out to go on with it",
+                Code.CONTRADICTS_SAVED_GAME,
             )
         if not 0 <= saved.seat < seats:
-            return _cannot(
+            return cannot(
                 f"cannot resume {resume}: it was played at seat {saved.seat}, and "
-                f"{path} seats 0..{seats - 1}"
+                f"{path} seats 0..{seats - 1}",
+                Code.SAVED_GAME_NOT_RESUMABLE,
             )
         read = recorded(saved.opponents, seats, saved.seat, str(path))
         if isinstance(read, str):
-            return _cannot(f"cannot resume {resume}: {read}")
+            return cannot(f"cannot resume {resume}: {read}", Code.SAVED_GAME_NOT_RESUMABLE)
         seat, seed, history, on_file = saved.seat, saved.seed, saved.history, read
     person = 0 if seat is None else seat
     if vs is None and on_file is not None:
@@ -982,23 +1046,29 @@ def _play(
     else:
         chosen = seated(vs or [], seats, person, str(path))
         if isinstance(chosen, str):
-            return _cannot(chosen if resume is None else f"cannot resume {resume}: {chosen}")
+            return cannot(
+                chosen if resume is None else f"cannot resume {resume}: {chosen}",
+                Code.OPPONENTS_SEATED_WRONGLY,
+            )
         if on_file is not None:
             if chosen != on_file:
-                return _cannot(
+                return cannot(
                     f"cannot resume {resume}: it was played with {as_flags(on_file)}, and "
-                    "--vs does not name the same opponents; leave --vs out to go on with it"
+                    "--vs does not name the same opponents; leave --vs out to go on with it",
+                    Code.CONTRADICTS_SAVED_GAME,
                 )
             opponents = on_file
         elif isinstance(chosen, Unnamed):
-            return _cannot(_unnamed(path, seat, seed, save, vs or [], chosen))
+            return cannot(
+                _unnamed(path, seat, seed, save, vs or [], chosen), Code.UNNAMED_OPPONENTS
+            )
         else:
             opponents = chosen
     save_to = Path(save) if save is not None else None if resume is None else Path(resume)
     if save_to is not None:
         refusal = unwritable(save_to)
         if refusal is not None:
-            return _cannot(f"cannot save to {save_to}: {refusal}")
+            return cannot(f"cannot save to {save_to}: {refusal}", Code.UNWRITABLE_SAVE_FILE)
     session = Session(
         str(path),
         game,
@@ -1008,26 +1078,26 @@ def _play(
         opponents,
         history,
         sys.stdin,
-        sys.stdout,
+        telling.out,
         save_to,
     )
     try:
         session.run()
     except SaveFailed as exc:
-        return _cannot(str(exc))
+        return cannot(str(exc), Code.UNWRITABLE_SAVE_FILE)
     except HistoryMismatch as exc:
         if resume is None:
             raise
-        return _cannot(f"cannot resume {resume}: its picks no longer replay in {path} ({exc})")
+        return cannot(
+            f"cannot resume {resume}: its picks no longer replay in {path} ({exc})",
+            Code.SAVED_GAME_NOT_RESUMABLE,
+        )
     except GameDescriptionError as exc:
         advice = f"the static checks passed — this is a rule only play reaches; {session.who_played()}"
-        told = _in_play(path, exc, advice)
-        _print_playout(told)
-        return _status(told.author)
+        return telling.refuse(_in_play(path, exc, advice), _print_playout)
     except IllegalMove as exc:
         told = _in_play(path, exc, "this is your game's own `error(...)` refusing", _IF_IMPOSSIBLE)
-        _print_playout(told)
-        return _status(told.author)
+        return telling.refuse(told, _print_playout)
     return _EXIT_OK
 
 
@@ -1038,7 +1108,9 @@ def _demo(
     view_seat: int | None,
     at: int | None,
     listing: bool,
+    telling: _Telling,
 ) -> int:
+    cannot, out = telling.cannot, telling.out
     game = check_source(path)
     seats = game.players.count
     for flag, named in (("--info-state", seat), ("--view", view_seat)):
@@ -1048,30 +1120,25 @@ def _demo(
             # in the engine maintainer's channel. Taken here, the refusal comes
             # before the game is played and in the words of the caller who
             # named the seat.
-            print(
-                f"cardlang: {path} seats 0..{seats - 1}; {flag} {named} names "
-                "no seat at this table",
-                file=sys.stderr,
+            return cannot(
+                f"{path} seats 0..{seats - 1}; {flag} {named} names no seat at this table",
+                Code.OUT_OF_RANGE,
             )
-            return _EXIT_CANNOT_PROCEED
     named_seats = sorted({s for s in (seat, view_seat) if s is not None})
     # Both `--at` refusals a playout cannot inform are taken here, beside the
     # seat check and before the game runs; the range refusal needs the count
     # only the playout produces and waits below.
     if at is not None and not named_seats:
-        print(
-            f"cardlang: --at {at} says which decision to look at; add "
+        return cannot(
+            f"--at {at} says which decision to look at; add "
             "--view SEAT or --info-state SEAT to say whose view to show",
-            file=sys.stderr,
+            Code.COMMAND_LINE_USAGE,
         )
-        return _EXIT_CANNOT_PROCEED
     if at is not None and at < 0:
-        print(
-            f"cardlang: --at {at} names no decision; a playout's decisions "
-            "start at 0",
-            file=sys.stderr,
+        return cannot(
+            f"--at {at} names no decision; a playout's decisions start at 0",
+            Code.OUT_OF_RANGE,
         )
-        return _EXIT_CANNOT_PROCEED
 
     drawn = random.randrange(2**31) if seed is None else seed
     logs: dict[Player, list[tuple[Any, ...]]] = {p: [] for p in range(seats)}
@@ -1161,32 +1228,36 @@ def _demo(
     # The driver's own count, not a second one taken off the list: the two are
     # the same unit and `tests/test_cli_surface.py` pins them equal.
     made = world[0].decisions_made if world else 0
-    print(_summary(game, result, made, drawn))
+    print(_summary(game, result, made, drawn), file=out)
     if listing:
-        print()
-        print(_listing(decisions))
+        print(file=out)
+        print(_listing(decisions), file=out)
+    if result.ended_by is EndedBy.LENGTH and telling.as_json:
+        # The stop leads the summary in both forms, and is a record too.
+        stop = Diagnostic(
+            Severity.ERROR, length_stop_line(game, made), code=Code.RANDOM_PLAY_REACHES_MAX_LENGTH
+        )
+        telling.told.append(Told(stop, Author.GAME))
 
     if not named_seats:
         return _demo_exit(result)
     if not decisions:
         # No decision means `on_first_decision` never fired, so there is no
         # world to project from — at a decision or at the end alike.
-        print(
-            f"cardlang: {path} reached its end without a decision, so the "
+        return cannot(
+            f"{path} reached its end without a decision, so the "
             "engine exposes no world to project a seat's view from",
-            file=sys.stderr,
+            Code.VIEW_NEEDS_A_DECISION,
         )
-        return _EXIT_CANNOT_PROCEED
     if at is not None and at >= len(decisions):
         # Naming the range rather than clamping: the nearest decision is an
         # answer to a question nobody asked, and it would read as the one
         # asked for.
-        print(
-            f"cardlang: this playout has {len(decisions)} decisions, so --at "
+        return cannot(
+            f"this playout has {len(decisions)} decisions, so --at "
             f"takes 0..{len(decisions) - 1}; --at {at} names none of them",
-            file=sys.stderr,
+            Code.OUT_OF_RANGE,
         )
-        return _EXIT_CANNOT_PROCEED
     if at is None:
         where = "at the terminal position"
     else:
@@ -1194,11 +1265,11 @@ def _demo(
         assert line is not None, "a named decision always renders its line"
         where = f"at decision {at} ({line})"
     if seat is not None:
-        print(f"\ninformation state, seat {seat}, {where}:")
-        print(shown["--info-state"])
+        print(f"\ninformation state, seat {seat}, {where}:", file=out)
+        print(shown["--info-state"], file=out)
     if view_seat is not None:
-        print(f"\nview, seat {view_seat}, {where}:")
-        print(shown["--view"])
+        print(f"\nview, seat {view_seat}, {where}:", file=out)
+        print(shown["--view"], file=out)
     return _demo_exit(result)
 
 

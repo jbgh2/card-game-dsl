@@ -11,15 +11,13 @@ property:        once the command line is read, `check --json` prints exactly
                  error.
 domain:          the outcomes of a check -- a game that checks clean, a
                  game refused, a file of an extension the checker does not
-                 read, a path that cannot be read, every runtime refusal type
-                 a check can raise -- crossed with the two output forms, text
-                 and `--json`; the text of a runtime refusal and of an
-                 unreadable first word is its record re-rendered. A command line
+                 read, a path that cannot be read -- crossed with the two
+                 output forms, text and `--json`; a runtime refusal a check
+                 raises, under both forms, is tests/test_playout_records.py's. A command line
                  refused before it is read (a usage error, a first word that
                  names no command) is refused as text: `--json` is a word of
                  the line being refused.
-registry:        the authors -- `cardlang.diagnostics.Author`; the runtime
-                 refusal types -- tests/test_records.py::_refusal_types; `--json` on
+registry:        the authors -- `cardlang.diagnostics.Author`; `--json` on
                  every command -- tests/test_cli_surface.py::test_command_option_cell.
 held by:         Derived and Pinned: the cells are command lines, which no
                  type sees.
@@ -34,10 +32,7 @@ import pytest
 
 from cardlang import cli
 from cardlang.records import read_envelope
-from cardlang.runtime import errors
 from cardlang.runtime.errors import GameRegistrationError
-from tests.test_records import EXPECTED as REFUSAL_EXPECTED
-from tests.test_records import _refusal, _refusal_types
 
 _ROOT = Path(__file__).resolve().parent.parent
 HEARTS = _ROOT / "docs" / "games" / "hearts.cardlang"
@@ -137,69 +132,3 @@ def test_an_engine_failure_prints_its_envelope_and_exits_3(
     assert exit_code == 3
     assert "Traceback (most recent call last)" in err
 
-
-def _as_text(record: dict[str, object]) -> str:
-    """A record re-rendered as the text prints its code: a refusal met
-    playing a game leads with its first line, prints the refusal at its
-    sentence, then the rest indented; any other leads every line with
-    `cardlang: `."""
-    lines = [n["message"] for n in record["notes"]]  # type: ignore[attr-defined]
-    message = str(record["message"])
-    if record["code"] == "unregistrable-game":
-        return "".join(f"cardlang: {line}\n" for line in [message, *lines])
-    span = record["span"]
-    located = (
-        f"  {message}"
-        if span is None
-        else f"{span['file']}:{span['line']}:{span['column']}: {record['severity']}: {message}"  # type: ignore[index]
-    )
-    heading, *rest = lines
-    return f"cardlang: {heading}\n{located}\n" + "".join(f"  {line}\n" for line in rest)
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        pytest.param(
-            name,
-            marks=[pytest.mark.expects_shadow_guard] if name == errors.ShadowGuardError.__name__ else [],
-        )
-        for name in sorted(REFUSAL_EXPECTED)
-    ],
-)
-def test_a_runtime_refusal_s_record_carries_every_line_the_text_prints(
-    name: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """The text a check prints for a runtime refusal is its record
-    re-rendered: the heading, the phase and zone, the advice, all of it.
-    red under: `_with_lines` returning `told` unchanged."""
-    (cls,) = (c for c in _refusal_types() if c.__name__ == name)
-    exc = _refusal(cls)
-    if isinstance(exc, errors.Located):
-        exc.locate(phase="deal", zone="deck")
-
-    def refused(_path: object) -> None:
-        raise exc
-
-    monkeypatch.setattr(cli, "check_source", refused)
-    text_exit, _out, err = _run(["check", str(HEARTS)], capsys)
-    json_exit, out, _err = _run(["check", str(HEARTS), "--json"], capsys)
-    (record,) = json.loads(out)["diagnostics"]
-    assert text_exit == json_exit
-    assert err == _as_text(record)
-    assert all(n["span"] is None for n in record["notes"])
-
-
-def test_the_hint_beside_an_unreadable_first_word_is_in_its_record(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A first word that names nothing and stands where a command may: the
-    record carries the commands the text names beside it."""
-    missing = str(tmp_path / "missing.cardlang")
-    _exit, _out, err = _run([missing], capsys)
-    _exit, out, _err = _run([missing, "--json"], capsys)
-    (record,) = json.loads(out)["diagnostics"]
-    assert record["notes"] == [
-        {"span": None, "message": f"if you meant a command, they are: {', '.join(cli.COMMANDS)}"}
-    ]
-    assert err == "".join(f"cardlang: {line}\n" for line in [record["message"], record["notes"][0]["message"]])

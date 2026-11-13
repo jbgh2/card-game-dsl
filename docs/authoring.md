@@ -484,8 +484,19 @@ act (one of `cardlang.diagnostics.Author`: most often `game` or `library`),
 the file, line, column and length it stands at, the message as the text
 prints it, its notes, and its Near Misses as suggestions marked `offered`,
 which a tool shows rather than applies. A game that checks clean prints an
-empty list. The text output never shows a code (decisions.md, "Every refusal
-carries its Diagnostic Code").
+empty list. The lines the text prints beside a refusal that stand at no
+place in the file, such as a playout refusal's `in phase deal, moving from
+deck`, are notes with no place. The text output never shows a code
+(decisions.md, "Every refusal carries its Diagnostic Code").
+
+`play` and `demo` take `--json` too. stdout then holds the one envelope and
+nothing else, printed when the command ends, and everything else the command
+prints, `demo`'s summary and views or `play`'s whole table, goes to stderr
+word for word; `play` still reads your picks from stdin. Every refusal is a
+record: the checker's, the playout's, and the command's own, such as a seat
+the game does not seat or a saved game it cannot resume, each told to
+`invocation`. A `demo` playout that reaches its `max_length` is a record
+too, told to `game`, since it exits `1`.
 
 ```json
 {"code": "unknown-name", "severity": "error", "author": "game",

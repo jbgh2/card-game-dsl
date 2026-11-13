@@ -1,8 +1,9 @@
 """The Record Envelope: the checker's and the runtime's refusals as data.
 
-A tool reading `cardlang check --json` reads one [[record-envelope]]: a JSON
-document carrying its format's version (`schema`), what it holds (`kind`),
-and, for a check, one Diagnostic Record per told diagnostic. A record holds
+A tool reading `cardlang check --json`, `play --json` or `demo --json` reads
+one [[record-envelope]]: a JSON document carrying its format's version
+(`schema`), what it holds (`kind`), and one Diagnostic Record per told
+diagnostic. A record holds
 what `Diagnostic.format` prints, as fields: the [[diagnostic-code]], the
 severity, the author who must act, the span, the message, the notes, and the
 Near Misses as suggestions marked `offered`. The lines the command line
@@ -39,7 +40,7 @@ Now illegal:  a second JSON spelling of a diagnostic or a place; a record
               whose words differ from the text a designer reads
               (tests/test_records.py, the round trip over the rejection
               corpus), or that lacks a line the command line prints beside
-              its refusal (tests/test_check_json.py, the text
+              its refusal (tests/test_playout_records.py, the text
               re-rendered from the record); a suggestion marked
               mechanically applicable.
 Held by:      Derived and Pinned throughout. The match ends in
@@ -123,8 +124,9 @@ def diagnostic_record(told: Told) -> Record:
 
 
 def envelope(told: Sequence[Told]) -> Record:
-    """The Record Envelope of a check: every diagnostic it told, in the order
-    the text output prints them; none for a game that checks clean."""
+    """The Record Envelope of a check, a playout or a table: every refusal it
+    told, in the order the text output prints them; none for a run that
+    refuses nothing."""
     return {
         "schema": SCHEMA,
         "kind": Kind.DIAGNOSTICS.value,

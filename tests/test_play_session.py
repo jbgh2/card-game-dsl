@@ -527,8 +527,8 @@ def test_an_interrupt_while_the_other_seats_pick_leaves_and_keeps_the_game(
 def test_an_engine_failure_mid_session_keeps_the_picks_before_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sit: _Sit
 ) -> None:
-    """An exception outside the rendered channels keeps its traceback, and the
-    person's game survives it.
+    """An exception outside the rendered channels keeps its traceback and
+    exits 3, the engine's status, and the person's game survives it.
 
     red under: re-raise it in `Session.run` without keeping the line."""
     from cardlang.openspiel.seat_policy import UniformSeatPolicy
@@ -545,8 +545,9 @@ def test_an_engine_failure_mid_session_keeps_the_picks_before_it(
         return drawn(self, view, legal)
 
     monkeypatch.setattr(UniformSeatPolicy, "__call__", failing)
-    with pytest.raises(AssertionError, match="an engine assertion"):
-        sit([path, "--seed", str(_SEED), "--save", str(saved), *_VS], "1\n1\n1\n")
+    sitting = sit([path, "--seed", str(_SEED), "--save", str(saved), *_VS], "1\n1\n1\n")
+    assert sitting.code == 3
+    assert sitting.err.rstrip().endswith("AssertionError: an engine assertion")
     assert len(_saved(saved)["history"]) == 3 + 4
 
 
@@ -760,6 +761,10 @@ _PLAY_COMBINATION_EXPECTED: dict[tuple[str, ...], str] = {
     ("--save", "--seat", "--seed", "--vs"): "accepted",
     ("--resume", "--save", "--seat", "--seed", "--vs"): _CONTRADICTS,
 }
+# `--json` moves where each outcome is told, never which it is.
+_PLAY_COMBINATION_EXPECTED |= {
+    tuple(sorted(("--json", *subset))): expected for subset, expected in _PLAY_COMBINATION_EXPECTED.items()
+}
 
 
 def test_every_play_option_combination_is_authored() -> None:
@@ -798,26 +803,34 @@ def test_play_option_combination_cell(subset: tuple[str, ...], tmp_path: Path, s
         "--save": [str(tmp_path / "save.json")],
         "--resume": [str(resume)],
         "--vs": ["all=random"],
+        "--json": [],
     }
     argv = [path]
     for option in subset:
         argv += [option, *values[option]]
     sitting = sit(argv, "")
     expected = _PLAY_COMBINATION_EXPECTED[subset]
+    # Under `--json` the refusal is the envelope's, and stdout holds nothing else.
+    told = (
+        "\n".join(r["message"] for r in json.loads(sitting.out)["diagnostics"])
+        if "--json" in subset
+        else sitting.err
+    )
     if expected == "accepted":
         assert sitting.code == 0, sitting.err
         assert sitting.asks
         seat = 1 if "--resume" in subset else 0
         assert sitting.asks[0].view.player == seat
+        assert "--json" not in subset or told == ""
         return
     assert sitting.code == 2
     assert not sitting.asks
     if expected == _NO_OPPONENTS:
-        assert "name who plays the other seats" in sitting.err
+        assert "name who plays the other seats" in told
         return
     assert expected == _CONTRADICTS
-    assert str(resume) in sitting.err
-    assert any(option in sitting.err for option in ("--seat", "--seed") if option in subset)
+    assert str(resume) in told
+    assert any(option in told for option in ("--seat", "--seed") if option in subset)
 
 
 def test_a_flag_that_agrees_with_the_saved_game_is_accepted(tmp_path: Path, sit: _Sit) -> None:

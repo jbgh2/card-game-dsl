@@ -949,6 +949,7 @@ _ANCHORS: dict[tuple[str | None, str], tuple[str, ...]] = {
 _MEASURE_ERRS: frozenset[tuple[str | None, str]] = frozenset(
     {
         ("play", "--sed"),
+        ("demo", "--decisons"),
         ("demo", "--version"),
         ("demo", "--emit"),
         ("play", "-v"),

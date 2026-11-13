@@ -422,19 +422,26 @@ are ADR-0023.
 
 The code never reaches the text output: `Diagnostic.format` does not show
 it, and the rejection corpus staying byte-identical is the proof. A tool asks
-for it with `cardlang check --json`, which prints one [[record-envelope]]
-(`cardlang/records.py`): `schema`, `kind`, and one record per
-[[told-diagnostic]] carrying its code, severity, [[author]], place (file,
-line, column, length), message, notes and suggestions. A suggestion is a
+for it with `--json`, which every command takes: `cardlang check --json`
+prints one [[record-envelope]] (`cardlang/records.py`): `schema`, `kind`, and
+one record per [[told-diagnostic]] carrying its code, severity, [[author]],
+place (file, line, column, length), message, notes and suggestions, the
+lines the command line prints beside the refusal among the notes, each with
+no place. A suggestion is a
 [[near-miss]], marked `offered`, never mechanically applicable. The record
 composes no words: its message is the diagnostic's own, and its author is
 the one the telling layer stamped (the attribution step for a pass, the raise
 for the parser and the extract step, the command line for its own refusals,
 and `refusal_diagnostic` for a runtime refusal, keyed on its type). A reader
 refuses an envelope whose `schema` or `kind` it does not know. `--json` is
-total on `check` and refused elsewhere: beside `--emit-ir` it is a usage
-error, on `play` and `demo` an unrecognised argument, and a command line
-refused before it is read is refused as text.
+total on every command: stdout holds the one envelope and nothing else, with
+the exit code the text gives; under `play` and `demo` every refusal is a
+record, the command's own included, and everything else the command prints
+goes to stderr word for word. Beside `--emit-ir` it is a usage error, and a
+command line refused before it is read is refused as text. The exit code
+says who must act, by the author of the refusal told: the game's or a
+library's 1, the invocation's, the installation's or a registration's 2, the
+engine's 3, an exception outside the typed channels included.
 
 ### Allow-list, never deny-list
 
