@@ -110,6 +110,7 @@ _ACCOUNTED = frozenset(
         "ChooserAbort",
         "LengthStop",
         "_Rejected",
+        "_Spent",
         "TakeBack",
         "Leave",
         # compile-pass diagnostic factories — `error` is the bag's first
