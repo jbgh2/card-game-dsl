@@ -4,6 +4,7 @@ definition: traversal order (a turn ring, arrival order) · [[trick-order]] (wha
 layer: kernel
 status: reserved
 reserved: true
+compounds: [traversal order, trick order, ranking order, suit ranking order, reference order]
 home:
 see: ["trick-order", "card-strength", "suit-ranking"]
 retired_spellings: []

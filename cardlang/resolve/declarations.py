@@ -141,7 +141,7 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     f"that several games import may not name one: write the "
                     f"round in the game",
                     nd.span,
-                    code=Code.LIBRARY_REACHES_ONE_GAME,
+                    code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME,
                 )
                 return nd
             if follows in functions:
@@ -154,7 +154,7 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     f"`function {follows}_play(play : Combination, standing : "
                     f"Combination?) = …` and name it",
                     nd.span,
-                    code=Code.CLIMB_ROUND_QUERIES,
+                    code=Code.CLIMB_ROUND_LEAD_AND_FOLLOWS_MISMATCH,
                 )
             else:
                 bag.unknown(
@@ -179,7 +179,7 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     f"with `follows` query '{follows}', which is another "
                     f"engine's; '{lead}' follows with '{own}'",
                     nd.span,
-                    code=Code.CLIMB_ROUND_QUERIES,
+                    code=Code.CLIMB_ROUND_LEAD_AND_FOLLOWS_MISMATCH,
                 )
             elif follows in functions:
                 named = next(f for f in game.functions if f.name == follows)
@@ -188,7 +188,7 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     + f", a function of this game; the registered engine '{lead}' "
                     f"follows with its own query '{own}'",
                     nd.span,
-                    code=Code.CLIMB_ROUND_QUERIES,
+                    code=Code.CLIMB_ROUND_LEAD_AND_FOLLOWS_MISMATCH,
                 )
             else:
                 bag.unknown(
@@ -197,7 +197,7 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     follows,
                     (own,),
                     nd.span,
-                    code=Code.CLIMB_ROUND_QUERIES,
+                    code=Code.CLIMB_ROUND_LEAD_AND_FOLLOWS_MISMATCH,
                 )
             return nd
         bag.unknown(
@@ -206,7 +206,7 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
             lead,
             (*PRIMITIVE_CLIMB_ENGINES, *catalogues),
             nd.span,
-            code=Code.CLIMB_ROUND_QUERIES,
+            code=Code.CLIMB_ROUND_LEAD_AND_FOLLOWS_MISMATCH,
         )
         return nd
 
@@ -222,7 +222,7 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
             + ", ".join(f"'{x}'" for x in names)
             + " — the action space numbers one universe of plays",
             game.span,
-            code=Code.CLIMB_ROUND_QUERIES,
+            code=Code.CLIMB_ROUND_LEAD_AND_FOLLOWS_MISMATCH,
         )
     return stamped
 

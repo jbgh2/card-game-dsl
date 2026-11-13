@@ -87,6 +87,8 @@ _ACCOUNTED = frozenset(
         # role-bearing: the game author, and the engine when a guard leaked
         "OwnerGuardError",
         "ShadowGuardError",
+        # the game author, an OwnerGuardError carrying which board misuse it is
+        "BoardRefusal",
         # other Authors, each with its position pinned in the taxonomy
         "InstallationError",
         "GameRegistrationError",

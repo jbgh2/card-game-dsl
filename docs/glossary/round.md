@@ -4,10 +4,11 @@ definition: The kernel card-play loop: the `round` keyword and its two **forms**
 layer: kernel
 status: canonical
 reserved: true
+compounds: [round statement, trick round, climb round, climbing round, round state]
 home: `mechanics.py`
 see: []
 retired_spellings: [Trick mechanic, AuctionRound]
 findings: []
 ---
 
-**Reserved word.** Approved compounds: the round statement/forms · (a "round of the game" is a *hand*)
+**Reserved word.** Approved compounds: the round statement/forms · trick round · climb round · climbing round · round state ([[round-state]]) · (a "round of the game" is a *hand*)

@@ -1,1 +1,0 @@
-code_mode_pairing.cardlang:10:5: error: mode 'a' is both entered by a transition and declares one — modes are independent two-sided conditions, not a chain. Give each condition its own pair of modes, or use a state variable with `applies_when` for a progression through three or more stages

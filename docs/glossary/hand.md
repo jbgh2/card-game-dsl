@@ -4,6 +4,7 @@ definition: One deal-to-scoring cycle of a game (`skip to next hand`, `hands_pla
 layer: kernel
 status: canonical
 reserved: true
+compounds: [hand zone, one hand, hand loop]
 home: `driver.py`
 see: []
 retired_spellings: []

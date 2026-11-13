@@ -1,0 +1,1 @@
+choose_negative_ceiling.cardlang:12:15: error: `choose integer` upper bound (-1) is negative: values start at 0, so the range reserves no action id and no value can ever be chosen — raise the upper bound to 0 or more

@@ -4,6 +4,7 @@ definition: IR node tag (reserved) · AST discriminators (rename per node when t
 layer: kernel
 status: reserved
 reserved: true
+compounds: []
 home:
 see: []
 retired_spellings: []

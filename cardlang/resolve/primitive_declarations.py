@@ -161,7 +161,7 @@ def _check_primitive_type(
                 f" which takes an element type — write "
                 f"`{COLLECTION_TYPE_CONSTRUCTOR}<Card>`",
                 decl.span,
-                code=Code.WRONG_PRIMITIVE_TYPE,
+                code=Code.WRONG_PRIMITIVE_CHECKER_TYPE,
             )
         elif spelled.base not in declarable:
             bag.error(
@@ -172,7 +172,7 @@ def _check_primitive_type(
                 f"a collection of them (issue #547 tracks the shapes that "
                 f"have no spelling)",
                 decl.span,
-                code=Code.WRONG_PRIMITIVE_TYPE,
+                code=Code.WRONG_PRIMITIVE_CHECKER_TYPE,
             )
         return
     element = spelled.element
@@ -184,7 +184,7 @@ def _check_primitive_type(
             f"`{COLLECTION_TYPE_CONSTRUCTOR}` is the one type an entry writes "
             f"with angle brackets; a zone's are a `zones {{ }}` line's",
             decl.span,
-            code=Code.WRONG_PRIMITIVE_TYPE,
+            code=Code.WRONG_PRIMITIVE_CHECKER_TYPE,
         )
     elif element in COLLECTION_ELEMENT_NAMES:
         return
@@ -196,7 +196,7 @@ def _check_primitive_type(
             f"{', '.join(sorted(COLLECTION_ELEMENT_NAMES))} (issue #547 "
             f"reopens this when one takes another element)",
             decl.span,
-            code=Code.WRONG_PRIMITIVE_TYPE,
+            code=Code.WRONG_PRIMITIVE_CHECKER_TYPE,
         )
     else:
         bag.error(
@@ -205,7 +205,7 @@ def _check_primitive_type(
             f"domain (`Hand<player>`), a collection's take what it holds; "
             f"write `{COLLECTION_TYPE_CONSTRUCTOR}<Card>`",
             decl.span,
-            code=Code.WRONG_PRIMITIVE_TYPE,
+            code=Code.WRONG_PRIMITIVE_CHECKER_TYPE,
         )
 
 

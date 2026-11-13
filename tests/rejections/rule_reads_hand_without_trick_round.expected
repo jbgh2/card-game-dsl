@@ -1,0 +1,1 @@
+rule_reads_hand_without_trick_round.cardlang:17:1: error: rule 'NoAces' reads `hand`, the cards the player on turn plays to a trick, but this game plays no trick round (`round <move> from ... source ... into ...`); a rule is asked only when a trick round offers a card, so it would never apply — play the hand with a trick round, or delete rule 'NoAces'

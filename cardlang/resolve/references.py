@@ -75,9 +75,8 @@ from cardlang.domains import (
 )
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
-from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import content_kind_clause
-from cardlang.stdlib.boards import board_entry
+from cardlang.stdlib.boards import BoardRefusal, board_entry
 from cardlang.stdlib.moves import CLIMB_DECISION_MOVE_TYPE, LIBRARY_MOVE_TYPES
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, identity_to_all
 from cardlang.resolve.walk import _walk
@@ -309,7 +308,7 @@ def _check_move_params(
     for p in mt.params:
         refused = _combination_outside_a_parameter(p.type_name, "a move type's parameter")
         if refused is not None:
-            bag.error(refused, span, code=Code.TYPE_NOT_ALLOWED_HERE)
+            bag.error(refused, span, code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE)
             return
     # A piece game has no suit/rank/card domain to enumerate, so a move
     # parameterized by one has no candidate space. Checked before the
@@ -344,7 +343,7 @@ def _check_move_params(
             f"so a Card parameter cannot be combined with another parameter "
             f"(fold into one parameter)",
             span,
-            code=Code.CARD_PLAY_PARAMETERS,
+            code=Code.CARD_PLAYS_LOOK_ALIKE,
         )
     names = [p.name for p in mt.params]
     dup_names = sorted({name for name in names if names.count(name) > 1})
@@ -387,7 +386,7 @@ def _check_move_params(
                 t,
                 (*_FIXED_DOMAINS, "Card", *positions, *directions),
                 span,
-                code=Code.UNKNOWN_TYPE,
+                code=Code.UNKNOWN_PARAMETER_DOMAIN,
             )
         # Exact string, matching `_FIXED_DOMAINS`'s own convention (never by
         # stripping a trailing `?`): `Rank?` is not in `_FIXED_DOMAINS`, so it
@@ -465,7 +464,7 @@ def _check_card_offering(
             "indistinguishable — fold them into one move type",
             span,
             for_game=for_game,
-            code=Code.CARD_PLAY_PARAMETERS,
+            code=Code.CARD_PLAYS_LOOK_ALIKE,
         )
     hand = next((z for z in game.zones if z.name == family), None)
     if not card_param_moves or (
@@ -604,7 +603,7 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
     if nd.func == "lines" and len(args) == 1 and isinstance(args[0], n.IntLit):
         try:
             board_entry(game.board.family, game.board.args).lines(args[0].value)
-        except OwnerGuardError as exc:
+        except BoardRefusal as exc:
             _tell_board_refusal(exc, game.board.family, nd.span, bag)
 
 
@@ -772,13 +771,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # of two independent errors on the same declaration.
                 refused = _combination_outside_a_parameter(nd.type_name, "a state variable")
                 if refused is not None:
-                    bag.error(refused, nd.span, code=Code.TYPE_NOT_ALLOWED_HERE)
+                    bag.error(refused, nd.span, code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE)
                 elif (typed := _state_type_refusal(game, nd.type_name)) is not None:
                     bag.error(
                         "state variable " + cite_named(nd, f"'{nd.name}'")
                         + f" is typed `{nd.type_name}`, " + typed,
                         nd.span,
-                        code=Code.TYPE_NOT_ALLOWED_HERE,
+                        code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE,
                     )
                 elif nd.type_name not in state_types:
                     bag.unknown(
@@ -787,7 +786,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.type_name,
                         state_types,
                         nd.span,
-                        code=Code.UNKNOWN_TYPE,
+                        code=Code.UNKNOWN_CHECKER_TYPE,
                     )
                 if nd.index is not None and role_of(nd.index) not in ZONE_INDEX_ROLES:
                     # Same guard as a zone's index role, same registry. Before
@@ -871,7 +870,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.role,
                     (*role_names(_ITERATION_ROLES), *iterable_positions),
                     nd.span,
-                    code=Code.UNKNOWN_INDEX_DOMAIN,
+                    code=Code.UNKNOWN_QUANTIFIABLE_DOMAIN,
                 )
             case (n.ForEach() | n.Quantifier()) if (
                 game.content_flavor == "piece" and role_of(nd.role) in CARD_AXIS_ROLES
@@ -1220,7 +1219,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             if not _winner_refusals(replace(nd, winner_fn=name), game)
                         },
                         nd.span,
-                        code=Code.UNKNOWN_ROUND_FUNCTION,
+                        code=Code.UNKNOWN_TRICK_ROUND_FUNCTION,
                     )
                 elif nd.winner_fn in TRICK_ORDER_GATED_WINNERS:
                     # A Trick Order winner takes no `trump` argument at all --
@@ -1272,5 +1271,5 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.early_termination,
                         _ROUND_QUERY_REGISTRIES[(n.TrickRound, "early_termination")],
                         nd.span,
-                        code=Code.UNKNOWN_ROUND_FUNCTION,
+                        code=Code.UNKNOWN_TRICK_ROUND_FUNCTION,
                     )

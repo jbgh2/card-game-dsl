@@ -4,6 +4,7 @@ definition: the option (poker) — a forced poster's right to aggress when the b
 layer: card-family
 status: reserved
 reserved: true
+compounds: [the option, command-line option]
 home:
 see: ["candidate"]
 retired_spellings: []
