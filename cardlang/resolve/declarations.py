@@ -50,6 +50,9 @@ from cardlang.resolve.binders import _introduced_binders
 from cardlang.resolve.reserved import RESERVED_VALUE_NAMES, _PARAM_BEARING, _RESERVED_WHY
 from cardlang.resolve.slots import _ROUND_QUERY_NAMES
 from cardlang.resolve.declared import (
+    DECK_SLOT,
+    content_kind_refused,
+    content_kind_unless,
     _component_known,
     _deck_known,
     _declared_suits_phrase,
@@ -560,6 +563,7 @@ def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
                 DECKS,
                 game.span,
                 code=Code.UNKNOWN_DECK,
+                slot=DECK_SLOT,
             )
         else:
             piece_sets = sorted(
@@ -572,6 +576,7 @@ def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
                 piece_sets,
                 game.span,
                 code=Code.UNKNOWN_DECK,
+                slot=DECK_SLOT,
             )
     elif cs.flavor != game.content_flavor:
         if cs.flavor == "piece":
@@ -580,6 +585,7 @@ def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
                 f"`pieces: {game.deck}`, not `cards:`",
                 game.span,
                 code=Code.WRONG_SPELLING,
+                refuses=content_kind_refused("piece"),
             )
         else:
             bag.error(
@@ -587,6 +593,7 @@ def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
                 f"`cards: {game.deck}`, not `pieces:`",
                 game.span,
                 code=Code.WRONG_SPELLING,
+                refuses=content_kind_refused("card"),
             )
 
 
@@ -606,6 +613,7 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
             f"piece set has no notion of; drop the clause",
             game.span,
             code=Code.PIECES_ARE_NOT_CARDS,
+            unless=content_kind_unless(game),
         )
     if game.suit_ranking is not None:
         bag.error(
@@ -613,6 +621,7 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
             f"set has none of; drop the clause",
             game.suit_ranking.span or game.span,
             code=Code.PIECES_ARE_NOT_CARDS,
+            unless=content_kind_unless(game),
         )
     for answer in K.answers(game):
         spelled = answer.spelled_as
@@ -622,6 +631,7 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"piece set has no notion of; drop the clause",
                 answer.span or game.span,
                 code=Code.PIECES_ARE_NOT_CARDS,
+                unless=content_kind_unless(game),
             )
         else:
             bag.error(
@@ -631,6 +641,7 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"the function",
                 answer.span or game.span,
                 code=Code.PIECES_ARE_NOT_CARDS,
+                unless=content_kind_unless(game),
             )
 
 
@@ -1117,6 +1128,7 @@ def _check_piece_rounds(game: n.Game, bag: DiagnosticBag) -> None:
                 f"has none of",
                 nd.span,
                 code=Code.PIECES_ARE_NOT_CARDS,
+                unless=content_kind_unless(game),
             )
 
 

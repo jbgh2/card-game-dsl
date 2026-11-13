@@ -36,7 +36,7 @@ from dataclasses import field, replace
 from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.attribution import cite_named
-from cardlang.diagnostics import DiagnosticBag
+from cardlang.diagnostics import DiagnosticBag, SlotKind, Unless
 from cardlang.resolve.slots import _REFERENCE_SLOTS
 from cardlang.resolve.crossings import _definition_closure
 from cardlang.resolve.ranking_slots import _result_rankings, ranking_slot
@@ -181,9 +181,24 @@ def _check_unoffered_move_types(
     it — so a game that defines it and reaches no offer of it is refused like
     any other game-local move type."""
     offered = {name for ns, name in _reachable_definitions(game) if ns == "move_type"}
+    if all(mt.name not in own or mt.name in offered for mt in game.move_types):
+        return
+    pools: dict[str, dict[str, object]] = {
+        ns: {d.name: d for d in getattr(game, field)} for field, ns in _DEFINITION_CONTAINERS.values()
+    }
+    offers: dict[tuple[str, str], set[str]] = {}
+    for ns, field in (("procedure", "procedures"), ("move_type", "move_types")):
+        for definition in getattr(game, field):
+            reached = {name for kind, name in _definition_closure([definition], pools) if kind == "move_type"}
+            offers[(ns, definition.name)] = reached | ({definition.name} if ns == "move_type" else set())
     for mt in game.move_types:
         if mt.name not in own or mt.name in offered:
             continue
+        # A misspelled `run` or offer, fixed, reaches what its fix reaches.
+        unless = tuple(
+            Unless(kind, frozenset(name for (ns, name), names in offers.items() if ns == space and mt.name in names))
+            for space, kind in (("procedure", SlotKind.PROCEDURE), ("move_type", SlotKind.MOVE_TYPE))
+        )
         if mt.stake is not None:
             bag.error(
                 f"`{mt.stake}` on move type " + cite_named(mt, f"`{mt.name}`") + f", which no reachable "
@@ -191,6 +206,7 @@ def _check_unoffered_move_types(
                 f"Delete it, or present the move at an offering the game reaches",
                 mt.span,
                 code=Code.UNUSED_DECLARATION,
+                unless=unless,
             )
             continue
         bag.error(
@@ -199,6 +215,7 @@ def _check_unoffered_move_types(
             f"Present it at an offering the game reaches, or delete it",
             mt.span,
             code=Code.UNUSED_DECLARATION,
+            unless=unless,
         )
 
 

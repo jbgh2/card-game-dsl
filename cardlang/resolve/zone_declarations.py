@@ -12,9 +12,10 @@ from __future__ import annotations
 from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.primitives_block import COLLECTION_TYPE_CONSTRUCTOR
-from cardlang.diagnostics import DiagnosticBag
+from cardlang.diagnostics import DiagnosticBag, SlotKind, Unless
 from cardlang.domains import ZONE_INDEX_ROLES, Role, role_names, role_of
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
+from cardlang.resolve.declared import board_mints, index_slot
 
 
 def step(game: n.Game, bag: DiagnosticBag, position_names: frozenset[str]) -> None:
@@ -61,6 +62,8 @@ def _resolve_zone(
             (*role_names(_KNOWN_ROLES), *positions),
             zone.span,
             code=Code.UNKNOWN_ZONE_INDEX,
+            slot=index_slot(zone.name),
+            unless=board_mints(zone.index or ""),
         )
 
     ref = zone.type_ref
@@ -99,6 +102,7 @@ def _resolve_zone(
                 (*role_names(_KNOWN_ROLES), *positions),
                 arg.span,
                 code=Code.UNKNOWN_ZONE_OWNER,
+                unless=board_mints(arg.name),
             )
         elif takes_owner and zone.index is None:
             # An owned zone type has no index to key its owner by. The runtime
@@ -128,6 +132,7 @@ def _resolve_zone(
                 f"'{ref.name}<{zone.index}>'",
                 arg.span,
                 code=Code.WRONG_SUBSCRIPT,
+                unless=Unless(SlotKind.ZONE_INDEX, frozenset({arg.name}), frozenset({zone.name})),
             )
     if zone.index in positions:
         # A position-indexed family has no owner (no observer IS a column —

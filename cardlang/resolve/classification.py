@@ -17,7 +17,9 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
               ``_position_refuses``, the disjunction of the guards'
               predicates); a trick round's winner is offered the winners that
               round admits (``_winner_refusals``, the one producer the
-              guards refusing a round's winner dispatch on). Held by Derived and Pinned
+              guards refusing a round's winner dispatch on); no name is
+              offered where a `Positive` parameter's argument stands
+              (``positive_arguments``). Held by Derived and Pinned
               (tests/test_near_miss_positions.py). The type a Near Miss
               takes where it stands is typecheck's, and this pass derives
               none: the bare-name and round `trump` refusals carry their
@@ -44,7 +46,7 @@ from cardlang.builtins.functions import BUILTIN_IMPLICIT_READS
 from cardlang.diagnostics import DiagnosticBag
 from cardlang.resolve.walk import _child_nodes, _walk
 from cardlang.resolve.slots import _NAME_SLOTS, _slot_root
-from cardlang.resolve.declared import _map_climb_rounds
+from cardlang.resolve.declared import _map_climb_rounds, positive_arguments
 from cardlang.resolve.scope import (
     _DEFAULT_REFUSED_PRONOUNS,
     _default_reads,
@@ -188,6 +190,13 @@ def _name_positions(game: n.Game) -> dict[int, _NamePosition]:
     }
     subscripted = _subscripted_ids(game)
     limits = _read_limits(game)
+    procedures = {p.name: p for p in game.procedures}
+    positive = {
+        id(arg)
+        for run in _walk(game)
+        if isinstance(run, n.RunStmt) and run.name in procedures
+        for _param, arg in positive_arguments(procedures[run.name], run)
+    }
     return {
         id(ref): _NamePosition(
             live_state=live.get(id(ref)),
@@ -204,6 +213,7 @@ def _name_positions(game: n.Game) -> dict[int, _NamePosition]:
             hosted=id(ref) in hosted,
             subscripted=id(ref) in subscripted,
             limits=limits,
+            positive_argument=id(ref) in positive,
         )
         for ref in _walk(game)
         if isinstance(ref, n.NameRef)

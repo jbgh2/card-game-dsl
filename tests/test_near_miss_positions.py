@@ -27,7 +27,8 @@ domain:          every slip the Near Miss census holds (`WITNESSES`,
                  (`POSITIONAL_GUARDS`) or a trick round's winner
                  (`_winner_refusals`' reasons), and one for the refusal of
                  any name where a `Positive` parameter's argument stands
-                 (`_check_positive_arguments`, which reads no `ref_kind`),
+                 (`_check_positive_arguments`, which reads no `ref_kind` and
+                 joins the record by its producer, `positive_arguments`),
                  crossed with
                  every Near Miss each one offers, and one probe of a slip
                  beside a second slip. A cell the checker cannot yet judge
@@ -245,9 +246,6 @@ RESIDUAL: dict[str, str] = {
     "a hidden read beside a second slip": (
         "the check holds two refusals, so no offer is re-checked and `deck`, which the "
         "deciding seat cannot see, is offered in a `when:` (issue #1089)"),
-    "a Positive argument": (
-        "the misspelling is told twice, unresolved and as no written number, so the "
-        "check holds two refusals and no offer is re-checked (issue #1087)"),
 }
 
 # The position probes whose whole offer is wrong where the oracle cannot see

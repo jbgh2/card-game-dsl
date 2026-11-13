@@ -56,7 +56,12 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               ``ref_kind``, never re-derives it.
               No check here decides which file a refusal of library text is
               told in: every refusal stands where the text it refuses stands,
-              and ``attribution.raise_if_errors`` tells it.
+              and ``attribution.raise_if_errors`` tells it. Nor does a check
+              withhold a refusal because another refusal exists: a refused
+              spelling marks the slot it stands in (``Refused``), a check
+              refusing on a fact read from a slot as written marks what clears
+              it (``Unless``), and ``DiagnosticBag.settle`` decides, at each
+              raise, which are told.
               A refusal of spliced library text that a game declaration its
               contract does not name decides -- a ``Card`` parameter's
               ``CARD_PARAMETER_FAMILY`` absent, not kept per player, or
