@@ -917,8 +917,8 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                     f"`requires {{ }}` if the including game must declare it, or move "
                     f"the definition that needs it into the game",
                     cite_library(library.name, ref.span) + f" reads '{ref.name}', which it does "
-                    f"not define — the standard library reads only what it defines "
-                    f"and what every game has, so define it there",
+                    f"not define; it may read only what it defines and what every "
+                    f"game has, so define the name in it",
                 ),
                 ref.name,
                 reach.unresolved_near.get(ref.span, ()),
@@ -954,8 +954,8 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                     f"fact each game answers for itself — contract for it with "
                     f"`{K.CONTRACTS[call.func].spelled}` in `requires {{ }}`",
                     cite_library(library.name, call.span) + f" calls '{call.func}', a "
-                    f"fact each game answers for itself — the standard library has "
-                    f"no `requires` contract to ask a game for it, so it may not call it",
+                    f"fact each game answers for itself, and it has no `requires` "
+                    f"contract to ask a game for one, so it may not call it",
                 ),
                 call.span,
                 code=library_text_codes(library.name).reads_undefined_name,
@@ -970,7 +970,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                     f"`requires {{ }}` so the including game defines it, or keep the "
                     f"definition that needs it in the game",
                     cite_library(library.name, call.span) + f" calls '{call.func}', which is neither "
-                    f"defined in it nor a native function — define it in the standard library",
+                    f"defined in it nor a native function — define the function in it",
                 ),
                 call.func,
                 _library_slot_names(library)["function"],
@@ -1046,8 +1046,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 f"{_NAMESPACE_ADVICE[leak.namespace]}",
                 cite_library(library.name, getattr(leak.node, "span", None)) + f" names the "
                 f"{_NAMESPACE_NOUN[leak.namespace]} '{leak.name}', which it does not "
-                f"define — the standard library reads only what it defines and what "
-                f"every game has",
+                f"define; it may read only what it defines and what every game has",
             ),
             leak.name.removesuffix("?"),
             _library_slot_names(library).get(leak.namespace, frozenset()),
