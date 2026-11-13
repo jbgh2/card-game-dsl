@@ -184,6 +184,9 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     # A proposal leaving the observer's information set: the construction's
     # own control flow, caught where it is raised.
     "_Rejected": {"in_game_description_tree": False, "is_runtime_error": False},
+    # A misspelled-keyword search whose parses are spent: the parser's own
+    # control flow, caught where the search ends.
+    "_Spent": {"in_game_description_tree": False, "is_runtime_error": False},
 }
 
 
