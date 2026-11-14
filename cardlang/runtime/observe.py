@@ -50,6 +50,85 @@ admits. This is what each carries:
 Which observer learns what is otherwise driven by the zone declarations alone
 (decisions.md "Knowledge, visibility, and the projection model") — no game names
 its observers.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+- Assumes: `ZONE_PROJECTIONS` (`stdlib/zones.py`) is the one statement of
+  what each zone type shows its owner and every other seat; a caller that
+  keeps a seat's log installs `Ctx.observer` and appends every event
+  delivered to that seat, in delivery order.
+- Establishes: the kinds of [[observation-event]] and the shape of every
+  field each kind carries are `EVENT_PAYLOADS`, what each shape admits is
+  `PAYLOAD_SHAPES`, and `payload_refusal` refuses, in words, a kind, an
+  arity or a field outside them. Held by: Born-Green Pin,
+  tests/test_observation_payloads.py, which plays every registered game
+  with an observer installed and holds every delivered event to its row,
+  beside member cells that redden on a shape admitting its nearest wrong
+  value. Why not higher: each emission site spells its tuple by hand, so the
+  table describes the events rather than constructing them, and emission
+  is unfenced -- `Ctx.observe` delivers whatever a site hands it, and a
+  malformed event is refused where it is consumed (a rendering asking
+  `payload_refusal`, the soundness matrix at probe time), never where it is
+  made. The tuple stays because each event's `repr` is the information
+  state's substrate (`infostate.render_information_state`); the closed
+  union that spells itself as today's tuple is issue #1004.
+- Establishes: a decider is told what it is asked, and recalls each of its
+  own picks, through one route: `chooser.decide`, the only caller of the
+  Chooser, delivers the node's `was` events to every seat, then the
+  `asked` to the decider, then one `chose` per pick to the decider alone.
+  Held by: Derived and Pinned for the route -- the AST scrape of
+  tests/test_asked_event.py::test_the_choke_point_is_the_only_caller_of_the_chooser
+  holds the Chooser's callers to `chooser.decide`, and
+  tests/test_asked_event.py::test_the_ask_is_derived_in_one_place holds the
+  modules naming `asked`; Review-Enforced Prose for the spellings -- a
+  second site handing `Ctx.observe` an `asked` or a `chose` tuple inside a
+  module that scrape admits, or a `chose` anywhere, meets no structural
+  check, only the behaviour pins and goldens a played line happens to
+  reach. Why not higher: which code
+  reaches the Chooser is a fact about the call graph, which no type holds;
+  that only the route spells these kinds is issue #1004's constructor.
+- Establishes: a card transfer reaches each seat through both sides'
+  declared projections (`movement`, through `view_of`), and a seat for whom
+  both sides are trivial receives no event. Held by: Derived and Pinned for
+  what a seat receives -- `view_of` is the one reading of a zone's
+  projection, read by `movement` and by `infostate`'s zone facts alike, and
+  the per-observer proofs under tests/openspiel_ready/ measure it;
+  Review-Enforced Prose for whether a transfer is observed at all -- no
+  check names a missing event, and the proofs' soundness converse perturbs
+  only the facts a seat sees at the position, which outlive the event.
+  Why not higher: emission sits beside the deposit rather than inside it --
+  each movement site pairs its zone write with its own `movement` call --
+  so a site that writes a zone without one emits nothing; observing from
+  the one deposit site is issue #1001.
+- Establishes: `view_of` answers the cards, a count, or nothing, for each
+  projection `ZONE_PROJECTIONS` assigns; a level `PROJECTION_LEVELS`
+  declares with no arm here is refused at play, not at declaration. Held
+  by: Review-Enforced Prose. Why not higher: the dispatch is an if-chain
+  over strings ending in an assertion, and the levels no zone type declares
+  are unbuilt; totality over the declared levels is issue #1003.
+- Establishes: a decision value and a State Variable's content each have
+  one deterministic spelling (`render`, `render_state_variable`), shared by
+  every log and every rendering of a Seat View, and a value outside the
+  declared shapes is refused. Held by: Born-Green Pin,
+  tests/test_openspiel_infostate.py::test_render_covers_the_declared_value_shapes_and_refuses_the_rest.
+  Why not higher: a decision value arrives as `Any` from the Chooser and a
+  State Variable as `Any` from its frame, so the dispatch is over runtime
+  types.
+- Establishes: at every decision node after a run's first, every seat
+  receives one `was` per public State Variable slot whose rendering changed
+  since the previous node, so its log fixes the public state it was shown
+  at every earlier node (ADR-0021). Held by: Unrepresentable for the write
+  doors -- `state_delta` diffs the one rendering `public_state` gives, so
+  no door that writes a State Variable bypasses it; Derived and Pinned for
+  the nodes -- `chooser.decide` calls it before every ask, and the
+  choke-point scrape above holds every decision to `chooser.decide`. The
+  executed witnesses are tests/test_state_recall.py, one row per write
+  door, and
+  tests/openspiel_ready/test_ismcts.py::test_a_constructed_world_keeps_the_public_state_a_seat_was_shown,
+  red under dropping `state_delta(ctx)` from `chooser.decide`.
+- Illegal after: an event kind, or a field on one, that `EVENT_PAYLOADS`
+  does not declare first; a projection spelled beside `view_of`; a card,
+  rather than its rendering, in a payload (`_rendered`; issue #666).
 """
 
 from __future__ import annotations
@@ -145,14 +224,7 @@ PAYLOAD_SHAPES: dict[str, Callable[[object], bool]] = {
 # `execute._reveal`. A new kind, or a new field on one, is
 # declared here first. Pinned by tests/test_observation_payloads.py, which plays
 # every registered game with an observer installed and holds every delivered
-# event to its row.
-#
-# The rung, recorded: the log stays tagged tuples and a consumer refuses what
-# the table does not describe (`payload_refusal`), rather than a typed event
-# union every site constructs — each tuple's `repr` is the information state's
-# own substrate, so typing the log is a change of its own under the goldens'
-# full width. Emission is therefore unfenced: `Ctx.observe` delivers whatever
-# a site hands it.
+# event to its row. Its rung is the module Contract's.
 EVENT_PAYLOADS: dict[str, tuple[str, ...]] = {
     "asked": ("phase", "construct", "count", "destination"),
     "chose": ("value",),
