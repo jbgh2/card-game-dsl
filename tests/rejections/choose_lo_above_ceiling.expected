@@ -1,0 +1,1 @@
+choose_lo_above_ceiling.cardlang:12:15: error: `choose integer` lower bound (7) exceeds its ceiling (5): the range is statically empty (or every value would fall outside the reserved action block), so no value can ever be chosen — lower the start or raise the bound

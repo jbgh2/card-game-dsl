@@ -1,0 +1,14 @@
+// Guard: resolve's zone-declaration check. A zone family is keyed by a
+// seat role or a position domain the game declares; `seat` is neither.
+game ZoneIndexUnknown {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[seat] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase p {
+    for each player q: score[q] := 0
+  }
+  winner: highest score
+}

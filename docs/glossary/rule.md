@@ -4,6 +4,7 @@ definition: A named constraint on the trick round's card play (`constrains` / `a
 layer: kernel
 status: canonical
 reserved: true
+compounds: [game rule, grammar rule]
 home: `n.RuleDef`
 see: [when-clause]
 retired_spellings: []

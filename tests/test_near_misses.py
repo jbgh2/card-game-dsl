@@ -116,6 +116,10 @@ def _template(expr: ast.expr) -> str:
         )
     if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Add):
         return _template(expr.left) + _template(expr.right)
+    if isinstance(expr, ast.Call) and isinstance(expr.func, ast.Name) and expr.func.id == "_by_sort":
+        # A sentence split by the sort of library is keyed by its family
+        # library's arm, the one a game's text reaches.
+        return _template(expr.args[1])
     return "{}"
 
 

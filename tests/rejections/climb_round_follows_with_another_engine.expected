@@ -1,0 +1,1 @@
+climb_round_follows_with_another_engine.cardlang:39:9: error: climb round `follows` names 'climb_follows', a function of this game; the registered engine 'tichu_lead_options' follows with its own query 'tichu_follows'

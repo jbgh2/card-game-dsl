@@ -1,0 +1,15 @@
+// Guard: resolve's integer-`choose` literal-bounds check. A lower bound
+// above the ceiling leaves the range empty, so the choice offers nothing.
+game ChooseLoAboveCeiling {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0 }
+  phase play {
+    for each player p:
+      x[p] := choose integer in 7 .. 5
+  }
+  winner: highest x
+}

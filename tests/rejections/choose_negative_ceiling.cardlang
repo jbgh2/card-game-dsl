@@ -1,0 +1,15 @@
+// Guard: resolve's integer-`choose` literal-bounds check. Values start at 0,
+// so an upper bound below 0 reserves no action id and offers nothing.
+game ChooseNegativeCeiling {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0 }
+  phase play {
+    for each player p:
+      x[p] := choose integer in 0 .. -1
+  }
+  winner: highest x
+}

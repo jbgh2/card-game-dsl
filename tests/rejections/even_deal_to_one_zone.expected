@@ -1,0 +1,1 @@
+even_deal_to_one_zone.cardlang:13:5: error: `as-equally-as-possible` distributes a `to each` deal; it has no meaning with a single destination

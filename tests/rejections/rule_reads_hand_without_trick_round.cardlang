@@ -1,0 +1,21 @@
+// Guard: resolve's play-source check. A rule reading `hand`, the cards the
+// player on turn plays to a trick, is asked only when a trick round offers a
+// card; a game with no trick round would never ask it.
+game RuleReadsHandWithoutTrickRound {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
+  state { score[player] : Integer = 0 }
+  phase p {
+    for each player q: score[q] := 0
+  }
+  winner: highest score
+}
+
+rule NoAces {
+  constrains: play_to_trick
+  demands: cards in hand where card.rank is not A
+  if_impossible: hand
+}

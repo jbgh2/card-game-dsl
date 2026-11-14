@@ -518,7 +518,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 "with `up to N` (`0 .. hand_size up to 10`) — the OpenSpiel "
                 "action space reserves that many ids up front",
                 node.span,
-                code=Code.CHOOSE_INTEGER_BOUNDS,
+                code=Code.CHOOSE_INTEGER_NEEDS_FIXED_CEILING,
             )
             continue
         if ceiling < 0:
@@ -527,7 +527,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"start at 0, so the range reserves no action id and no value "
                 f"can ever be chosen — raise the upper bound to 0 or more",
                 node.span,
-                code=Code.CHOOSE_INTEGER_BOUNDS,
+                code=Code.CHOICE_OFFERS_NO_CANDIDATE,
             )
             continue
         if node.ceiling is not None and isinstance(node.hi, n.IntLit):
@@ -552,7 +552,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"value would fall outside the reserved action block), so no "
                 f"value can ever be chosen — lower the start or raise the bound",
                 node.span,
-                code=Code.CHOOSE_INTEGER_BOUNDS,
+                code=Code.CHOICE_OFFERS_NO_CANDIDATE,
             )
             continue
         if isinstance(node.lo, n.IntLit) and node.lo.value < 0:
@@ -561,7 +561,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"reserved block: values start at 0, and every legal value must "
                 f"have an OpenSpiel action id in 0 .. {ceiling} — raise the start",
                 node.span,
-                code=Code.CHOOSE_INTEGER_BOUNDS,
+                code=Code.OUT_OF_RANGE,
             )
             continue
         if isinstance(node.excluding, n.IntLit):
@@ -583,7 +583,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                     f"would always empty the choice — a choice must offer at "
                     f"least one candidate",
                     node.excluding.span or node.span,
-                    code=Code.CHOOSE_INTEGER_BOUNDS,
+                    code=Code.CHOICE_OFFERS_NO_CANDIDATE,
                 )
 
 
@@ -795,7 +795,7 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
                 f"the routing to reach — a game with no trick round cannot use "
                 + cite_library(origin.library, helpers[0].span)
             ),
-            code=Code.NEEDS_A_TRICK_ROUND,
+            code=Code.UNUSED_DECLARATION,
         )
 
 
@@ -1148,7 +1148,7 @@ def _check_play_source(
                 f"never apply — play the hand with a trick round, or delete rule "
                 + cite_named(rule, f"'{rule.name}'"),
                 rule.span,
-                code=Code.NEEDS_A_TRICK_ROUND,
+                code=Code.GAME_RULE_NEVER_CONSULTED,
             )
 
 
@@ -1511,7 +1511,7 @@ def _check_answer_hermeticity(game: n.Game, bag: DiagnosticBag) -> set[str]:
                     voice.subject() + f" reads the pronoun '{nd.name}'"
                     + through(fn) + reason,
                     nd.span or answer.span,
-                    code=Code.ANSWER_READS_BEYOND_THE_CARD,
+                    code=Code.TRICK_ORDER_FUNCTION_READS_BEYOND_THE_CARD,
                 )
             elif isinstance(nd, n.Choose):
                 reason = (
@@ -1521,7 +1521,7 @@ def _check_answer_hermeticity(game: n.Game, bag: DiagnosticBag) -> set[str]:
                 out.error(
                     voice.subject() + " makes a `choose`" + through(fn) + reason,
                     nd.span or answer.span,
-                    code=Code.ANSWER_READS_BEYOND_THE_CARD,
+                    code=Code.TRICK_ORDER_FUNCTION_READS_BEYOND_THE_CARD,
                 )
             elif isinstance(nd, n.NameRef) and nd.ref_kind == "zone":
                 _check_answer_zone_read(
@@ -1545,7 +1545,7 @@ def _check_answer_hermeticity(game: n.Game, bag: DiagnosticBag) -> set[str]:
                     f"{home} declares" + through(fn) + scoped
                     + f"; declare '{nd.name}' there",
                     nd.span or answer.span,
-                    code=Code.ANSWER_READS_BEYOND_THE_CARD,
+                    code=Code.TRICK_ORDER_FUNCTION_READS_BEYOND_THE_CARD,
                 )
             elif isinstance(nd, n.Call):
                 _check_answer_call(game, voice, nd, fn, out, through)
@@ -1578,7 +1578,7 @@ def _check_answer_zone_read(
         bag.error(
             voice.subject() + f" reads zone '{nd.name}' ({ztype})" + through(fn) + reason,
             nd.span or voice.answer.span,
-            code=Code.ANSWER_READS_BEYOND_THE_CARD,
+            code=Code.TRICK_ORDER_FUNCTION_READS_BEYOND_THE_CARD,
         )
     elif (
         decl.index is not None
@@ -1609,7 +1609,7 @@ def _check_answer_zone_read(
             voice.subject() + f" reads `{nd.name}` bare (the acting player's "
             f"instance)" + through(fn) + reason,
             nd.span or voice.answer.span,
-            code=Code.ANSWER_READS_BEYOND_THE_CARD,
+            code=Code.TRICK_ORDER_FUNCTION_READS_BEYOND_THE_CARD,
         )
 
 
@@ -1639,7 +1639,7 @@ def _check_answer_call(
             voice.subject() + f" calls the declared Primitive `{nd.func}(...)`"
             + through(fn) + reads,
             span,
-            code=Code.ANSWER_READS_BEYOND_THE_CARD,
+            code=Code.TRICK_ORDER_FUNCTION_READS_BEYOND_THE_CARD,
         )
         return
     if nd.func in K.KERNEL_CONTRACT_NAMES:
@@ -1661,14 +1661,14 @@ def _check_answer_call(
             voice.subject() + f" calls `{nd.func}(...)`, which reads every row "
             f"of the Trick Order" + through(fn) + defines,
             span,
-            code=Code.ANSWER_READS_BEYOND_THE_CARD,
+            code=Code.TRICK_ORDER_FUNCTION_READS_BEYOND_THE_CARD,
         )
         return
     bag.error(
         f"`{nd.func}(...)` may not be called from " + voice.subject() + through(fn)
         + " — " + voice.named() + " reads the card and public state only",
         span,
-        code=Code.ANSWER_READS_BEYOND_THE_CARD,
+        code=Code.TRICK_ORDER_FUNCTION_READS_BEYOND_THE_CARD,
     )
 
 
@@ -1702,7 +1702,7 @@ def _check_reference_order(
         "call only the ones before it; spell the fact in this function, or move "
         "it to the later one",
         nd.span or voice.answer.span,
-        code=Code.ANSWER_CALLS_LATER_ANSWER,
+        code=Code.TRICK_ORDER_FUNCTION_CALLS_A_LATER_ONE,
     )
 
 
@@ -2114,7 +2114,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                     f"parameter '{p.name}' of function " + cite_named(fn, f"'{fn.name}'")
                     + f" is typed `{p.type_name}`, " + refusal,
                     fn.span,
-                    code=Code.TYPE_NOT_ALLOWED_HERE,
+                    code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE,
                 )
             elif base_of(p.type_name) not in parameter_known:
                 bag.unknown(
@@ -2123,7 +2123,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                     base_of(p.type_name),
                     parameter_known,
                     fn.span,
-                    code=Code.UNKNOWN_TYPE,
+                    code=Code.UNKNOWN_CHECKER_TYPE,
                 )
     for phase in _walk(game):
         if not isinstance(phase, n.Phase) or not phase.outcome_cases:
@@ -2132,12 +2132,12 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
             for payload in case.payload_types:
                 refused = _combination_outside_a_parameter(payload, "an outcome's payload")
                 if refused is not None:
-                    bag.error(refused, case.span or phase.span, code=Code.TYPE_NOT_ALLOWED_HERE)
+                    bag.error(refused, case.span or phase.span, code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE)
                 elif (refusal := _direction_refusal(game, base_of(payload))) is not None:
                     bag.error(
                         f"the payload of case '{case.tag}' is typed `{payload}`, " + refusal,
                         case.span or phase.span,
-                        code=Code.TYPE_NOT_ALLOWED_HERE,
+                        code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE,
                     )
                 elif base_of(payload) not in known:
                     bag.unknown(
@@ -2146,7 +2146,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                         base_of(payload),
                         known,
                         case.span or phase.span,
-                        code=Code.UNKNOWN_TYPE,
+                        code=Code.UNKNOWN_CHECKER_TYPE,
                     )
 
 
@@ -2309,7 +2309,7 @@ def _check_hosted_node(
         bag.error(
             f"{clause} may not hold {HOSTED_POLL_REFUSED[type(nd)]}" + via + f": {why_live}",
             cast(n.Stmt, nd).span,
-            code=Code.HOSTED_POLL_READS_UNPUBLISHED_STATE,
+            code=Code.HOSTED_POLL_READS_UNPUBLISHED_ROUND_STATE,
         )
         return
     if isinstance(nd, n.NameRef) and nd.name == "state" and nd.ref_kind == "pronoun":
@@ -2317,7 +2317,7 @@ def _check_hosted_node(
             f"{clause} may not read `state`" + via + ": the round's state is "
             "published only once the round has ended",
             nd.span,
-            code=Code.HOSTED_POLL_READS_UNPUBLISHED_STATE,
+            code=Code.HOSTED_POLL_READS_UNPUBLISHED_ROUND_STATE,
         )
     elif isinstance(nd, n.Call) and nd.func in primitives:
         bag.error(
@@ -2325,7 +2325,7 @@ def _check_hosted_node(
             f"module reads the round's live, unpublished state through its "
             f"engine facts",
             nd.span,
-            code=Code.HOSTED_POLL_READS_UNPUBLISHED_STATE,
+            code=Code.HOSTED_POLL_READS_UNPUBLISHED_ROUND_STATE,
         )
 
 
@@ -2365,7 +2365,7 @@ def _check_procedures(
         for p in proc.params:
             refused = _combination_outside_a_parameter(p.type_name, "a procedure's parameter")
             if refused is not None:
-                bag.error(refused, p.span, code=Code.TYPE_NOT_ALLOWED_HERE)
+                bag.error(refused, p.span, code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE)
             elif p.type_name not in _PROCEDURE_PARAM_DOMAINS:
                 bag.unknown(
                     f"procedure parameter '{p.name}: {p.type_name}' has an "

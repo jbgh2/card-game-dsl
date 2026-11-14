@@ -4,6 +4,7 @@ definition: A set of cards drawn from a Subset Source — one zone, or two or mo
 layer: kernel
 status: canonical
 reserved: true
+compounds: [Subset binder, Subset query, Subset Source, subset codec]
 home: `ast/nodes.py` (`SubsetQuery`), `runtime/subsets.py`
 see: [Candidate]
 retired_spellings: []

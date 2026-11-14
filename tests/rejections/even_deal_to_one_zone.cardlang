@@ -1,0 +1,16 @@
+// Guard: typecheck's even-deal check. `as-equally-as-possible`
+// splits a deal among the zones of `to each`; one destination has nothing
+// to split among.
+game EvenDealToOneZone {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
+  state { score[player] : Integer = 0 }
+  phase p {
+    for each player q: score[q] := 0
+    deal all cards from deck as-equally-as-possible to pile
+  }
+  winner: highest score
+}

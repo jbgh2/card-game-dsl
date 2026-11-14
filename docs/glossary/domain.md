@@ -4,6 +4,7 @@ definition: A quantifiable domain: a row of `domains.DOMAINS` (player/team/suit/
 layer: compiler
 status: canonical
 reserved: true
+compounds: [quantifiable domain, parameter domain, position domain]
 home: `domains.py`
 see: []
 retired_spellings: []

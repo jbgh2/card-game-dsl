@@ -4,6 +4,7 @@ definition: definition index (name→def) · rank index (rank→strength) · zon
 layer: kernel
 status: reserved
 reserved: true
+compounds: [definition index, rank index, zone index]
 home:
 see: []
 retired_spellings: []

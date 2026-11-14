@@ -4,6 +4,7 @@ definition: The tagged result a phase yields through `-> outcome { }` — an auc
 layer: kernel
 status: canonical
 reserved: true
+compounds: [outcome]
 home: `n.Phase`
 see: []
 retired_spellings: [outcome_fn]
