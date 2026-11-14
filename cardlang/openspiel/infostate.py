@@ -17,6 +17,60 @@ person reads, a policy's input — consumes the same facts by construction
 rather than deriving them again beside this one. Two derivations of a seat's
 knowledge would be two implementations of the property this project is built
 to guarantee, kept equal by review.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+- Assumes: the log a caller hands `derive` or `information_state` is the
+  seat's own, every event `observe` delivered to that seat in delivery
+  order (`observe`'s Contract). Each caller that installs an observer keeps
+  its own copy; one log the runtime owns and returns is issue #1002.
+- Establishes: a [[seat-view]] holds one seat's zones through `view_of`,
+  the public state through `public_state`, and that seat's log, and holds
+  no route to the [[world]]. Held by: Unrepresentable for the route -- its
+  fields are values, none a reference to the `RuntimeState`, and `_facts`
+  is the one derivation of them; Born-Green Pin for what they hold -- the
+  partition battery under tests/openspiel_ready/ proves, per game, that
+  what a Seat View holds is what the seat may know. Why not higher, for the
+  second: a Seat View is a public constructor, so one built by hand can hold
+  anything, and "what a seat may know" is a fact about the game's runs.
+- Establishes: `derive` returns a snapshot: its zone views and state values
+  are rebuilt immutable at every level (`deep_freeze`, `runtime/reads.py`),
+  so the view neither follows the world nor writes through into it. The
+  log is not copied, and holds the objects emission handed over. Held by:
+  Derived and Pinned for the zones and state -- `deep_freeze` is the one
+  owner of the class, and
+  tests/test_openspiel_infostate.py::test_a_derived_view_does_not_follow_the_world_it_came_from
+  and ::test_a_view_cannot_be_written_through_into_the_world redden on
+  returning the frames' own values; Review-Enforced Prose for the log --
+  its events are immutable only while every field stays inside a shape
+  `EVENT_PAYLOADS` declares, which is checked where an event is consumed,
+  not where it is made. Why not higher: issue #1004 (frozen events; closes
+  issue #638).
+- Establishes: `render_information_state` is a function of the Seat View
+  alone, so every rendering of a seat's knowledge consumes the one
+  derivation. Held by: Born-Green Pin,
+  tests/test_infostate_format.py::test_the_renderer_needs_no_world, red
+  under giving the renderer a parameter only the world can supply. Why not
+  higher: a parameter list is the renderer's to widen, and no type forbids
+  it.
+- Establishes: the log is embedded verbatim -- each event's `repr`, in
+  delivery order -- so the string OpenSpiel keys on carries the log's own
+  spelling. Held by: Born-Green Pin, tests/golden/infostate_format.json
+  (tests/test_infostate_format.py), byte for byte for every registered
+  game's first decision and every seat; no pin holds a later position's
+  string byte for byte. Why not higher: an event's spelling is its tuple's
+  `repr`, so it moves with the tuple; one spelling per kind is
+  issue #1004.
+- Establishes: `current_ask` is the one reading of what a seat was last
+  asked. Held by: Derived and Pinned,
+  tests/test_asked_event.py::test_the_ask_is_derived_in_one_place, which
+  holds the modules naming `asked` to the declaring, emitting, spelling
+  and deriving ones. Why not higher: a kind is a string tag, so which
+  module reads it is a fact about the text; the closed union that a
+  consumer dispatches over is issue #1004.
+- Illegal after: a renderer reading the live world; a second derivation of
+  a seat's knowledge beside `derive`; a Seat View derived for a seat the
+  table does not seat (`_facts` refuses it).
 """
 
 from __future__ import annotations
