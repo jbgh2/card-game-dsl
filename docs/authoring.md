@@ -432,10 +432,11 @@ $ cardlang check bad.cardlang
 bad.cardlang:7:16: error: `deal all ... to each` would give the whole source to the first player; use `as-equally-as-possible` to distribute it
 ```
 
-Exit codes separate the two kinds of failure: `1` when the game file is at
-fault, whether a compile stage or the playout says so, and `2` when the
-invocation cannot be carried out at all — an unreadable path, a seat the game
-does not seat, a broken checkout.
+Exit codes say who must act: `1` when the game file is at fault, whether a
+compile stage or the playout says so; `2` when the invocation cannot be
+carried out at all — an unreadable path, a seat the game does not seat, a
+broken checkout; and `3` when cardlang itself failed, which is a bug to
+report rather than anything in your file to change.
 
 A **syntax** error — the class a first file is likeliest to hit, since it
 arrives before any other stage runs — speaks the same terms. It quotes what you
@@ -483,8 +484,21 @@ act (one of `cardlang.diagnostics.Author`: most often `game` or `library`),
 the file, line, column and length it stands at, the message as the text
 prints it, its notes, and its Near Misses as suggestions marked `offered`,
 which a tool shows rather than applies. A game that checks clean prints an
-empty list. The text output never shows a code (decisions.md, "Every refusal
-carries its Diagnostic Code").
+empty list. The lines the text prints beside a refusal that stand at no
+place in the file, such as a playout refusal's `in phase deal, moving from
+deck`, are notes with no place. The text output never shows a code
+(decisions.md, "Every refusal carries its Diagnostic Code").
+
+`play` and `demo` take `--json` too. stdout then holds the one envelope and
+nothing else, printed when the command ends, and everything else the command
+prints, `demo`'s summary and views or `play`'s whole table, goes to stderr
+word for word; `play` still reads your picks from stdin. Two lines print no
+envelope under any command: `-h` prints its help, and a command line that
+cannot be read is refused as text on stderr, with nothing on stdout. Every refusal is a
+record: the checker's, the playout's, and the command's own, such as a seat
+the game does not seat or a saved game it cannot resume, each told to
+`invocation`. A `demo` playout that reaches its `max_length` is a record
+too, told to `game`, since it exits `1`.
 
 ```json
 {"code": "unknown-name", "severity": "error", "author": "game",

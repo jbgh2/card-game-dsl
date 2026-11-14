@@ -23,8 +23,8 @@ Assumes: the checker's text form prints one diagnostic per line as
 `file:line:col: severity: message`, a `note:` line after the diagnostic it
 belongs to, and an unlocated `cardlang: ...` line for an invocation it
 cannot carry out; and that exit 0 means green, 1 means the game file is at
-fault, and 2 means the invocation could not be carried out
-(`cardlang/cli.py`, module docstring).
+fault, 2 means the invocation could not be carried out, and 3 means the
+engine failed (`cardlang/cli.py`, module docstring).
 Establishes: a `CheckResult` whose `verdict` is one of `CheckVerdict` and
 whose `refusals` are the distinct diagnostics printed, in printed order.
 Illegal after: reading a crash, a timeout, an exit 2 or an output the reader
@@ -77,8 +77,8 @@ class CheckVerdict(Enum):
     GREEN = "green"
     #: Exit 1 with at least one diagnostic the reader parsed and no crash.
     REFUSED = "refused"
-    #: The interpreter crashed (a traceback), or the checker exited with a
-    #: code it does not document.
+    #: The interpreter crashed (a traceback), the engine failed (exit 3), or
+    #: the checker exited with a code it does not document.
     CRASHED = "crashed"
     #: Exit 1 with nothing the reader can parse as a diagnostic.
     UNREADABLE = "unreadable"

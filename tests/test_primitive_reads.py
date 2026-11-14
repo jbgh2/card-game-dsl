@@ -8,9 +8,11 @@ property:   every zone/state name a game-local Python primitive reads is
             walled-namespace row at once (tichu's shape), never both sites
             for the same call-namespace coupling — agrees exactly with both the
             module's source and the game file's declarations, and every failed
-            read is a typed `PrimitiveReadError` naming the registry — a
-            rename on either side of the coupling fails a static test here,
-            never a bare `KeyError` mid-playout. Each game reaching a
+            read is a typed `PrimitiveReadError` -- a name the game no longer
+            declares a `PrimitiveNameMissing`, naming the module and the name
+            in the game's words -- and a rename on either side of the
+            coupling fails a static test here, never a bare `KeyError`
+            mid-playout. Each game reaching a
             Primitive is held to it on its own: every game declaring one
             Primitive declares the same reads, and every climb query a game
             names binds a row serving that game.
@@ -617,8 +619,8 @@ def test_declared_and_present_reads_pass_through() -> None:
 def test_declared_but_missing_names_fail_typed_not_keyerror() -> None:
     """The rename reproducer's runtime Shadow Guard: rename `influence` in
     coup.cardlang and (were the static pins somehow skipped) the playout
-    fails as a PrimitiveReadError naming the registry and the game file —
-    never the bare KeyError the metamorphic suite first surfaced.
+    fails as a `PrimitiveNameMissing` naming the module and the name it
+    reads, told to the game -- never a bare KeyError.
 
     Matched on the MISSING arm's own words, for the reason its sibling
     above is: the game file both arms name would let either answer."""
@@ -629,7 +631,7 @@ def test_declared_but_missing_names_fail_typed_not_keyerror() -> None:
         lambda: reads.single(rs, _PROBE_ROW, "court_deck"),
         lambda: reads.instance(rs, _PROBE_ROW, "influence", 0),
     ):
-        with pytest.raises(PrimitiveReadError, match="is not in the live runtime state"):
+        with pytest.raises(reads.PrimitiveNameMissing, match="and the game declares no"):
             read()
 
 
