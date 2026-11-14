@@ -1,1 +1,0 @@
-code_card_play_parameters.cardlang:14:7: error: offering declares more than one Card-parameterized move (play_one, play_two); a card play's action is the card itself, so a second Card-parameterized move would be indistinguishable — fold them into one move type

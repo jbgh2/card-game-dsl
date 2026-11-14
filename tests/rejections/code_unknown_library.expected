@@ -1,1 +1,0 @@
-code_unknown_library.cardlang:3:3: error: unknown library 'no_such_library' — `uses` names a family library in docs/libraries/ (available: poker_betting, smuggling, stud)

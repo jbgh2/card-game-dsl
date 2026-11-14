@@ -136,6 +136,7 @@ from cardlang.attribution import (
     cite_named,
     cite_origin,
     cite_where,
+    library_text_codes,
     naming_library,
     raise_if_errors,
 )
@@ -1817,7 +1818,7 @@ def _check_enum_literal(
     message and span, which the refusal leads with; a comparison has none."""
     origin = env.origins.get(id(lit))
     if origin is not None and enum.name in env.axis_enums:
-        bag.error(_library_axis_refusal(origin, enum, lit.value, env, lit.span), lit.span, code=Code.LIBRARY_REACHES_ONE_GAME)
+        bag.error(_library_axis_refusal(origin, enum, lit.value, env, lit.span), lit.span, code=library_text_codes(origin.library).reaches_one_game)
         return
     domain = _enum_domain(env, enum.name)
     if lit.value not in domain:
@@ -1885,7 +1886,7 @@ def _check_enum_operand(
                 f"comparing {enum.name} with {other_bare.name} can never be "
                 f"equal",
                 other.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
         return
     if isinstance(other_bare, TInteger):
@@ -1897,7 +1898,7 @@ def _check_enum_operand(
         bag.error(
             f"comparing {enum.name} with Integer can never be equal{hint}",
             other.span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
         return
     if isinstance(other, n.StrLit):
@@ -1926,7 +1927,7 @@ def _check_enum_operand(
         f"comparing {enum.name} with {_type_name(other_bare)} can never be "
         f"equal{hint}",
         other.span,
-        code=Code.TYPE_MISMATCH,
+        code=Code.CHECKER_TYPE_MISMATCH,
     )
 
 
@@ -2058,7 +2059,7 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
             f"(`cards in play`) and their shape (`play.shape`) — never as "
             f"wholes",
             e.span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
         return
     if isinstance(lbare, TEnum):
@@ -2075,7 +2076,7 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
             f"equal"
             + _key_hint(lbare, rbare, _name_of(e.left), _name_of(e.right), symmetric=True),
             e.span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
 
 
@@ -2122,27 +2123,27 @@ def _check_ordering_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
                 f"'{e.op}' compares Integers, and a play is no number — "
                 f"count its cards with `number of cards in play`",
                 operand.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
         elif isinstance(bare, TEnum) and bare.name == "Rank":
             bag.error(
                 f"'{e.op}' compares Integers — enum values have no "
                 "arithmetic order — compare strength via rank_value(...)",
                 operand.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
         elif isinstance(bare, TEnum):
             bag.error(
                 f"'{e.op}' compares Integers — {bare.name} enum values have "
                 "no arithmetic order",
                 operand.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
         else:
             bag.error(
                 f"'{e.op}' compares Integers, got {_type_name(bare)}",
                 operand.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
 
 
@@ -2203,34 +2204,34 @@ def _check_arithmetic_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
                 f"'{word}' expects Integer operands, and a play is no number — "
                 f"count its cards with `number of cards in play`",
                 operand.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
         elif isinstance(bare, TEnum) and bare.name == "Rank":
             bag.error(
                 f"'{word}' expects Integer operands — enum values have no "
                 "numeric value — compare strength via rank_value(...)",
                 operand.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
         elif isinstance(bare, TEnum) and e.op in ("+", "-", "*"):
             bag.error(
                 f"'{word}' expects Integer operands, got {bare.name} — an "
                 "enum value concatenates as a string at runtime, not adds",
                 operand.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
         elif isinstance(bare, TEnum):
             bag.error(
                 f"'{word}' expects Integer operands, got {bare.name} — an "
                 "enum value has no numeric value",
                 operand.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
         else:
             bag.error(
                 f"'{word}' expects Integer operands, got {_type_name(bare)}",
                 operand.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
 
 
@@ -2255,7 +2256,7 @@ def _check_choose_operands(e: n.Choose, env: TypeEnv, bag: DiagnosticBag) -> Non
         bag.error(
             f"`choose integer` expects an Integer {label}, got {_type_name(bare)}",
             operand.span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
 
 
@@ -2283,13 +2284,13 @@ def _check_logical_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> Non
                 f"Boolean whatever its operands are, so nothing above catches "
                 f"a non-Boolean here and the game plays on",
                 operand.span,
-                code=Code.UNTYPED_VALUE,
+                code=Code.CHECKER_TYPE_NOT_KNOWN_HERE,
             )
         elif not isinstance(bare, TBoolean):
             bag.error(
                 f"'{e.op}' expects Boolean operands, got {_type_name(bare)}",
                 operand.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
 
 
@@ -2317,7 +2318,7 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
             "whatever its operands are and a membership that can never be true "
             "is silent",
             e.span,
-            code=Code.UNTYPED_VALUE,
+            code=Code.CHECKER_TYPE_NOT_KNOWN_HERE,
         )
         return
     right_t = infer(e.right, env)
@@ -2328,7 +2329,7 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
                 f"the left-hand side of `in` a Combination is a card, got "
                 f"{_type_name(lbare)}",
                 e.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
         return
     if not isinstance(right_t, (TCollection, TAny)):
@@ -2336,7 +2337,7 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
             "the right-hand side of `in` must be a collection (a zone or "
             f"a `[…]` list), got {_type_name(right_t)}",
             e.span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
         return
     if isinstance(right_t, TCollection) and right_t.key is not None:
@@ -2382,7 +2383,7 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
                 symmetric=True,
             ),
             e.span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
 
 
@@ -2407,7 +2408,7 @@ def _library_field_gate(
         + cite_where(origin.where, e.span) + f"), but {lacks} — "
         + naming_library(fix, origin.library, None),
         origin.uses_span,
-        code=Code.LIBRARY_REQUIREMENT_UNMET,
+        code=Code.FAMILY_LIBRARY_REQUIREMENT_UNMET,
     )
     # One refusal per field and definition, standing on each read of it.
     told = bag.items.pop()
@@ -2434,7 +2435,7 @@ def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> N
             "'offset_by' rotates a Player around the seating ring — the "
             f"left operand must be a Player, got {_type_name(lbare)}",
             e.left.span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
     rbare = _bare(infer(e.right, env))
     if isinstance(rbare, TAny):
@@ -2458,7 +2459,7 @@ def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> N
                 f"its own `{taken}`, which the library's `{taken}` then reads — "
                 f"rename this game's `{taken}`"
             ),
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
 
 
@@ -2606,7 +2607,7 @@ def _check_card_source(
                 f"no subset source — a play is one set of cards; read its cards "
                 f"with `cards in`, `any card in` or `number of cards in`",
                 source.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
         return
     if not isinstance(bare_src, TCollection):
@@ -2622,7 +2623,7 @@ def _check_card_source(
             f"'cards in ...' expects a zone or collection of cards, got "
             f"{_type_name(src_t)}{hint}",
             source.span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
         return
     ebare = _bare(bare_src.element)
@@ -2641,7 +2642,7 @@ def _check_card_source(
             f"'cards in ...' expects a zone or collection of cards, got "
             f"{_type_name(src_t)}{hint}",
             source.span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
         return
     _check_operand(
@@ -2754,13 +2755,13 @@ def _check_agg_body(
             f"'{e.agg}' aggregates a numeric strength — rank_value(card) — "
             f"not the enum value itself ({runtime_note})",
             e.body.span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
         return
     bag.error(
         f"'{e.agg}' expects an Integer body, got {_type_name(bare)}",
         e.body.span,
-        code=Code.TYPE_MISMATCH,
+        code=Code.CHECKER_TYPE_MISMATCH,
     )
 
 
@@ -2798,7 +2799,7 @@ def _check_agg_default(
             f"'{e.agg}' aggregation default type mismatch: the body is "
             f"{_type_name(bbare)}, the default is {_type_name(dbare)}",
             e.default.span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
 
 
@@ -2946,7 +2947,7 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
         return
     origin = env.origins.get(id(index))
     if origin is not None and isinstance(bare, (TPlayer, TTeam)):
-        bag.error(_library_role_refusal(origin, index.value, bare, index.span), index.span, code=Code.LIBRARY_REACHES_ONE_GAME)
+        bag.error(_library_role_refusal(origin, index.value, bare, index.span), index.span, code=library_text_codes(origin.library).reaches_one_game)
         return
     if isinstance(bare, TPlayer):
         # A game always declares `players:`, so `max_players` is the real seat
@@ -3058,7 +3059,7 @@ def _check_operand(
             + _card_field_hint(got, expected, _name_of(node), call, env)
             + _numeric_rank_hint(node, got, bare, env),
             span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
     _check_role_literal(node, expected, env, bag)
 
@@ -3216,7 +3217,7 @@ def _check_kernel_answers(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> Non
                 f"read); the kernel reads `{row.spelled}` as exactly "
                 f"{_type_name(expected)}",
                 span,
-                code=Code.UNTYPED_VALUE,
+                code=Code.CHECKER_TYPE_NOT_KNOWN_HERE,
             )
             continue
         message: Said = (
@@ -3227,7 +3228,7 @@ def _check_kernel_answers(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> Non
         if isinstance(expected, TOptional):
             _check_operand(answer.body, got, expected, answer_env, bag, message, span)
         elif got != expected:
-            bag.error(message, span, code=Code.TYPE_MISMATCH)
+            bag.error(message, span, code=Code.CHECKER_TYPE_MISMATCH)
     if K.has_trick_order(game) and K.answer(game, "card_strength") is None and not env.has_ranking:
         # The unanswered row defaults to `rank_value(card)` (the driver's
         # closure), which reads `ranking:` — so the default silently demands a
@@ -3302,7 +3303,7 @@ def _check_round_trump(stmt: n.TrickRound, env: TypeEnv, bag: DiagnosticBag) -> 
             "no card's suit can match an untyped value and the hand would "
             "silently play as no-trump while the rules still enforce trump",
             stmt.trump.span or stmt.span,
-            code=Code.UNTYPED_VALUE,
+            code=Code.CHECKER_TYPE_NOT_KNOWN_HERE,
         )
         return
     _check_operand(
@@ -3457,7 +3458,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                         e.func, got, param, builtin=e.func not in env.functions
                     )
                     if combination is not None:
-                        bag.error(combination, arg.span or e.span, code=Code.TYPE_MISMATCH)
+                        bag.error(combination, arg.span or e.span, code=Code.CHECKER_TYPE_MISMATCH)
                         continue
                     _check_operand(
                         arg, got, param, env, bag,
@@ -3572,7 +3573,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                         f"exactly Integer, because a wrong position is "
                         f"otherwise found only when the game is played",
                         e.index.span or e.span,
-                        code=Code.UNTYPED_VALUE,
+                        code=Code.CHECKER_TYPE_NOT_KNOWN_HERE,
                     )
                 if isinstance(e.index, n.IntLit) and e.index.value < 0:
                     bag.error(
@@ -3721,10 +3722,10 @@ def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: Said) -> Non
             f"type exactly Boolean, because nothing downstream catches a "
             f"non-Boolean here: every value is truthy and the game plays on",
             e.span,
-            code=Code.UNTYPED_VALUE,
+            code=Code.CHECKER_TYPE_NOT_KNOWN_HERE,
         )
     elif not isinstance(t, TBoolean):
-        bag.error(where + f" must be Boolean, got {_type_name(t)}", e.span, code=Code.TYPE_MISMATCH)
+        bag.error(where + f" must be Boolean, got {_type_name(t)}", e.span, code=Code.CHECKER_TYPE_MISMATCH)
 
 
 def _check_card_clause(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -3758,7 +3759,7 @@ def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> N
             f"runtime drops a fallback it cannot recognise instead of refusing "
             f"it, taking the rule's own refusal with it",
             expr.span or rule.span,
-            code=Code.UNTYPED_VALUE,
+            code=Code.CHECKER_TYPE_NOT_KNOWN_HERE,
         )
         return
     message = (
@@ -3767,7 +3768,7 @@ def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> N
         f"{_type_name(got)}"
     )
     if not (isinstance(got, TCollection) and isinstance(got.element, (TCard, TAny))):
-        bag.error(message, expr.span or rule.span, code=Code.TYPE_MISMATCH)
+        bag.error(message, expr.span or rule.span, code=Code.CHECKER_TYPE_MISMATCH)
         return
     _check_operand(expr, got, _UNKEYED_COLLECTION, env, bag, message, expr.span or rule.span)
 
@@ -3987,7 +3988,7 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             f"`{name} {stmt.op}` needs an Integer, and `{name}` is "
             f"{_type_name(target)} — {fits}",
             stmt.span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.CHECKER_TYPE_MISMATCH,
         )
         return
     if stmt.op in ("+=", "-="):
@@ -4100,7 +4101,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
                     f"'{stmt.op}' target must be a zone, got "
                     f"{_type_name(t)}{_zone_hint(t, filterable=False)}",
                     stmt.span,
-                    code=Code.TYPE_MISMATCH,
+                    code=Code.CHECKER_TYPE_MISMATCH,
                 )
         case n.AsBlock():
             # The block binds the acting player to one player, so its expression
@@ -4142,7 +4143,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
                         f"`again {stmt.again}`: the go-again flag must be "
                         f"Boolean, got {_type_name(at)}",
                         stmt.span,
-                        code=Code.TYPE_MISMATCH,
+                        code=Code.CHECKER_TYPE_MISMATCH,
                     )
         case n.Offer():
             # `offer to <player>` names the acting player. Before the operand
@@ -4226,7 +4227,7 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"movement {what} must be a zone, got "
                 f"{_type_name(t)}{_zone_hint(t, filterable)}",
                 stmt.span,
-                code=Code.TYPE_MISMATCH,
+                code=Code.CHECKER_TYPE_MISMATCH,
             )
     if not isinstance(stmt.amount, str):
         amount_t = infer(stmt.amount, env)
@@ -4244,7 +4245,7 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"untyped read); it must type exactly Integer, because a "
                 f"wrong count is otherwise found only when the game is played",
                 stmt.amount.span or stmt.span,
-                code=Code.UNTYPED_VALUE,
+                code=Code.CHECKER_TYPE_NOT_KNOWN_HERE,
             )
         if (
             isinstance(stmt.amount, n.IntLit)
@@ -4316,28 +4317,28 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
                 "`as-equally-as-possible` distributes a `to each` deal; it has "
                 "no meaning with a single destination",
                 stmt.span,
-                code=Code.DEAL_DISTRIBUTION,
+                code=Code.CONFLICTING_CLAUSES,
             )
         if stmt.amount != "all":
             bag.error(
                 "an `as-equally-as-possible` deal distributes the whole source "
                 "(or the whole `where` pool): the amount must be `all`",
                 stmt.span,
-                code=Code.DEAL_DISTRIBUTION,
+                code=Code.CONFLICTING_CLAUSES,
             )
         if stmt.selection_mode is not None:
             bag.error(
                 f"`as-equally-as-possible` deals round-robin; a `{stmt.selection_mode}` "
                 "selection cannot combine with it",
                 stmt.span,
-                code=Code.DEAL_DISTRIBUTION,
+                code=Code.CONFLICTING_CLAUSES,
             )
     elif stmt.dest_each and stmt.amount == "all":
         bag.error(
             "`deal all ... to each` would give the whole source to the first "
             "player; use `as-equally-as-possible` to distribute it",
             stmt.span,
-            code=Code.DEAL_DISTRIBUTION,
+            code=Code.DEAL_ALL_TO_EACH_NEEDS_AS_EQUALLY_AS_POSSIBLE,
         )
 
 

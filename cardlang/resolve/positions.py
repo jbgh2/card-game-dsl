@@ -22,8 +22,7 @@ from cardlang.primitives_block import COLLECTION_TYPE_CONSTRUCTOR
 from cardlang.diagnostics import DiagnosticBag
 from cardlang.domains import SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES, role_names
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
-from cardlang.runtime.errors import OwnerGuardError
-from cardlang.stdlib.boards import BoardEntry, board_entry
+from cardlang.stdlib.boards import BoardEntry, BoardRefusal, board_entry
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.typecheck import KNOWN_TYPE_NAMES, POSITIVE_PARAM_DOMAIN
 from cardlang.resolve.declared import _tell_board_refusal
@@ -290,8 +289,8 @@ def _resolve_board(
             code=Code.NAME_TAKEN,
         )
         return game
-    # Family/args validity is the registry's to judge: `board_entry` raises an
-    # OwnerGuardError naming the violated bound (unknown family, wrong arity,
+    # Family/args validity is the registry's to judge: `board_entry` raises a
+    # BoardRefusal naming the violated bound (unknown family, wrong arity,
     # out-of-bounds arg), which becomes a diagnostic at the clause span, told
     # after the `dir` checks below. Narrow BY TYPE, not by `ValueError`: the
     # same call builds a `BoardEntry`, whose `__post_init__` pins the
@@ -300,10 +299,10 @@ def _resolve_board(
     # `board:` line — an engine bug presenting as a compile error on a correct
     # game.
     entry: BoardEntry | None
-    refused: OwnerGuardError | None = None
+    refused: BoardRefusal | None = None
     try:
         entry = board_entry(game.board.family, game.board.args)
-    except OwnerGuardError as exc:
+    except BoardRefusal as exc:
         entry, refused = None, exc
     # A board whose family has a movement frame mints a SECOND domain, `dir`
     # (the movement directions), as a separate source (`directions_of`) rather

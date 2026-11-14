@@ -4,6 +4,7 @@ definition: execution brief · decision brief · the worker's brief — the inst
 layer: process
 status: reserved
 reserved: true
+compounds: [execution brief, decision brief, worker's brief]
 home:
 see: []
 retired_spellings: []

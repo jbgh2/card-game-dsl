@@ -12,8 +12,9 @@ property:        every rejection case's Record Envelope, read back through
                  refusal survives pickling with every told diagnostic and
                  note it carries.
 domain:          the rejection corpus, every case; the runtime refusal
-                 types, derived as every exception class
-                 `cardlang.runtime.errors` defines plus `IllegalMove`; a
+                 types, derived as every exception class defined in
+                 `cardlang/` that subclasses one of
+                 `cardlang.records.RUNTIME_REFUSALS`; a
                  Markdown game file's place, the one source whose offsets
                  count from somewhere other than its file.
 registry:        the corpus -- tests/test_rejections.py::case_paths; the
@@ -21,8 +22,8 @@ registry:        the corpus -- tests/test_rejections.py::case_paths; the
                  authors -- `cardlang.diagnostics.Author`.
 held by:         Derived and Pinned. The match ends in `assert_never`, but
                  over `RuntimeRefusal`, a hand-written union: a refusal class
-                 added to `cardlang.runtime.errors` type-checks unlisted, and
-                 the walk of that module's classes here is what refuses it.
+                 added anywhere in `cardlang/` type-checks unlisted, and the
+                 walk of the package's classes here is what refuses it.
 does not prove:  that a record's code is the right kind of fix for its
                  sentence; tests/test_diagnostic_codes.py holds a witness
                  per code, and the registry's naming review judges the rest.
@@ -30,11 +31,10 @@ does not prove:  that a record's code is the right kind of fix for its
 
 from __future__ import annotations
 
-import inspect
 import json
 import pickle
 from pathlib import Path
-from typing import get_args
+from typing import cast, get_args
 
 import pytest
 
@@ -53,8 +53,9 @@ from cardlang.records import (
     read_envelope,
     refusal_diagnostic,
 )
-from cardlang.runtime.state import IllegalMove
+from cardlang.stdlib.boards import BoardMisuse, BoardRefusal
 from tests.test_rejections import REJECTIONS_DIR, case_paths
+from tests.test_runtime_refusal_location import engine_exception_classes
 from tools.dead_surface import start_for
 
 
@@ -158,7 +159,7 @@ def test_a_refusal_survives_pickling() -> None:
     """red under: `DiagnosticError.__reduce__` deleted."""
     first = Told(Diagnostic(Severity.ERROR, "one", None, code=Code.UNKNOWN_ZONE), Author.GAME)
     second = Told(
-        Diagnostic(Severity.WARNING, "two", None, code=Code.LIBRARY_NOT_YET_PROVEN), Author.GAME
+        Diagnostic(Severity.WARNING, "two", None, code=Code.FAMILY_LIBRARY_NOT_YET_PROVEN), Author.GAME
     )
     exc = DiagnosticError(first, second)
     exc.add_note("a further note")
@@ -187,13 +188,12 @@ def test_a_markdown_game_s_place_is_its_file_s() -> None:
 
 
 def _refusal_types() -> list[type[BaseException]]:
-    """Every exception class the runtime's failure channel defines, and the
-    game's own `error(...)`."""
-    defined = [
-        cls for _, cls in inspect.getmembers(errors, inspect.isclass)
-        if issubclass(cls, BaseException) and cls.__module__ == errors.__name__
-    ]
-    return sorted([*defined, IllegalMove], key=lambda c: c.__name__)
+    """Every exception class defined anywhere in `cardlang/` that the record
+    layer tells: a subclass of one of `RUNTIME_REFUSALS`."""
+    return sorted(
+        (c for c in engine_exception_classes().values() if issubclass(c, RUNTIME_REFUSALS)),
+        key=lambda c: c.__name__,
+    )
 
 
 # The code and author each refusal type is told with: authored, never read
@@ -201,31 +201,41 @@ def _refusal_types() -> list[type[BaseException]]:
 EXPECTED: dict[str, tuple[Code, Author]] = {
     "GameDescriptionError": (Code.REFUSED_DURING_PLAY, Author.GAME),
     "OwnerGuardError": (Code.REFUSED_DURING_PLAY, Author.GAME),
+    "BoardRefusal": (Code.REFUSED_DURING_PLAY, Author.GAME),
     "ShadowGuardError": (Code.ENGINE_GAP, Author.ENGINE),
     "IllegalMove": (Code.GAME_ERROR_RAISED, Author.GAME),
     "InstallationError": (Code.INCOMPLETE_INSTALLATION, Author.INSTALLATION),
     "GameRegistrationError": (Code.UNREGISTRABLE_GAME, Author.REGISTRATION),
+    "PrimitiveNameMissing": (Code.PRIMITIVE_READS_A_NAME_THE_GAME_LACKS, Author.GAME),
 }
 
 
 def _refusal(cls: type[BaseException]) -> RuntimeRefusal:
-    exc = cls("the leaked guard", "a sentence") if cls is errors.ShadowGuardError else cls("a sentence")
-    assert isinstance(exc, (errors.GameDescriptionError, IllegalMove, errors.InstallationError, errors.GameRegistrationError))
-    return exc
+    exc: BaseException
+    if cls is errors.ShadowGuardError:
+        exc = cls("the leaked guard", "a sentence")
+    elif cls is BoardRefusal:
+        exc = cls(BoardMisuse.NO_LINES, "a sentence")
+    elif cls.__name__ == "PrimitiveNameMissing":
+        exc = cls("state variable", "wish", "cardlang/runtime/tichu.py")
+    else:
+        exc = cls("a sentence")
+    assert isinstance(exc, RUNTIME_REFUSALS)
+    return cast(RuntimeRefusal, exc)
 
 
 @pytest.mark.parametrize(
-    "cls",
+    "name",
     [
         pytest.param(
-            c,
-            marks=[pytest.mark.expects_shadow_guard] if c is errors.ShadowGuardError else [],
-            id=c.__name__,
+            name,
+            marks=[pytest.mark.expects_shadow_guard] if name == errors.ShadowGuardError.__name__ else [],
         )
-        for c in _refusal_types()
+        for name in sorted(EXPECTED)
     ],
 )
-def test_every_runtime_refusal_is_told_by_its_type(cls: type[BaseException]) -> None:
+def test_every_runtime_refusal_is_told_by_its_type(name: str) -> None:
+    (cls,) = (c for c in _refusal_types() if c.__name__ == name)
     exc = _refusal(cls)
     span = Span("g.cardlang", 3, 7, 2, 4)
     if isinstance(exc, errors.Located):
@@ -237,7 +247,8 @@ def test_every_runtime_refusal_is_told_by_its_type(cls: type[BaseException]) -> 
 
 
 def test_the_expected_column_names_every_refusal_type() -> None:
-    """red under: a new exception class defined in `cardlang/runtime/errors.py`."""
+    """red under: a new subclass of `OwnerGuardError` defined anywhere in
+    `cardlang/`."""
     assert sorted(EXPECTED) == [c.__name__ for c in _refusal_types()]
 
 

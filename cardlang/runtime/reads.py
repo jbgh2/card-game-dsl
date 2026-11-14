@@ -343,6 +343,25 @@ class PrimitiveReadError(RuntimeError):
     live runtime state (the game file and the primitive module drifted)."""
 
 
+class PrimitiveNameMissing(PrimitiveReadError):
+    """A name a Primitive module reads by its spelling, declared for it, that
+    the game no longer declares: the game was edited under the module, as a
+    state variable renamed wherever the game names it. The module reads the
+    name as the game first spelled it, so the game's author is who can act,
+    and the sentence is theirs. What the name became is not known here: the
+    module knows only the spelling it reads."""
+
+    def __init__(self, kind: str, name: str, module: str) -> None:
+        super().__init__(
+            f"{module}, a Primitive module this game uses, reads the {kind} "
+            f"`{name}` by that name, and the game declares no {kind} `{name}`; "
+            f"declare it under that name"
+        )
+        self.kind = kind
+        self.name = name
+        self.module = module
+
+
 @dataclass(frozen=True)
 class PrimitiveReads:
     """One primitive module's declared reads on behalf of one game.
@@ -422,14 +441,8 @@ def _undeclared(r: PrimitiveReads, kind: str, name: str, declared: frozenset[str
     )
 
 
-def _missing(r: PrimitiveReads, kind: str, name: str) -> PrimitiveReadError:
-    return PrimitiveReadError(
-        f"{kind} {name!r}, declared in {_REGISTRY_NAME} for {r.module} "
-        f"(serving {r.game_file}), is not in the live runtime state — the "
-        f"game file and the primitive module have drifted; "
-        f"tests/test_primitive_reads.py pins the row against "
-        f"docs/games/{r.game_file}"
-    )
+def _missing(r: PrimitiveReads, kind: str, name: str) -> PrimitiveNameMissing:
+    return PrimitiveNameMissing(kind, name, r.module)
 
 
 def state(rs: RuntimeState, r: PrimitiveReads, name: str) -> Any:
@@ -458,7 +471,7 @@ def single(rs: RuntimeState, r: PrimitiveReads, name: str) -> Zone:
         raise _undeclared(r, "single zone", name, r.single_zones)
     z = rs.zones.singles.get(name)
     if z is None:
-        raise _missing(r, "single zone", name)
+        raise _missing(r, "zone", name)
     return z
 
 

@@ -403,9 +403,17 @@ site is shared. A code derived from the message or the site is rejected,
 because it would change exactly when wording improves or a pass is split,
 which is the breakage a code exists to end. A refusal whose fix cannot be
 stated in designer words is a finding about that refusal, never a reason
-for a vague code. A shipped code is never renamed, removed or given a second
-meaning, and a refusal's code does not move silently: the blessed list holds
-every code's spelling and meaning, a witness per code holds that each is
+for a vague code. A code's name says the mistake, never the construct it is
+found in, and uses a word the glossary reserves, singular or plural, only
+inside a compound that word's own entry marks (`compounds:`;
+`unknown-game-rule`, `checker-type-mismatch`), so a reader holding the
+glossary can tell from a code where to look. Of the refusals about a name,
+one asking the author to rename one of two things is `name-taken`, one
+asking to delete or merge a repeat is `written-twice`, and one that could be
+either is `name-taken`. ADR-0025 records the names. A
+shipped code is never renamed, removed or given a second meaning, and a
+refusal's code does not move silently: the blessed list holds every code's
+spelling and meaning, a witness per code holds that each is
 told, and every rejection case's ordered codes are a golden beside its text
 (tests/test_diagnostic_codes.py). A site no rejection case reaches can move
 to another code with no test reddening; the grid module's ledger says how
@@ -414,19 +422,30 @@ are ADR-0023.
 
 The code never reaches the text output: `Diagnostic.format` does not show
 it, and the rejection corpus staying byte-identical is the proof. A tool asks
-for it with `cardlang check --json`, which prints one [[record-envelope]]
-(`cardlang/records.py`): `schema`, `kind`, and one record per
-[[told-diagnostic]] carrying its code, severity, [[author]], place (file,
-line, column, length), message, notes and suggestions. A suggestion is a
+for it with `--json`, which every command takes: `cardlang check --json`
+prints one [[record-envelope]] (`cardlang/records.py`): `schema`, `kind`, and
+one record per [[told-diagnostic]] carrying its code, severity, [[author]],
+place (file, line, column, length), message, notes and suggestions, the
+lines the command line prints beside the refusal among the notes, each with
+no place. A suggestion is a
 [[near-miss]], marked `offered`, never mechanically applicable. The record
 composes no words: its message is the diagnostic's own, and its author is
 the one the telling layer stamped (the attribution step for a pass, the raise
 for the parser and the extract step, the command line for its own refusals,
 and `refusal_diagnostic` for a runtime refusal, keyed on its type). A reader
 refuses an envelope whose `schema` or `kind` it does not know. `--json` is
-total on `check` and refused elsewhere: beside `--emit-ir` it is a usage
-error, on `play` and `demo` an unrecognised argument, and a command line
-refused before it is read is refused as text.
+total on every command: stdout holds the one envelope and nothing else, with
+the exit code the text gives; under `play` and `demo` every refusal is a
+record, the command's own included, and everything else the command prints
+goes to stderr word for word. Beside `--emit-ir` it is a usage error, and a
+command line refused before it is read is refused as text. The exit code
+says who must act, by the author of the refusal told: the game's or a
+library's 1, the invocation's, the installation's or a registration's 2, the
+engine's 3, an exception outside the typed Failure Channel raised while
+the command is carried out included. A stream the caller set up that cannot
+be written -- its reader gone, its encoding unable to spell the output -- is
+told to the invocation, and a broken pipe ends the run quietly. No command
+takes an option by a prefix of its name.
 
 ### Allow-list, never deny-list
 

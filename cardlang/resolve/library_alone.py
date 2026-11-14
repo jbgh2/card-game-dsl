@@ -25,13 +25,20 @@ Now illegal:  a Primitive named by family-library text, as a call or in
 from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
-from typing import Literal, get_args, get_origin, get_type_hints
+from typing import Literal, assert_never, get_args, get_origin, get_type_hints
 from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.builtins.functions import BUILTIN_CALL_FUNCS, PRIMITIVE_CALL_FUNCS, VALUE_NAMES
 from cardlang import kernel_contracts as K
 from cardlang.primitives_block import COLLECTION_TYPE_CONSTRUCTOR, walled_namespace_of
-from cardlang.attribution import cite_library, cite_named, cite_where
+from cardlang.attribution import (
+    LibrarySort,
+    cite_library,
+    cite_named,
+    cite_where,
+    library_sort,
+    library_text_codes,
+)
 from cardlang.diagnostics import Diagnostic, DiagnosticBag, Said, Span, listed
 from cardlang.domains import ZONE_INDEX_ROLES, role_names, role_of
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES
@@ -813,6 +820,20 @@ _PRIMITIVE_POSITIONS: dict[_PrimitivePosition, tuple[str, str, str]] = {
 }
 
 
+def _by_sort(library: n.Library, family: Said, standard: Said) -> Said:
+    """The sentence that is true of `library`'s sort: a family library asks a
+    game through its `requires` contract, and the standard library, which no
+    `uses` line imports, defines what it reads."""
+    sort = library_sort(library.name)
+    match sort:
+        case LibrarySort.FAMILY:
+            return family
+        case LibrarySort.STANDARD:
+            return standard
+        case _:
+            assert_never(sort)
+
+
 def _primitive_in_library(
     library: n.Library, position: _PrimitivePosition, name: str, at: Span | None
 ) -> Said:
@@ -889,14 +910,20 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             # The set the name was read against is the scope `_rewrite` held,
             # and its Near Misses are the ones ranked there.
             bag.unknown(
-                cite_library(library.name, ref.span) + f" reads '{ref.name}', which is neither in "
-                f"its `requires` contract nor defined in the library — add it to "
-                f"`requires {{ }}` if the including game must declare it, or move "
-                f"the definition that needs it into the game",
+                _by_sort(
+                    library,
+                    cite_library(library.name, ref.span) + f" reads '{ref.name}', which is neither in "
+                    f"its `requires` contract nor defined in the library — add it to "
+                    f"`requires {{ }}` if the including game must declare it, or move "
+                    f"the definition that needs it into the game",
+                    cite_library(library.name, ref.span) + f" reads '{ref.name}', which it does "
+                    f"not define; it may read only what it defines and what every "
+                    f"game has, so define the name in it",
+                ),
                 ref.name,
                 reach.unresolved_near.get(ref.span, ()),
                 ref.span,
-                code=Code.OUTSIDE_LIBRARY_CONTRACT,
+                code=library_text_codes(library.name).reads_undefined_name,
             )
         else:
             call_it: Said = (
@@ -921,26 +948,37 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             # The game owns the fact; a library reaches it through the row the
             # kernel states.
             bag.error(
-                cite_library(library.name, call.span) + f" calls '{call.func}', a "
-                f"fact each game answers for itself — contract for it with "
-                f"`{K.CONTRACTS[call.func].spelled}` in `requires {{ }}`",
+                _by_sort(
+                    library,
+                    cite_library(library.name, call.span) + f" calls '{call.func}', a "
+                    f"fact each game answers for itself — contract for it with "
+                    f"`{K.CONTRACTS[call.func].spelled}` in `requires {{ }}`",
+                    cite_library(library.name, call.span) + f" calls '{call.func}', a "
+                    f"fact each game answers for itself, and it has no `requires` "
+                    f"contract to ask a game for one, so it may not call it",
+                ),
                 call.span,
-                code=Code.OUTSIDE_LIBRARY_CONTRACT,
+                code=library_text_codes(library.name).reads_undefined_name,
             )
         elif what is None:
             bag.unknown(
-                cite_library(library.name, call.span) + f" calls '{call.func}', which is neither "
-                f"defined in the library nor a native function — contract for it "
-                f"with `{call.func}(<parameter> : <type>, …) : <result type>` in "
-                f"`requires {{ }}` so the including game defines it, or keep the "
-                f"definition that needs it in the game",
+                _by_sort(
+                    library,
+                    cite_library(library.name, call.span) + f" calls '{call.func}', which is neither "
+                    f"defined in the library nor a native function — contract for it "
+                    f"with `{call.func}(<parameter> : <type>, …) : <result type>` in "
+                    f"`requires {{ }}` so the including game defines it, or keep the "
+                    f"definition that needs it in the game",
+                    cite_library(library.name, call.span) + f" calls '{call.func}', which is neither "
+                    f"defined in it nor a native function — define the function in it",
+                ),
                 call.func,
                 _library_slot_names(library)["function"],
                 call.span,
-                code=Code.OUTSIDE_LIBRARY_CONTRACT,
+                code=library_text_codes(library.name).reads_undefined_name,
             )
         elif what.kind == "primitive":
-            bag.error(_primitive_in_library(library, "call", call.func, call.span), call.span, code=Code.LIBRARY_REACHES_ONE_GAME)
+            bag.error(_primitive_in_library(library, "call", call.func, call.span), call.span, code=library_text_codes(library.name).reaches_one_game)
         else:
             bag.error(
                 cite_library(library.name, call.span) + " calls "
@@ -951,15 +989,21 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             )
     for node, name in _round_slot_primitives(library):
         at = getattr(node, "span", None)
-        bag.error(_primitive_in_library(library, "round slot", name, at), at, code=Code.LIBRARY_REACHES_ONE_GAME)
+        bag.error(_primitive_in_library(library, "round slot", name, at), at, code=library_text_codes(library.name).reaches_one_game)
     for card in reach.card_literals:
         bag.error(
-            cite_library(library.name, card.span) + f" names the card `{card.rank} of "
-            f"{card.suit}`, but a family library is deck-agnostic — its members "
-            f"do not share a deck, and Kuhn's holds three cards. Take the card "
-            f"as a parameter, or keep the definition that needs it in the game",
+            _by_sort(
+                library,
+                cite_library(library.name, card.span) + f" names the card `{card.rank} of "
+                f"{card.suit}`, but a family library is deck-agnostic — its members "
+                f"do not share a deck, and Kuhn's holds three cards. Take the card "
+                f"as a parameter, or keep the definition that needs it in the game",
+                cite_library(library.name, card.span) + f" names the card `{card.rank} of "
+                f"{card.suit}`, but it is deck-agnostic — every game "
+                f"reads it, whatever its deck. Take the card as a parameter",
+            ),
             card.span,
-            code=Code.LIBRARY_REACHES_ONE_GAME,
+            code=library_text_codes(library.name).reaches_one_game,
         )
     for leak in reach.slot_leaks:
         # A `run` or an offering naming one of the library's own definitions
@@ -989,19 +1033,25 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 f"function and the helpers it passes one to hold — keep the "
                 f"definition in the game",
                 getattr(leak.node, "span", None),
-                code=Code.LIBRARY_REACHES_ONE_GAME,
+                code=library_text_codes(library.name).reaches_one_game,
             )
             continue
         bag.unknown(
-            cite_library(library.name, getattr(leak.node, "span", None)) + f" names the "
-            f"{_NAMESPACE_NOUN[leak.namespace]} '{leak.name}', which the library "
-            f"does not have — it would resolve against whichever game imports "
-            f"this, so the library is not self-contained: "
-            f"{_NAMESPACE_ADVICE[leak.namespace]}",
+            _by_sort(
+                library,
+                cite_library(library.name, getattr(leak.node, "span", None)) + f" names the "
+                f"{_NAMESPACE_NOUN[leak.namespace]} '{leak.name}', which the library "
+                f"does not have — it would resolve against whichever game imports "
+                f"this, so the library is not self-contained: "
+                f"{_NAMESPACE_ADVICE[leak.namespace]}",
+                cite_library(library.name, getattr(leak.node, "span", None)) + f" names the "
+                f"{_NAMESPACE_NOUN[leak.namespace]} '{leak.name}', which it does not "
+                f"define; it may read only what it defines and what every game has",
+            ),
             leak.name.removesuffix("?"),
             _library_slot_names(library).get(leak.namespace, frozenset()),
             getattr(leak.node, "span", None),
-            code=Code.OUTSIDE_LIBRARY_CONTRACT,
+            code=library_text_codes(library.name).reads_undefined_name,
         )
     # A PROVIDED default reaching the contract is in scope for the general
     # declare-order Owner Guard too (`_check_state_default_scope`), which would refuse
@@ -1031,7 +1081,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                     + cite_named(decl, f"'{decl.name}'") + " a literal default and set it from "
                     + _cite_own(library, node.name, f"'{node.name}'") + " in a phase",
                     node.span or decl.span,
-                    code=Code.OUTSIDE_LIBRARY_CONTRACT,
+                    code=Code.OUTSIDE_FAMILY_LIBRARY_CONTRACT,
                 )
 
 
@@ -1116,7 +1166,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                 f"{n.PROCEDURE_CONTRACT_TYPE}`), and a library declares no "
                 f"Primitives",
                 want.span,
-                code=Code.TYPE_NOT_ALLOWED_HERE,
+                code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE,
             )
             continue
         if not is_zone_contract(want):
@@ -1126,7 +1176,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                     f"'{want.type_name}' is a state type and takes no type "
                     f"argument — the `<…>` form belongs to zone types",
                     want.span,
-                    code=Code.BAD_REQUIRES_ROW,
+                    code=Code.WRONG_ARGUMENT_COUNT,
                 )
             continue
         takes_owner = LIBRARY_ZONE_TYPES[want.type_name]
@@ -1176,10 +1226,13 @@ def _refuse_kind_word(library: n.Library, want: n.RequireDecl, bag: DiagnosticBa
     if field == "move_types":
         if want.type_name != n.MOVE_CONTRACT_TYPE:
             why = f"`{want.type_name}` names the kind, not the row's type word"
+            code = Code.WRONG_SPELLING
         elif want.index is not None:
             why = "a move type has no index"
+            code = Code.WRONG_SUBSCRIPT
         else:
             why = "a move type contract takes no type argument"
+            code = Code.WRONG_ARGUMENT_COUNT
         message = (
             head + f", but {why} — write `" + cite_named(want, want.name)
             + f" : {n.MOVE_CONTRACT_TYPE}`"
@@ -1190,12 +1243,14 @@ def _refuse_kind_word(library: n.Library, want: n.RequireDecl, bag: DiagnosticBa
             f"signature, not by a kind word — write `" + cite_named(want, want.name)
             + "(<parameter> : <type>, …) : <result type>`"
         )
+        code = Code.WRONG_SPELLING
     elif field == "procedures":
         message = (
             head + f", but a procedure the game defines is contracted by its "
             f"signature, not by a kind word — write `" + cite_named(want, want.name)
             + f"(<parameter> : <type>, …) : {n.PROCEDURE_CONTRACT_TYPE}`"
         )
+        code = Code.WRONG_SPELLING
     else:
         message = (
             head + f", but a rule cannot be contracted: only a game's "
@@ -1203,7 +1258,8 @@ def _refuse_kind_word(library: n.Library, want: n.RequireDecl, bag: DiagnosticBa
             f"so no library text could use one — keep the definition that needs "
             f"it in the game"
         )
-    bag.error(message, want.span, code=Code.BAD_REQUIRES_ROW)
+        code = Code.FAMILY_LIBRARY_CANNOT_REQUIRE_A_GAME_RULE
+    bag.error(message, want.span, code=code)
 
 
 def _check_signature_row(
@@ -1234,7 +1290,7 @@ def _check_signature_row(
                     f"the game answers the kernel's row, so write the row as "
                     f"the kernel states it",
                     want.span,
-                    code=Code.BAD_REQUIRES_ROW,
+                    code=Code.WRONG_SIGNATURE,
                 )
         elif want.name in _ROUND_QUERY_NAMES:
             bag.error(
@@ -1252,7 +1308,7 @@ def _check_signature_row(
                 f"not reach one, so name a function each game defines in the "
                 f"language",
                 want.span,
-                code=Code.LIBRARY_REACHES_ONE_GAME,
+                code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME,
             )
         _check_signature_result(library, want, bag)
     seen: set[str] = set()
@@ -1285,7 +1341,7 @@ def _check_signature_row(
                 head + f", whose parameter `{p.name} : {p.type_name}` no {noun} "
                 f"could declare — a {noun} parameter is {domains}",
                 want.span,
-                code=Code.BAD_REQUIRES_ROW,
+                code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE,
             )
 
 
@@ -1304,30 +1360,35 @@ def _check_signature_result(
             head + f", but a procedure returns no value, so its row carries no "
             f"`?` — write `" + cite_named(want, want.name) + f"(…) : {n.PROCEDURE_CONTRACT_TYPE}`"
         )
+        code = Code.WRONG_SPELLING
     elif bare == n.MOVE_CONTRACT_TYPE:
         message = (
             head + f", but a move type is offered by name and passed no "
             f"arguments — write `" + cite_named(want, want.name) + f" : {n.MOVE_CONTRACT_TYPE}`"
         )
+        code = Code.WRONG_SPELLING
     elif bare in _DEFINITION_KIND_WORDS:
         message = (
             head + f", but '{want.result_type}' names a kind of definition, not "
             f"the type the function returns — write the result's type"
         )
+        code = Code.CHECKER_TYPE_NOT_ALLOWED_HERE
     elif bare in LIBRARY_ZONE_TYPES:
         message = (
             head + f", but '{bare}' is a zone type — a function returns a value, "
             f"and a zone the game declares is contracted as a keyed row"
         )
+        code = Code.CHECKER_TYPE_NOT_ALLOWED_HERE
     elif bare == POSITIVE_PARAM_DOMAIN:
         message = (
             head + f", but `{POSITIVE_PARAM_DOMAIN}` is a procedure parameter's "
             f"domain, a number written at the `run`, not the type a function "
             f"returns — write `Integer`"
         )
+        code = Code.CHECKER_TYPE_NOT_ALLOWED_HERE
     else:
         return
-    bag.error(message, want.span, code=Code.BAD_REQUIRES_ROW)
+    bag.error(message, want.span, code=code)
 
 
 def _check_contract_names(library: n.Library, bag: DiagnosticBag) -> None:

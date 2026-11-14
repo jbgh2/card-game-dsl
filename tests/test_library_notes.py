@@ -1203,6 +1203,13 @@ def _spellings(source: str) -> list[str]:
 
 
 _THE_STEP = frozenset({"attribution.py", "diagnostics.py"})
+def _code_members() -> frozenset[int]:
+    """The lines of the Diagnostic Code registry's members: they name the
+    sort of library in codes and meanings, which are no sentence a refusal
+    tells."""
+    tree = ast.parse((_PACKAGE / "diagnostic_codes.py").read_text())
+    code = next(nd for nd in tree.body if isinstance(nd, ast.ClassDef) and nd.name == "Code")
+    return frozenset(range(code.lineno, (code.end_lineno or code.lineno) + 1))
 
 
 def test_no_check_spells_library_text_into_a_sentence() -> None:
@@ -1210,11 +1217,13 @@ def test_no_check_spells_library_text_into_a_sentence() -> None:
     step alone, from a value carrying the text's span.
 
     red under: write `f"library {name!r}"` into a sentence in resolve."""
+    members = _code_members()
     spelled = [
         f"{path.relative_to(_ROOT).as_posix()}:{at}"
         for path in sorted(_PACKAGE.rglob("*.py"))
-        if path.relative_to(_PACKAGE).as_posix() not in _THE_STEP
+        if (rel := path.relative_to(_PACKAGE).as_posix()) not in _THE_STEP
         for at in _spellings(path.read_text())
+        if not (rel == "diagnostic_codes.py" and int(at.split(":", 1)[0]) in members)
     ]
     assert spelled == []
 

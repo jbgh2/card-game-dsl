@@ -1,0 +1,1 @@
+even_deal_of_a_number.cardlang:12:5: error: an `as-equally-as-possible` deal distributes the whole source (or the whole `where` pool): the amount must be `all`

@@ -4,6 +4,7 @@ definition: OpenSpiel action id (Interop only, and the recorded history a saved 
 layer: kernel
 status: reserved
 reserved: true
+compounds: [OpenSpiel action id, action pronoun]
 home:
 see: []
 retired_spellings: []

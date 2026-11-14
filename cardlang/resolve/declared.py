@@ -11,14 +11,14 @@ Establishes:  the deck, the board, the minted directions and the declared
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import assert_never
 from dataclasses import replace
 from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, board_directions, directions_of
 from cardlang.diagnostics import DiagnosticBag, Span
 from cardlang.domains import SIMULTANEOUS_ROLES, role_of
-from cardlang.runtime.errors import OwnerGuardError
-from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, board_entry
+from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, BoardMisuse, BoardRefusal, board_entry
 from cardlang.stdlib.rules import STDLIB_NAME, stdlib_rules
 from cardlang.typecheck import COMBINATION_TYPE_NAME, KNOWN_TYPE_NAMES
 from cardlang.resolve.walk import _traverse
@@ -76,7 +76,7 @@ def _declared_board(game: n.Game) -> BoardEntry | None:
         return None
     try:
         return board_entry(game.board.family, game.board.args)
-    except OwnerGuardError:
+    except BoardRefusal:
         return None
 
 
@@ -101,14 +101,21 @@ def _map_climb_rounds(node: object, step: Callable[[n.ClimbRound], n.ClimbRound]
 
 
 def _tell_board_refusal(
-    refused: OwnerGuardError, family: str, span: Span | None, bag: DiagnosticBag
+    refused: BoardRefusal, family: str, span: Span | None, bag: DiagnosticBag
 ) -> None:
-    """Tell the board registry's refusal: a family it does not register is a
-    name refused against `BOARD_FAMILIES`, any other refusal its own."""
-    if family in BOARD_FAMILIES:
-        bag.error(str(refused), span, code=Code.BOARD_SHAPE)
-    else:
-        bag.unknown(str(refused), family, BOARD_FAMILIES, span, code=Code.UNKNOWN_BOARD)
+    """Tell the board registry's refusal by the misuse it carries: a family it
+    does not register is a name refused against `BOARD_FAMILIES`."""
+    match refused.misuse:
+        case BoardMisuse.UNKNOWN_FAMILY:
+            bag.unknown(str(refused), family, BOARD_FAMILIES, span, code=Code.UNKNOWN_BOARD)
+        case BoardMisuse.WRONG_ARGUMENT_COUNT:
+            bag.error(str(refused), span, code=Code.WRONG_ARGUMENT_COUNT)
+        case BoardMisuse.ARGUMENT_OUT_OF_RANGE | BoardMisuse.UNDECLARED_LINE_LENGTH:
+            bag.error(str(refused), span, code=Code.OUT_OF_RANGE)
+        case BoardMisuse.NO_LINES:
+            bag.error(str(refused), span, code=Code.MISSING_DECLARATION)
+        case _:
+            assert_never(refused.misuse)
 
 
 def _family_shape(index: str | None) -> str:

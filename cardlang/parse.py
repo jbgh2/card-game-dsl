@@ -711,7 +711,7 @@ class _Builder(Transformer[Token, n.Game]):
                 "how a game picks one, and a function reading a climbing "
                 "play takes it as a `Combination`",
                 self._span(meta),
-                code=Code.TYPE_NOT_ALLOWED_HERE,
+                code=Code.CHECKER_TYPE_NOT_ALLOWED_HERE,
             ), self._author)
         )
 

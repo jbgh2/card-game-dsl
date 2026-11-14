@@ -1,1 +1,0 @@
-code_answer_calls_later_answer.cardlang:18:34: error: function `is_trump` calls `card_strength(...)`, which comes after it in the Trick Order — the Trick Order is read in one order, `is_trump`, then `follow_class`, then `card_strength`, and each may call only the ones before it; spell the fact in this function, or move it to the later one

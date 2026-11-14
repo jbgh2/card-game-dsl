@@ -211,7 +211,7 @@ def _apply_uses(
                 use.name,
                 available,
                 use.span,
-                code=Code.UNKNOWN_LIBRARY,
+                code=Code.UNKNOWN_FAMILY_LIBRARY,
             )
             continue
         libraries.append((use, load_library(use.name)))
@@ -462,7 +462,7 @@ def _check_library_clause_gates(
             + naming_library(gate.fix(game), library.name, None),
             use.span,
             stands_on=tuple(refused),
-            code=Code.LIBRARY_REQUIREMENT_UNMET,
+            code=Code.FAMILY_LIBRARY_REQUIREMENT_UNMET,
         )
     _check_library_lines_span(game, use, library, _library_calls(library, game), bag)
 
@@ -506,7 +506,7 @@ def _check_library_lines_span(
                 f"but this game's `board: {board}` has none — declare a board "
                 f"that does",
                 use.span,
-                code=Code.LIBRARY_REQUIREMENT_UNMET,
+                code=Code.FAMILY_LIBRARY_REQUIREMENT_UNMET,
             )
 
 
@@ -602,7 +602,7 @@ def _check_library_collisions(
                     f"library that needs the fact writes the row in `requires` "
                     f"(`{row.spelled}`)",
                     fn.span,
-                    code=Code.LIBRARY_REACHES_ONE_GAME,
+                    code=Code.FAMILY_LIBRARY_REACHES_ONE_GAME,
                 )
             elif (slot := _round_query_slot(fn.name)) is not None:
                 bag.error(
@@ -1138,7 +1138,7 @@ def _check_definition_requirement(
                 head + f", which game '{game.name}' does not answer, since it "
                 f"declares no Trick Order — " + fix,
                 use.span,
-                code=Code.LIBRARY_REQUIREMENT_UNMET,
+                code=Code.FAMILY_LIBRARY_REQUIREMENT_UNMET,
             )
             return None
         others = _game_declarations_of(game, want.name)
@@ -1162,7 +1162,7 @@ def _check_definition_requirement(
                 want.name,
                 _definitions_of_kind(game, want),
                 use.span,
-                code=Code.LIBRARY_REQUIREMENT_UNMET,
+                code=Code.FAMILY_LIBRARY_REQUIREMENT_UNMET,
             )
         return None
     if isinstance(want, n.MoveContract):
@@ -1294,7 +1294,7 @@ def _check_zone_requirement(
                 want.name,
                 {z.name for z in game.zones},
                 use.span,
-                code=Code.LIBRARY_REQUIREMENT_UNMET,
+                code=Code.FAMILY_LIBRARY_REQUIREMENT_UNMET,
             )
         return
     if len(found) > 1:
@@ -1469,7 +1469,7 @@ def _check_requires(
                 want.name,
                 {nd.name for nd in _walk(game) if isinstance(nd, n.StateDecl)},
                 use.span,
-                code=Code.LIBRARY_REQUIREMENT_UNMET,
+                code=Code.FAMILY_LIBRARY_REQUIREMENT_UNMET,
             )
             continue
         if len(found) > 1:

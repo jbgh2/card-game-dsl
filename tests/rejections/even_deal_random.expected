@@ -1,0 +1,1 @@
+even_deal_random.cardlang:12:5: error: `as-equally-as-possible` deals round-robin; a `random` selection cannot combine with it

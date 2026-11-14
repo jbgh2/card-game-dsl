@@ -1,6 +1,6 @@
 ---
 term: Record Envelope
-definition: The one JSON document a command prints for a tool: its format's version (`schema`), what it holds (`kind`), and its records. A check's envelope holds one Diagnostic Record per [[told-diagnostic]], each carrying its [[diagnostic-code]], severity, [[author]], place (file, line, column and length), message, notes, and its [[near-miss]]es as suggestions marked `offered`, never as edits to apply. A reader refuses an envelope whose schema or kind it does not know. Made only by `cardlang.records`, which composes no words of its own and decides no author.
+definition: The one JSON document a command prints for a tool: its format's version (`schema`), what it holds (`kind`), and its records. A check's envelope holds one Diagnostic Record per [[told-diagnostic]], each carrying its [[diagnostic-code]], severity, [[author]], place (file, line, column and length), message, notes (the lines the command line prints beside it among them, each with no place), and its [[near-miss]]es as suggestions marked `offered`, never as edits to apply. A reader refuses an envelope whose schema or kind it does not know. Made only by `cardlang.records`, which composes no words of its own and decides no author.
 layer: check
 status: canonical
 reserved: false

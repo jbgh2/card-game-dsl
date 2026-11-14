@@ -111,9 +111,16 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     "GameDescriptionError": {"in_game_description_tree": True, "is_runtime_error": False},
     "OwnerGuardError": {"in_game_description_tree": True, "is_runtime_error": False},
     "ShadowGuardError": {"in_game_description_tree": True, "is_runtime_error": False},
+    # An OwnerGuardError that carries which misuse of a board it refuses, so
+    # resolve tells its code by that misuse.
+    "BoardRefusal": {"in_game_description_tree": True, "is_runtime_error": False},
     # --- Author: the primitive-module maintainer ---------------------------
     # Disjoint from the tree BY ROOT, not by a list anyone maintains.
     "PrimitiveReadError": {"in_game_description_tree": False, "is_runtime_error": True},
+    # Its one kind the game author acts on, a name the module reads that the
+    # game no longer declares: told to the game, and still outside the tree,
+    # since the file checks clean.
+    "PrimitiveNameMissing": {"in_game_description_tree": False, "is_runtime_error": True},
     # --- Author: whoever installed or checked the package out --------------
     # A sibling, never a child: a harness catching `GameDescriptionError` to
     # report an illegal game must not swallow a missing corpus directory and
@@ -140,6 +147,9 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     # The line's words, refused before any game file is read; `cli.main`
     # catches it where argparse raises it and tells it as a usage error.
     "_Refused": {"in_game_description_tree": False, "is_runtime_error": False},
+    # A standard stream the caller set up that cannot be written: its reader
+    # has gone, or its encoding cannot spell the output.
+    "_StreamFailed": {"in_game_description_tree": False, "is_runtime_error": False},
     # --- not a defect at all: the game is working as written ---------------
     # The author wrote `error(...)`; refusing the move IS the rule.
     "IllegalMove": {"in_game_description_tree": False, "is_runtime_error": False},

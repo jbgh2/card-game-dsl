@@ -89,7 +89,7 @@ def check_catalogues(
         admissible = True
         for row in cat.rows:
             if row.label in seen:
-                bag.error(f"`{row.label}` labels two rows of `{cat.name}` — each row's label is its own, so it is written once, not twice", row.span, code=Code.WRITTEN_TWICE)
+                bag.error(f"`{row.label}` labels two rows of `{cat.name}` — each row's label is its own; rename one of the two rows", row.span, code=Code.NAME_TAKEN)
                 admissible = False
             seen[row.label] = row
             other = names(row.label)
