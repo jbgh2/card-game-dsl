@@ -1399,11 +1399,13 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
     # Checker Query asks the walk to fill: written by the walk, read by the
     # query, and no name resolves against it; `scope_facts` is what a name
     # written at each node may read, which that record subtracts by, and no
-    # name resolves against it either.
+    # name resolves against it either. `keywords` are the keyword lookups an
+    # unknown name's refusal reads to offer a keyword: no name resolves
+    # against them.
     game_fed = {f.name for f in fields(_Categories)} - {
         "locals", "functions", "flavor", "definitions", "rule_clause", "shapes",
         "bound_names", "zone_index", "positions", "refused_binders", "withheld",
-        "scopes", "scope_facts",
+        "scopes", "scope_facts", "keywords",
     }
     covered: set[str] = set()
     for reached in _AXIS_NAMESPACE.values():

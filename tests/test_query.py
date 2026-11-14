@@ -28,7 +28,11 @@ domain:          Two axes. The node axis is every member of the `Node` union,
                  body's scope lists no Pronoun its body may not read, and a
                  `state { }` default's lists no `actor` and the State
                  Variables declared before it and around it
-                 (`_body_and_default_scopes`). The position axis is
+                 (`_body_and_default_scopes`); at a position that is no name
+                 inside a Hosted Poll's body and inside a kernel answer's, a
+                 read of each State Variable, Pronoun and zone checks clean
+                 exactly when it is listed (`_REACH_ORACLE_CELLS`). The
+                 position axis is
                  `POSITION_CELLS`: the places in a file that are in no node or
                  in no game -- a comment, a blank line, past a line's end or
                  the file's, line or column 0, a Markdown file's prose and
@@ -56,11 +60,20 @@ does not prove:  that an answer is the RIGHT one at a position no corpus game
                  shows a seat is tests/test_query_seats.py's claim. The
                  State Variables listed in a callable body are held only by
                  the read-is-listed half: no scope rule judges a callable body
-                 (issue #242). The scope applies neither the rule of who is
-                 acting nor that of a Hosted Poll's body (issue #1089): it
-                 lists `actor` and a bare zone family where no player acts,
-                 and `state` inside a Hosted Poll's body, each refused when
-                 written there. A zone family's name answers with the Type
+                 (issue #242). The scope does not apply the rule of who is
+                 acting (issue #1089): it lists `actor` and a bare zone
+                 family where no player acts, each refused when written
+                 there. At a node that is no name it lists a zone family of
+                 any index, which the bare-family rule refuses written bare
+                 there: that rule judges a name alone (issue #1108). The
+                 Hosted Poll
+                 rule and the kernel-answer rule are
+                 run by apply-the-read at one position each, never over the
+                 corpus; the rule of a function a rule's clauses reach is
+                 run by no cell here, since the one answer cell's answer
+                 rule refuses the same names first, and it is held by
+                 tests/test_near_miss_positions.py alone. A zone family's
+                 name answers with the Type
                  the checker gives it, one zone's content: the checker holds
                  a family's content (`TypeEnv.zones`) and the Type of its key
                  (`TypeEnv.zone_families`) apart, and no Type of the family
@@ -107,6 +120,8 @@ HEARTS = GAMES / "hearts.cardlang"
 CHEAT = GAMES / "cheat.cardlang"
 TIC_TAC_TOE = GAMES / "tic-tac-toe.cardlang"
 KUHN = GAMES / "kuhn-poker.cardlang"
+BIG_TWO = GAMES / "big-two.cardlang"
+BELOTE = GAMES / "belote.cardlang"
 SKELETON_MD = REPO / "tests" / "fixtures" / "skeleton.md"
 
 NODE_KINDS: tuple[type, ...] = get_args(n.Node)
@@ -613,6 +628,59 @@ def test_a_listed_state_variable_reads_there_and_an_unlisted_one_is_refused(kind
             wrong.append(f"{decl.name} is listed and refused {codes}")
         if decl.name not in listed and Code.OUT_OF_SCOPE.slug not in codes:
             wrong.append(f"{decl.name} is unlisted and refused {codes}, not out of scope")
+    assert not wrong, wrong
+
+
+#: Positions that are no name, inside a body a reach rule judges, and the line
+#: that writes a read there: the file, the position, the line written at, and
+#: whether the written line replaces that line or stands before it.
+_REACH_ORACLE_CELLS: dict[str, tuple[Path, int, int, int, bool, str]] = {
+    "a Hosted Poll's body": (BIG_TWO, 110, 27, 110, False, "                let probe_read = READ"),
+    "a kernel answer's body": (
+        BELOTE, 345, 44, 345, True, "function is_trump(card : Card) = card.suit is trump_suit and ((READ) is (READ))"
+    ),
+}
+
+#: The rules the scope does not apply at a node that is no name, by the code
+#: each refuses in: who is acting (issue #1089), and a zone family named bare,
+#: which the bare-family rule judges at a name alone (issue #1108).
+_UNAPPLIED_AT_A_NODE = frozenset({Code.NO_PLAYER_ACTING.slug, Code.WRONG_SUBSCRIPT.slug})
+
+
+@pytest.mark.parametrize("where", sorted(_REACH_ORACLE_CELLS))
+def test_a_listed_name_reads_inside_a_reach_and_an_unlisted_one_is_refused(where: str) -> None:
+    """Written at a position that is no name inside the body, a read of each
+    State Variable, Pronoun and zone the scope lists checks clean, and a read
+    of each it does not list is refused. `actor` and a zone family listed
+    there may be refused only by a rule in `_UNAPPLIED_AT_A_NODE`. red under:
+    drop the Hosted Poll disjunct, or the answer disjunct, from
+    `classifier._scope_refuses`; or record `_ScopeFacts.hosted`, or
+    `answer_through`, at `NameRef` nodes alone in
+    `classification._scope_facts`."""
+    path, line, column, at, replaces, writes = _REACH_ORACLE_CELLS[where]
+    answer = ask_path(path, line, column)
+    assert answer.scope is not None and not isinstance(answer.scope, Told)
+    assert not answer.scope.at_a_name
+    listed = {s.name for s in answer.scope.names if s.sort in ("state-variable", "pronoun", "zone")}
+    text = path.read_text()
+    lines = text.split("\n")
+    game = checked_text(text, str(path), markdown=False).game
+    families = {z.name for z in game.zones if z.index is not None}
+    candidates = {
+        *(d.name for b in resolve._walk(game) if isinstance(b, n.StateBlock) for d in b.decls),
+        *(z.name for z in game.zones),
+        *resolve._PRONOUNS,
+    }
+    assert listed and listed <= candidates
+    wrong = []
+    for name in sorted(candidates):
+        probe = "\n".join([*lines[: at - 1], writes.replace("READ", name), *lines[at - 1 + replaces :]])
+        codes = _refusal_codes(probe)
+        unapplied = name == "actor" or name in families
+        if name in listed and codes and not (unapplied and set(codes) <= _UNAPPLIED_AT_A_NODE):
+            wrong.append(f"{name} is listed and refused {codes}")
+        if name not in listed and not codes:
+            wrong.append(f"{name} is unlisted and reads clean")
     assert not wrong, wrong
 
 

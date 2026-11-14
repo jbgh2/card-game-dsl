@@ -55,7 +55,7 @@ import cardlang.attribution as attribution
 import cardlang.resolve as R
 from cardlang.diagnostic_codes import Code
 from cardlang.deckcheck import check_capacity
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Route, Span
+from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Refused, Route, Span, Unless
 from cardlang.expand import expand
 from cardlang.parse import parse_library, parse_text
 from cardlang.typecheck import typecheck
@@ -187,6 +187,8 @@ _ROUTED: dict[str, dict[str, Callable[[], L.Crossing]]] = {
 _NO_CROSSING_REASONS = frozenset({"refuses nothing", "game text", "certificate"})
 _UNROUTED: dict[str, str] = {
     "resolve._answer_routes": "refuses nothing",
+    "resolve._name_positions": "refuses nothing",
+    "resolve._scope_facts": "refuses nothing",
     "resolve._HiddenReads._after": "refuses nothing",
     "expand._expansion": "refuses nothing",
     "resolve._HiddenReads.reads_of": "game text",
@@ -233,10 +235,15 @@ def _emitted_routes(monkeypatch: pytest.MonkeyPatch, cell: L.Crossing) -> set[st
         route: Route | None = None,
         for_game: str | None = None,
         stands_on: Span | None = None,
+        refuses: Refused | None = None,
+        unless: Unless | tuple[Unless, ...] = (),
     ) -> None:
         if route is not None:
             kinds.add(route.kind)
-        original(self, message, span, code=code, route=route, for_game=for_game, stands_on=stands_on)
+        original(
+            self, message, span, code=code, route=route, for_game=for_game, stands_on=stands_on,
+            refuses=refuses, unless=unless,
+        )
 
     monkeypatch.setattr(DiagnosticBag, "error", spy)
     L._cell_bag(monkeypatch, cell)
@@ -349,10 +356,15 @@ def _routed_lines(monkeypatch: pytest.MonkeyPatch, cell: L.Crossing) -> set[int]
         route: Route | None = None,
         for_game: str | None = None,
         stands_on: Span | None = None,
+        refuses: Refused | None = None,
+        unless: Unless | tuple[Unless, ...] = (),
     ) -> None:
         if route is not None and span is not None and span.source_name == L._LIB_FILE:
             lines.add(span.line)
-        original(self, message, span, code=code, route=route, for_game=for_game, stands_on=stands_on)
+        original(
+            self, message, span, code=code, route=route, for_game=for_game, stands_on=stands_on,
+            refuses=refuses, unless=unless,
+        )
 
     with monkeypatch.context() as mp:
         mp.setattr(DiagnosticBag, "error", spy)

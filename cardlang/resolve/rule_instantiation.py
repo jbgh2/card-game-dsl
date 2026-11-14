@@ -16,18 +16,16 @@ Establishes:  Every library's rules — a family
               A ``DomainQuery`` noun is validated here, before classification,
               so its unknown-noun refusal reports before the unresolved names
               a wrong noun would cause.
-              A refused spelling's
-              consequences are withheld where a fix drawn from the set it was
-              looked up in could clear them, and only there: a node whose
-              binder source is refused binds nothing, and a name in its scope
-              spelled as a binder a fix would bind is not told
-              (``_refused_binder_sources``, ``_membership_capture``); a
-              phase's modes are judged after its transition targets resolve,
-              and a target no sibling holds leaves undecided the role of every
-              mode it could name (``_check_modes``). Held by Derived and
-              Pinned: a withheld name is one lexical field (``withheld``), set
-              where a binder is scoped and read by the one unresolved-name arm
-              (tests/test_refusal_consequences.py).
+              A node whose binder source is refused binds nothing, and a
+              name in its scope spelled as a binder a fix would bind is not
+              told (``_refused_binder_sources``, ``_membership_capture``),
+              held by Derived and Pinned: a withheld name is one lexical
+              field (``withheld``), set where a binder is scoped and read by
+              the one unresolved-name arm. A transition target, a rule
+              reference and a template argument refused here mark their slot,
+              and a mode never active, a removal of a rule never added and a
+              template never instantiated mark what clears them, for
+              ``DiagnosticBag.settle`` (tests/test_refusal_consequences.py).
               A bare
               ``DomainQuery`` noun names a declared position domain or, for a
               query kind in ``n.DIRECTION_QUERY_KINDS``, the direction domain the board
@@ -50,7 +48,7 @@ from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.board_domains import LINE_NOUN
 from cardlang.attribution import cite_library, cite_named, cite_origin
-from cardlang.diagnostics import DiagnosticBag, Said, Sentence, Span
+from cardlang.diagnostics import DiagnosticBag, Refused, Said, Sentence, Slot, SlotKind, Span, Unless, text_slot
 from cardlang.domains import CARD_AXIS_ROLES, SIMULTANEOUS_ROLES, Role, role_names
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.runtime.values import content_noun
@@ -63,9 +61,11 @@ from cardlang.resolve.binders import _introduced_binders
 from cardlang.resolve.reserved import _RESERVED_WHY, _refuse_play_source_params
 from cardlang.resolve.slots import _MOVE_TYPE_SLOT_OFFERS, slot_strings
 from cardlang.resolve.declared import (
+    board_mints,
     _deck_known,
     _minted_directions,
     _simultaneous_role_refused,
+    simultaneous_role_slot,
     _stamped_stdlib_rules,
     _unminted_direction,
 )
@@ -265,6 +265,8 @@ def _instantiate_rules(
     # repeat its diagnostics; `_check_template` is also the bottom loop's
     # "never instantiated" fallback below, so the cache spans both call sites).
     template_checked: dict[str, bool] = {}
+    # The slots of each template's activation arguments refused as no suit.
+    refused_arguments: dict[str, set[str]] = {}
 
     def check_template_once(name: str, template: n.RuleDef) -> bool:
         if name not in template_checked:
@@ -324,7 +326,10 @@ def _instantiate_rules(
                         suits or (),
                         ref.span,
                         code=Code.WRONG_ARGUMENT,
+                        slot=None if arg.span is None else text_slot(arg.span),
                     )
+                    if arg.span is not None:
+                        refused_arguments.setdefault(ref.name, set()).add(text_slot(arg.span).name)
                     args_ok = False
             if not args_ok:
                 continue
@@ -360,6 +365,11 @@ def _instantiate_rules(
                 f"(its body would otherwise go entirely unchecked)",
                 r.span,
                 code=Code.UNUSED_DECLARATION,
+                # A misspelled activation, or its arguments, fixed.
+                unless=(
+                    Unless(SlotKind.RULE, frozenset({r.name})),
+                    Unless(SlotKind.TEXT, frozenset(suits or ()), frozenset(refused_arguments.get(r.name, ()))),
+                ),
             )
     rules += [instances[name][1] for name in lib_order]
     return replace(game, rules=tuple(rules)) if tuple(rules) != game.rules else game
@@ -513,6 +523,8 @@ def _validate_removes(
                 + " there, or delete this removal",
                 ref.span,
                 code=Code.MISSING_DECLARATION,
+                # A misspelled rule added in scope, fixed.
+                unless=Unless(SlotKind.RULE, frozenset({ref.name}), frozenset(a for a in added if a not in rules)),
             )
 
 
@@ -701,6 +713,11 @@ def _transition_targets(mode_names: Set[str], source: str) -> frozenset[str]:
     return frozenset(mode_names) - {source}
 
 
+def _target_slot(transition: n.TransitionTo) -> Slot:
+    """The slot of a transition's target."""
+    return Slot(SlotKind.MODE, f"{transition.span}")
+
+
 def _resolve_transition(
     transition: n.TransitionTo, mode_names: set[str], source: str, bag: DiagnosticBag
 ) -> None:
@@ -713,6 +730,7 @@ def _resolve_transition(
             _transition_targets(mode_names, source),
             transition.span,
             code=Code.UNKNOWN_MODE,
+            slot=_target_slot(transition),
         )
     if transition.event.move_type not in LIBRARY_MOVE_TYPES:
         bag.unknown(
@@ -751,17 +769,11 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
     """
     modes = [i for i in phase.items if isinstance(i, n.Mode)]
     mode_names = {m.name for m in modes}
-    # A target no sibling holds is refused where it is written; what it would
-    # name once fixed -- any mode `_transition_targets` admits -- is unknown,
-    # so no role it leaves undecided is told.
     targeted = {t.mode for m in modes for t in m.transitions if t.mode in mode_names}
-    undecided = {
-        name
-        for m in modes
-        for t in m.transitions
-        if t.mode not in mode_names
-        for name in _transition_targets(mode_names, m.name)
-    }
+    # The targets refused where they are written: fixed, each names a mode.
+    refused_targets = frozenset(
+        _target_slot(t).name for m in modes for t in m.transitions if t.mode not in mode_names
+    )
 
     # A target belongs to ONE condition. Two sources naming the same target
     # read as "two conditions that happen to end together", but the runtime
@@ -800,7 +812,7 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
                 mode.span,
                 code=Code.MODES_MUST_PAIR_UP,
             )
-        elif not is_source and not is_target and mode.name not in undecided:
+        elif not is_source and not is_target:
             bag.error(
                 f"mode '{mode.name}' is never active: nothing transitions to "
                 f"it and it declares no transition of its own, so its "
@@ -809,6 +821,7 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
                 f"phase itself",
                 mode.span,
                 code=Code.UNUSED_DECLARATION,
+                unless=Unless(SlotKind.MODE, frozenset({mode.name}), refused_targets),
             )
 
 
@@ -827,6 +840,9 @@ def _resolve_phase_item(
                     known_rule_names,
                     ref.span,
                     code=Code.UNKNOWN_GAME_RULE,
+                    slot=Slot(SlotKind.RULE, ref.name),
+                    # A reference names a rule taking as many arguments.
+                    fixes=(r for r, rule in known_rule_names.items() if len(rule.params) == len(ref.args)),
                 )
             if ref.delta == "override":
                 overridden = known_rule_names.get(ref.name)
@@ -889,6 +905,7 @@ def _refused_binder_sources(
                 f"{' or '.join(role_names(SIMULTANEOUS_ROLES))}",
                 nd.span,
                 code=Code.WRONG_SORT_OF_NAME,
+                refuses=Refused(simultaneous_role_slot(nd), frozenset(role_names(SIMULTANEOUS_ROLES))),
             )
             refused[id(nd)] = frozenset(role_names(SIMULTANEOUS_ROLES))
     return refused
@@ -1154,6 +1171,7 @@ def _check_domain_query(
         _nouns_a_query_takes(nd, game, cats.flavor),
         nd.span,
         code=Code.UNKNOWN_POSITION_DOMAIN,
+        unless=board_mints(nd.binder),
     )
     return True
 

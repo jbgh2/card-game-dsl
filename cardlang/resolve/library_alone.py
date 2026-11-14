@@ -39,7 +39,7 @@ from cardlang.attribution import (
     library_sort,
     library_text_codes,
 )
-from cardlang.diagnostics import Diagnostic, DiagnosticBag, Said, Span, listed
+from cardlang.diagnostics import Diagnostic, DiagnosticBag, Said, Slot, SlotKind, Span, Unless, listed
 from cardlang.domains import ZONE_INDEX_ROLES, role_names, role_of
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
@@ -1052,6 +1052,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             _library_slot_names(library).get(leak.namespace, frozenset()),
             getattr(leak.node, "span", None),
             code=library_text_codes(library.name).reads_undefined_name,
+            slot=_leak_slot(library, leak),
         )
     # A PROVIDED default reaching the contract is in scope for the general
     # declare-order Owner Guard too (`_check_state_default_scope`), which would refuse
@@ -1427,6 +1428,18 @@ def _check_contract_names(library: n.Library, bag: DiagnosticBag) -> None:
             )
 
 
+# The slot kind of a misspelled name a library's `run` or offering names.
+_LEAK_SLOT_KINDS: dict[str, SlotKind] = {"move_type": SlotKind.MOVE_TYPE, "procedure": SlotKind.PROCEDURE}
+
+
+def _leak_slot(library: n.Library, leak: _SlotLeak) -> Slot | None:
+    """The slot of a name a library's text names and does not define, where a
+    contract row's reach reads it."""
+    kind = _LEAK_SLOT_KINDS.get(leak.namespace)
+    span = getattr(leak.node, "span", None)
+    return None if kind is None else Slot(kind, f"{library.name}:{span}:{leak.name}")
+
+
 def _check_contract_reach(library: n.Library, bag: DiagnosticBag) -> None:
     """The Definition Contract rows the library's own text must reach for any
     game to answer them, and the one place a procedure row may be run.
@@ -1439,7 +1452,13 @@ def _check_contract_reach(library: n.Library, bag: DiagnosticBag) -> None:
     library procedure running a procedure row is told the row's one home: a
     library move type's effect."""
     dead = dead_contract_rows(library)
+    # The library's misspelled offerings and runs: fixed, each reaches a row.
+    leaks = [slot for leak in _library_reach(library).slot_leaks if (slot := _leak_slot(library, leak)) is not None]
     for want in library.requires:
+        unless = tuple(
+            Unless(kind, frozenset({want.name}), frozenset(s.name for s in leaks if s.kind is kind))
+            for kind in _LEAK_SLOT_KINDS.values()
+        )
         if want.name not in dead:
             continue
         if isinstance(want, n.MoveContract):
@@ -1450,6 +1469,7 @@ def _check_contract_reach(library: n.Library, bag: DiagnosticBag) -> None:
                 f"or drop the row",
                 want.span,
                 code=Code.UNUSED_DECLARATION,
+                unless=unless,
             )
         elif isinstance(want, n.ProcedureContract):
             bag.error(
@@ -1459,6 +1479,7 @@ def _check_contract_reach(library: n.Library, bag: DiagnosticBag) -> None:
                 f"move type's effect, or drop the row",
                 want.span,
                 code=Code.UNUSED_DECLARATION,
+                unless=unless,
             )
     rows = _contracted(library, "procedures")
     for proc in library.procedures:

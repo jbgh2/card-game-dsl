@@ -6,8 +6,16 @@ refusal at the same position. A name can classify game-wide and still be
 refused where the misspelling stands -- a phase's state outside that phase, a
 call-site pronoun in a function, a literal where a zone is wanted -- so the
 bare-name and round `trump` refusals offer only the names every positional
-Owner Guard of the resolve pass admits there, read from the one record those
-guards refuse by (`cardlang.resolve._name_positions`).
+Owner Guard joined to the one record admits there
+(`cardlang.resolve._name_positions`, whose `scope` facts are
+`_scope_facts`; the `joined` rows of
+`POSITIONAL_GUARDS`, among them a kernel answer's reach, a function a rule's
+clauses reach, an Arrival Record pile and a Hosted Poll's closure). Two
+guards judge by walk state the tree's shape does not hold -- the alias
+comparison and the hidden-read walk -- and are not joined (issue #1089), so
+a name either refuses can still be offered. Nor is a Near Miss judged by its
+Type: it can be a name of the wrong Type for its position (issue #1088), or
+of the wrong kind where the checker gives a Pronoun no Type (issue #1125).
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -21,25 +29,34 @@ domain:          every slip the Near Miss census holds (`WITNESSES`,
                  refusing arm of each positional Owner Guard of the resolve
                  pass that judges a classified bare name
                  (`POSITIONAL_GUARDS`) or a trick round's winner
-                 (`_winner_refusals`' reasons), crossed with
-                 every Near Miss each one offers. A cell whose offer is of
-                 the wrong type for its position is a strict xfail naming its
-                 issue (`RESIDUAL`), and a positional guard the record does
-                 not read is a `POSITIONAL_GUARDS` row naming its issue.
+                 (`_winner_refusals`' reasons), and one for the refusal of
+                 any name where a `Positive` parameter's argument stands
+                 (`_check_positive_arguments`, which reads no `ref_kind` and
+                 joins the record by its producer, `positive_arguments`),
+                 and slips beside a second slip, crossed with every Near
+                 Miss each one offers. A cell whose offer no joined guard
+                 judges is a strict xfail naming its issue (`RESIDUAL`, and
+                 `UNJUDGED` for a whole offer the oracle cannot see), and a
+                 positional guard the record does not read is a
+                 `POSITIONAL_GUARDS` row naming its issue.
 registry:        the census dictionaries, pinned to the routed sites by
                  tests/test_near_misses.py; the positional guards,
                  `POSITIONAL_GUARDS`, pinned equal to the functions of
                  `cardlang/resolve/` that read a name's `ref_kind` and
                  refuse (an AST scrape).
-held by:         Derived and Pinned. One record (`_name_positions`), built
-                 from the walks the guards refuse by, and one predicate per
-                 guard (`_position_refuses` is their disjunction); the scrape
+held by:         Derived and Pinned. One record (`_name_positions`, with
+                 `_scope_facts` for the rules judging a name wherever it
+                 stands), built from the walks the guards refuse by, and one
+                 predicate per guard (`_position_refuses` is their
+                 disjunction, through `_scope_refuses`); the scrape
                  pins the guard set. A round's refusals of its own winner
                  have one producer (`_winner_refusals`) that every guard
                  telling one dispatches on, and a scrape pins that every
                  function reading a round's winner and refusing calls it.
-                 Not higher: whether a guard reads a name's position is a
-                 property of its body, which no union states.
+                 Each joined guard's arm and its producer's fact redden
+                 named cells when planted out. Not higher: whether a guard
+                 reads a name's position is a property of its body, which
+                 no union states.
 does not prove:  that a green offer is the name the designer meant, or that the
                  file checks clean once it is applied -- a refusal standing
                  elsewhere (a move type left unoffered, a deck a clause then
@@ -59,7 +76,10 @@ does not prove:  that a green offer is the name the designer meant, or that the
                  the winner through a typecheck helper (`card_content_forms`)
                  is held by its call to the producer, which nothing pins; and
                  the scrape reads a call to the producer anywhere in the
-                 function, not in each arm that tells a refusal.
+                 function, not in each arm that tells a refusal. The oracle
+                 applies one offer and leaves any other slip refused, so a
+                 type refusal behind it is invisible there (`UNJUDGED`); the
+                 hand-written `OFFERED` lists are the check on it.
 """
 
 from __future__ import annotations
@@ -138,6 +158,73 @@ POSITION_PROBES: dict[str, Slip] = {
         "docs/games/hearts.cardlang", "winner highest_of_led_suit", "winner highest_of_led_suti",
         "trick round winner 'highest_of_led_suti'", "highest_of_led_suit",
         also=(("cards: standard52", "pieces: breakthrough_men"),)),
+    # A kernel answer, and the functions it reaches.
+    "an answer reads a pronoun": Slip(
+        "docs/games/belote.cardlang", "card.suit is trump_suit\n\nfunction card_strength",
+        "card.suit is stat.led_suit\n\nfunction card_strength", "unresolved name 'stat'", "trump_suit"),
+    "an answer reaches a pronoun through a function": Slip(
+        "docs/games/belote.cardlang", "  c.suit is trump_suit and (c.rank", "  c.suit is stat.led_suit and (c.rank",
+        "unresolved name 'stat'", "trump_suit",
+        also=(("= card.suit is trump_suit\n", "= card.suit is trump_suit and not is_royal(card)\n"),)),
+    "an answer reads a phase's state": Slip(
+        "docs/games/belote.cardlang", "card.suit is trump_suit\n\nfunction card_strength",
+        "card.suit is trump_suit and takr is none\n\nfunction card_strength", "unresolved name 'takr'", "trump_suit"),
+    "an answer reads a zone not public": Slip(
+        "docs/games/belote.cardlang", "if is_trump(card)\n  then (if card.rank is J",
+        "if dek is empty\n  then (if card.rank is J", "unresolved name 'dek'", "is_trump"),
+    "an answer reads a seat's family bare": Slip(
+        "docs/games/five-hundred.cardlang", "  if trump_suit is none\n  then card.rank is Joker and",
+        "  if exposd is empty\n  then card.rank is Joker and", "unresolved name 'exposd'", "trump_suit"),
+    # A function a rule's clauses reach.
+    "a function a rule reaches reads `hand`": Slip(
+        "docs/games/belote.cardlang", "  trick_pile is not empty and\n  team_of", "  hnad is not empty and\n  team_of",
+        "unresolved name 'hnad'", "trick_pile"),
+    "a function a rule reaches reads the round's source family": Slip(
+        "docs/games/belote.cardlang", "  trick_pile is not empty and\n  team_of", "  hel is not empty and\n  team_of",
+        "unresolved name 'hel'", "trick_pile",
+        also=(("source hand into trick_pile", "source held into trick_pile"),
+              ("    hand[player]   : Hand<player>\n", "    hand[player]   : Hand<player>\n    held[player]   : Hand<player>\n"))),
+    # An Arrival Record call's pile.
+    "an Arrival Record pile names no zone": Slip(
+        "docs/games/belote.cardlang", "team_of(highest_by_trick_order(trick_pile))",
+        "team_of(highest_by_trick_order(trick_pil))", "unresolved name 'trick_pil'", "trick_pile"),
+    "an Arrival Record pile names a zone not public": Slip(
+        "docs/games/belote.cardlang", "team_of(highest_by_trick_order(trick_pile))",
+        "team_of(highest_by_trick_order(dek))", "unresolved name 'dek'", "trick_pile"),
+    # A Hosted Poll's body, and what it reaches.
+    "a Hosted Poll reads `state`": Slip(
+        "docs/games/big-two.cardlang", "                last_seat := seat\n", "                last_seat := stat\n",
+        "unresolved name 'stat'", "seat"),
+    "a Hosted Poll reaches `state` through a function": Slip(
+        "docs/games/tichu.cardlang", "called[p] is 0 and (not push_done", "called[p] is 0 and (not stat.push_done",
+        "unresolved name 'stat'", "push_done"),
+    # Two names for the acting player.
+    "two names for the acting player compared": Slip(
+        "docs/games/skat.cardlang", "when: actor is speaker and", "when: actor is actr and",
+        "unresolved name 'actr'", "speaker"),
+    # A seat's decision, and a position where no seat acts.
+    "a decision reads a zone its seat cannot see": Slip(
+        "docs/games/belote.cardlang", "  when: s is not suit_of(turnup)", "  when: s is not suit_of(dek)",
+        "unresolved name 'dek'", "turnup"),
+    "`actor` where no player acts": Slip(
+        "docs/games/belote.cardlang", "      dealer := dealer offset_by right", "      dealer := actr offset_by right",
+        "unresolved name 'actr'", "dealer"),
+    "a seat's family bare where no player acts": Slip(
+        "docs/games/belote.cardlang", "      shuffle deck\n", "      shuffle hnad\n",
+        "unresolved name 'hnad'", "deck"),
+    # A misspelling while another misspelling stands.
+    "two slips at once": Slip(
+        "docs/games/bridge.cardlang", "trump trump_suit", "trump cur_levl",
+        "`trump` names 'cur_levl'", "trump_suit",
+        also=(("let required = 6 + contract_level", "let required = 6 + contract_levl"),)),
+    "a hidden read beside a second slip": Slip(
+        "docs/games/belote.cardlang", "  when: s is not suit_of(turnup)", "  when: s is not suit_of(dek)",
+        "unresolved name 'dek'", "turnup",
+        also=(("  trick_pile is not empty and\n  team_of", "  trick_pil is not empty and\n  team_of"),)),
+    # A `Positive` parameter's argument, which takes a written number.
+    "a Positive argument": Slip(
+        "docs/games/five-card-stud.cardlang", "run betting_street(bringer, 10, 0)",
+        "run betting_street(bringer, bringr, 0)", "unresolved name 'bringr'", "10"),
 }
 
 # The refused spelling, where the slip's own edit does not show it alone.
@@ -146,6 +233,12 @@ SPELLED: dict[str, str] = {
     "resolve::_check_template::rule parameter '{}: {}' has an unsupported domain — rule par": "Siut",
     "a ranking convention misspelled": "Aces Hihg",
     "a default names a seat's family bare": "hnad",
+    "an answer reads a pronoun": "stat",
+    "an answer reaches a pronoun through a function": "stat",
+    "an answer reads a phase's state": "takr",
+    "an answer reads a zone not public": "dek",
+    "an answer reads a seat's family bare": "exposd",
+    "a Hosted Poll reaches `state` through a function": "stat",
 }
 
 # The cells whose offers a guard outside the record refuses, by the issue that
@@ -153,9 +246,30 @@ SPELLED: dict[str, str] = {
 RESIDUAL: dict[str, str] = {
     "a call-site pronoun in a function": "the state `acted` and the seat direction `across` are not Players (issue #1088)",
     "a call-site pronoun in a procedure": "the seat direction `across` is not a Player (issue #1088)",
-    "a default reads a pronoun": "the seat direction `across` is not a Player (issue #1088)",
+    "a default reads a pronoun": (
+        "the seat direction `across` is not a Player (issue #1088), and the pronoun "
+        "`action`, which the checker gives no Type, is accepted for one (issue #1125)"),
     "a round's trump": "`contract_level` is an Integer, not a Suit? (issue #1088)",
     "bool": "`captured` is cards, not a condition (issue #1088)",
+    "a Hosted Poll reads `state`": "the play shape `straight` is not a Player (issue #1088)",
+    "two names for the acting player compared": (
+        "`actor is actor` is always true, which the alias guard judges off the record "
+        "(issue #1089); the seat direction `across` is not a Player (issue #1088); and "
+        "the pronoun `action`, which the checker gives no Type, is accepted for one (issue #1125)"),
+    "a decision reads a zone its seat cannot see": "the hidden-read walk judges off the record (issue #1089)",
+    "`actor` where no player acts": (
+        "the hidden-read walk judges off the record (issue #1089); the seat direction "
+        "`across` is not a Player (issue #1088); and the pronoun `action`, which the "
+        "checker gives no Type, is accepted for one (issue #1125)"),
+    "a seat's family bare where no player acts": "the hidden-read walk judges off the record (issue #1089)",
+    "a hidden read beside a second slip": "the hidden-read walk judges off the record (issue #1089)",
+}
+
+# The position probes whose whole offer is wrong where the oracle cannot see
+# it, by the issue that holds them: applied, the offer leaves the other
+# misspelling refused, so typecheck never runs.
+UNJUDGED: dict[str, str] = {
+    "two slips at once": "`contract_level` is an Integer, not a Suit? (issue #1088)",
 }
 
 _CELLS: dict[str, Slip] = {**WITNESSES, **{str(k): v for k, v in REF_KIND_WITNESSES.items()},
@@ -273,18 +387,19 @@ def _refused_at_the_position(key: str) -> list[str]:
     return found
 
 
-def _cell(key: str) -> object:
-    marks = [pytest.mark.xfail(strict=True, reason=RESIDUAL[key])] if key in RESIDUAL else []
+def _cell(key: str, residual: dict[str, str]) -> object:
+    marks = [pytest.mark.xfail(strict=True, raises=AssertionError, reason=residual[key])] if key in residual else []
     return pytest.param(key, id=key, marks=marks)
 
 
-@pytest.mark.parametrize("key", [_cell(key) for key in sorted(_CELLS)])
+@pytest.mark.parametrize("key", [_cell(key, RESIDUAL) for key in sorted(_CELLS)])
 def test_an_offered_name_is_admitted_where_it_is_offered(key: str) -> None:
     assert _refused_at_the_position(key) == []
 
 
 def test_the_residual_names_cells() -> None:
     assert set(RESIDUAL) <= set(_CELLS)
+    assert set(UNJUDGED) <= set(OFFERED)
 
 
 # --------------------------------------------------------------------------
@@ -293,20 +408,38 @@ def test_the_residual_names_cells() -> None:
 
 OFFERED: dict[str, list[str]] = {
     "phase-local state out of scope": ["contract_level"],
-    "a call-site pronoun in a function": ["acted", "across"],
+    "a call-site pronoun in a function": [],
     "a literal where a zone is wanted": [],
-    "a round's trump": ["contract_level"],
+    "a round's trump": [],
     "a default reads state not yet declared": ["contract_level"],
     "a bare zone family": [],
-    "a call-site pronoun in a procedure": ["across"],
+    "a call-site pronoun in a procedure": [],
     "a write target spelled near a zone": [],
     "a `to each` destination": ["hand"],
     "a `to each` destination spelled near a team's family": [],
     "a default names a seat's family bare": [],
-    "a default reads a pronoun": ["across", "action"],
+    "a default reads a pronoun": [],
     "a `to each` destination spelled near a binder": ["hand"],
     "a trick winner beside a Trick Order and an `early` clause": [],
     "a trick winner in a piece game": [],
+    "an answer reads a pronoun": [],
+    "an answer reaches a pronoun through a function": [],
+    "an answer reads a phase's state": [],
+    "an answer reads a zone not public": [],
+    "an answer reads a seat's family bare": [],
+    "a function a rule reaches reads `hand`": [],
+    "a function a rule reaches reads the round's source family": [],
+    "an Arrival Record pile names no zone": ["trick_pile"],
+    "an Arrival Record pile names a zone not public": [],
+    "a Hosted Poll reads `state`": ["seat", "last_seat"],
+    "a Hosted Poll reaches `state` through a function": [],
+    "two names for the acting player compared": [],
+    "a decision reads a zone its seat cannot see": [],
+    "`actor` where no player acts": [],
+    "a seat's family bare where no player acts": [],
+    "a Positive argument": [],
+    "two slips at once": [],
+    "a hidden read beside a second slip": [],
 }
 
 
@@ -317,7 +450,7 @@ def _offer(key: str) -> list[str]:
     return _offers(hits[0])
 
 
-@pytest.mark.parametrize("key", sorted(OFFERED))
+@pytest.mark.parametrize("key", [_cell(key, {**RESIDUAL, **UNJUDGED}) for key in sorted(OFFERED)])
 def test_a_position_probe_is_offered_only_what_resolves_there(key: str) -> None:
     assert _offer(key) == OFFERED[key]
 
@@ -341,11 +474,14 @@ POSITIONAL_GUARDS: dict[str, str] = {
     # The zone slots and write targets (`_bad_zone_endpoint`,
     # `_bad_write_target`), and the `to each` destination.
     "_validate_refs": "joined",
-    # Residual: the guard judges a position the record does not hold yet.
-    "_check_answer_hermeticity": "residual (issue #1089)",
-    "_check_play_source": "residual (issue #1089)",
-    "_check_arrival_record_pile_args": "residual (issue #1089)",
-    "_check_hosted_node": "residual (issue #1089)",
+    # A kernel answer's reach, a function a rule reaches, an Arrival Record
+    # pile, and a Hosted Poll's closure (`cardlang/resolve/reaches.py`).
+    "_check_answer_hermeticity": "joined",
+    "_check_play_source": "joined",
+    "_check_arrival_record_pile_args": "joined",
+    "_check_hosted_node": "joined",
+    # Residual: the guard judges a position by walk state (the alias set, a
+    # `let`, the deciding seat) the tree's shape does not hold.
     "_check_alias_operands": "residual (issue #1089)",
     "_HiddenReads": "residual (issue #1089)",
     # Not a positional guard: it classifies, and refuses a name that
