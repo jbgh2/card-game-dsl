@@ -112,7 +112,12 @@ from cardlang.resolve.walk import _traverse, _walk
 from cardlang.resolve.binders import _introduced_binders
 from cardlang.resolve.reserved import _PARAM_BEARING
 from cardlang.resolve.slots import _round_query_slot
-from cardlang.resolve.declared import _deck_known, _stamped_stdlib_rules, _written_state_name
+from cardlang.resolve.declared import (
+    _deck_known,
+    _stamped_stdlib_rules,
+    _written_state_name,
+    _written_state_span,
+)
 from cardlang.resolve.clause_gates import (
     _ANSWER_IS_TRUMP,
     _CLAUSE_GATES,
@@ -916,7 +921,7 @@ def _check_provided_readonly(
             "may write it. Keep a state variable of the game's own for what the "
             "game must change, or have " + owner + " expose a procedure that makes "
             "the change",
-            getattr(node, "span", None),
+            _written_state_span(node),
             code=Code.NOT_WRITABLE,
         )
 

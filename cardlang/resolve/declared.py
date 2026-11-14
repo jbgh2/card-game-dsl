@@ -64,6 +64,18 @@ def _written_state_name(node: object) -> str | None:
     return None
 
 
+def _written_state_span(node: object) -> Span | None:
+    """Where this node names the state it writes: the name's own span where
+    the tree holds a name, else the node's."""
+    for cls, field_name in _STATE_WRITE_SITES:
+        if isinstance(node, cls):
+            written = getattr(node, field_name)
+            if isinstance(written, n.NameRef):
+                return written.span
+    span = getattr(node, "span", None)
+    return span if isinstance(span, Span) else None
+
+
 def _declared_board(game: n.Game) -> BoardEntry | None:
     """The entry the game's `board:` clause builds, or None for a boardless
     game or a `board:` the registry refuses (that refusal is the clause's own,

@@ -37,24 +37,25 @@ from cardlang.diagnostics import Author, DiagnosticBag, listed
 from cardlang.expand import expand
 from cardlang.extract import extract_single_block
 from cardlang.ir import IRValue, emit
-from cardlang.parse import parse_block, parse_text
+from cardlang.parse import SourceText, parse_block, parse_text
 from cardlang.resolve import resolve
 from cardlang.typecheck import typecheck
 
 
 @cache
-def _check(game: Game) -> Game:
-    """Run the post-parse stages (resolve -> typecheck -> expand -> deck capacity).
+def _check(game: Game, source: SourceText | None = None) -> Game:
+    """Run the post-parse stages (resolve -> typecheck -> expand -> deck capacity)
+    on `game`, parsed from `source` where a text stands behind it.
 
-    Memoized on the parsed tree, which composes with `parse_text`'s own memo:
-    the same source text yields the same `Game` object, so a repeat check is a
+    Memoized on the parsed tree and its text, which composes with `parse_text`'s
+    own memo: the same source text yields the same `Game` object, so a repeat check is a
     dict lookup. Sound for the same reason the parse memo is — the AST is
     frozen and each stage rebinds a new tree (cardlang/parse.py, Contract) —
     and hashing a `Game` costs two orders of magnitude less than re-running
     the stages. Note this deliberately does NOT make the stages idempotent:
     `resolve` still may not be applied to its own output (metamorphic-suite.md),
     and the memo never does so, since it is keyed on the PRE-check tree."""
-    game = resolve(game)
+    game = resolve(game, source=source)
     game = typecheck(game)
     game = expand(game)
     game = check_capacity(game)
@@ -63,7 +64,7 @@ def _check(game: Game) -> Game:
 
 def check_dsl(text: str, source_name: str) -> Game:
     """Check raw DSL text (a `.cardlang` source): parse -> resolve -> typecheck."""
-    return _check(parse_text(text, source_name))
+    return _check(parse_text(text, source_name), SourceText(source_name, text))
 
 
 def check_markdown(markdown: str, source_name: str) -> Game:
@@ -86,7 +87,7 @@ def check_markdown(markdown: str, source_name: str) -> Game:
             f"or rename the file {renamed}"
         )
     block = extract_single_block(markdown, source_name, unfenced=unfenced)
-    return _check(parse_block(block))
+    return _check(parse_block(block), SourceText(block.source_name, block.text))
 
 
 # The game file shapes the checker reads, keyed by the extension that names

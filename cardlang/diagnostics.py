@@ -18,7 +18,11 @@ Establishes:  `resemblance` is the one measure of how alike two spellings
               a spelling absent from a set it holds, and the refusal carries
               that set's Near Misses as data (`Diagnostic.near_misses`), as a
               parse refusal of a misspelled keyword carries the keywords the
-              grammar accepts in its place (`cardlang.parse`);
+              grammar accepts in its place (`cardlang.parse`); keywords handed
+              to it rank among the set's in that one ranking, a declared name
+              before a keyword it ties with, and a refusal whose first Near
+              Miss is a keyword the set does not hold is told as a misspelled
+              keyword, the call site's code standing otherwise;
               `Diagnostic.format` is the one place the `did you mean` clause
               is worded. Every diagnostic carries its Diagnostic Code
               (`cardlang.diagnostic_codes.Code`), which `format` never shows;
@@ -29,7 +33,9 @@ Establishes:  `resemblance` is the one measure of how alike two spellings
               refused spelling's consequences leave untold: a refusal that
               marks what clears it (`Unless`) is withheld when one assignment
               of fixes, a member of each cause's set (`Refused`), clears every
-              marked refusal those causes reach, and told otherwise; a refusal
+              marked refusal those causes reach, and told otherwise (a cause's
+              set is the names it was looked up among, never a keyword offered
+              beside them); a refusal
               no member of a cause's set clears is told, and so is every cause
               no other cause clears. A refusal is withheld only through a
               cause that is told, so a check never passes while one is
@@ -199,14 +205,21 @@ def resemblance(typed: str, declared: str) -> float:
     return SequenceMatcher(None, typed.casefold(), declared.casefold()).ratio()
 
 
-def near_misses(spelled: str, among: Iterable[str]) -> tuple[str, ...]:
-    """The declared names in `among` that `spelled` nearly spells: at most
-    `NEAR_MISS_LIMIT`, most alike first and alphabetical among equals, each
+def near_misses(
+    spelled: str, among: Iterable[str], keywords: Iterable[str] = ()
+) -> tuple[str, ...]:
+    """The declared names in `among`, and the `keywords` of the language,
+    that `spelled` nearly spells: at most `NEAR_MISS_LIMIT`, most alike
+    first, a declared name before a keyword it ties with (a name the
+    designer declared is the nearer guess), alphabetical among equals, each
     at least `NEAR_MISS_CUTOFF` alike, and never `spelled` itself."""
+    declared = set(among)
     scored = sorted(
-        (-resemblance(spelled, name), name) for name in set(among) if name != spelled
+        (-resemblance(spelled, name), name not in declared, name)
+        for name in declared | set(keywords)
+        if name != spelled
     )
-    return tuple(name for score, name in scored if -score >= NEAR_MISS_CUTOFF)[:NEAR_MISS_LIMIT]
+    return tuple(name for score, _kw, name in scored if -score >= NEAR_MISS_CUTOFF)[:NEAR_MISS_LIMIT]
 
 
 def listed(words: Sequence[str], conjunction: str = "or") -> str:
@@ -472,6 +485,7 @@ class DiagnosticBag:
         slot: Slot | None = None,
         fixes: Iterable[str] | None = None,
         unless: Unless | tuple[Unless, ...] = (),
+        keywords: Iterable[str] = (),
     ) -> None:
         """Refuse `spelled`, absent from `among`, the set it was looked up in:
         `error`, with the set's Near Misses carried as data, each as `written`
@@ -479,7 +493,11 @@ class DiagnosticBag:
         position is written quoted). `slot` is where `spelled` stands, and
         marks the refusal a cause whose fixes are `fixes`, the members of
         `among` that may stand there, `among` itself where the check names
-        none; `unless` is as for `error`."""
+        none; `unless` is as for `error`. `keywords` are the keywords the
+        grammar accepts where `spelled` stands that it nearly spells, ranked
+        with the set's by `near_misses`; where one the set does not also hold
+        ranks first, the refusal is told as a misspelled keyword. A keyword
+        is offered only: it never joins the cause's fixes."""
         among = frozenset(among)
         self.error(
             message,
@@ -491,10 +509,12 @@ class DiagnosticBag:
             refuses=None if slot is None else Refused(slot, among if fixes is None else frozenset(fixes)),
             unless=unless,
         )
-        near = near_misses(spelled, among)
+        offered = frozenset(keywords) - among
+        near = near_misses(spelled, among, offered)
         if written is not None:
-            near = tuple(written(name) for name in near)
-        self.items[-1] = replace(self.items[-1], near_misses=near)
+            near = tuple(name if name in offered else written(name) for name in near)
+        told = Code.MISSPELLED_KEYWORD if near[:1] and near[0] in offered else code
+        self.items[-1] = replace(self.items[-1], near_misses=near, code=told)
 
     def settle(self) -> None:
         """Withhold the refusals a refused spelling's fix would clear, and

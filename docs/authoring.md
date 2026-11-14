@@ -521,7 +521,7 @@ $ cardlang query hearts.cardlang --at 65:9
 hearts.cardlang:65:9: a movement: move chosen 3 cards
 names in scope:
   bound here (a parameter, a `let`, or the binder of a query, a quantifier or a loop): player
-  State Variable: cumulative_score, leader, pass_direction
+  State Variable: cumulative_score, pass_direction
   ...
 the checker's Type: none here -- a movement (`move chosen 3 cards`) is not an expression and the checker gives it no Type; point at an expression inside it
 what each seat sees (static, from the zone types; which cards, and which seat holds a zone, are settled when the game is played):

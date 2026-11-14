@@ -5,8 +5,8 @@ A shared module: the steps read it, and it imports no step.
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 Establishes:  for each positional Owner Guard that judges a name by what
-              reaches it, the one producer the guard iterates and
-              ``_name_positions`` records, and the one predicate the guard
+              reaches it, the one producer the guard iterates and the
+              position record records, and the one predicate the guard
               refuses by and the Near Miss filter reads: a Kernel Definition
               Contract's answer and the functions it reaches
               (``_answer_reaches``, ``_answer_read_refusal``), a function a
@@ -15,7 +15,12 @@ Establishes:  for each positional Owner Guard that judges a name by what
               (``_arrival_piles``, ``_arrival_pile_refusal``), and a Hosted
               Poll's body and what it reaches (``_hosted_units``,
               ``_hosted_read_refused``). Each producer reads the tree's shape
-              and declarations alone, never a name's classification.
+              and declarations alone, never a name's classification. The
+              answer's, the rule-reached function's and the Hosted Poll's
+              rules judge a name wherever it stands, so ``_scope_facts``
+              records them at every node their walk visits; the pile's rule
+              judges one argument slot, so ``_name_positions`` records it at
+              the pile's name.
 """
 
 from __future__ import annotations
@@ -107,7 +112,7 @@ class _AnswerReach:
 def _answer_reaches(game: n.Game) -> Iterator[_AnswerReach]:
     """Every answer the game writes to a Kernel Definition Contract, with its
     reach: the one walk `_check_answer_hermeticity` refuses by and
-    `_name_positions` records."""
+    `_scope_facts` records."""
     answers = list(K.answers(game))
     answer_names = {a.name for a in answers}
     fns = {f.name: f for f in game.functions if f.name not in answer_names}
@@ -181,17 +186,17 @@ Reached = dict[tuple[str, str], tuple[object, tuple[str, str] | None]]
 
 def _rule_function_reads(
     game: n.Game,
-) -> Iterator[tuple[n.RuleDef, str, n.FunctionDef, Reached, tuple[n.NameRef, ...]]]:
+) -> Iterator[tuple[n.RuleDef, str, n.FunctionDef, Reached, tuple[object, ...]]]:
     """Each rule, each function its clauses reach (in name order), the closure
-    that reached it, and the bare names the function's body holds: the one
-    walk `_check_play_source` refuses by and `_name_positions` records."""
+    that reached it, and every node the function's body holds: the one walk
+    `_check_play_source` refuses by, at the bare names among them, and
+    `_scope_facts` records at every one."""
     functions: dict[str, object] = {f.name: f for f in game.functions}
     for rule in game.rules:
         reached = _definition_closure(list(_rule_clauses(rule)), {"function": functions})
         for (_ns, fname), (fn, _via) in sorted(reached.items(), key=lambda kv: kv[0]):
             assert isinstance(fn, n.FunctionDef)
-            names = tuple(nd for nd in _walk(fn.body) if isinstance(nd, n.NameRef))
-            yield rule, fname, fn, reached, names
+            yield rule, fname, fn, reached, tuple(_walk(fn.body))
 
 
 def _play_source_refused(
@@ -267,7 +272,7 @@ HostedUnit = tuple[object, tuple[str, str] | None, str | None, object]
 def _hosted_units(game: n.Game) -> Iterator[tuple[n.HostedPoll, Reached, tuple[HostedUnit, ...]]]:
     """Every Hosted Poll, the definitions its body reaches by name
     (`HOSTED_REACH_POOLS`), and the units its closure is judged over: the
-    one walk `_check_hosted_polls` refuses by and `_name_positions` records."""
+    one walk `_check_hosted_polls` refuses by and `_scope_facts` records."""
     pools: dict[str, dict[str, object]] = {
         ns: {d.name: d for d in getattr(game, field)} for ns, field in HOSTED_REACH_POOLS.items()
     }

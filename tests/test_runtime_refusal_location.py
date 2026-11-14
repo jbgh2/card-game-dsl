@@ -387,9 +387,9 @@ _REFUSALS: frozenset[str] = frozenset(
 
 # Unwinding, not failing: `produce`, `continue to`, `skip to next hand`, a
 # chooser suspending a steppable playout, a person at the table taking a
-# pick back or leaving, and a proposed Constructed World leaving the
-# observer's information set. Locating one would be locating an ordinary
-# control transfer.
+# pick back or leaving, a proposed Constructed World leaving the
+# observer's information set, and a misspelled-keyword search whose parses
+# are spent. Locating one would be locating an ordinary control transfer.
 _SIGNALS: frozenset[str] = frozenset(
     {
         "_ProduceSignal",
@@ -400,6 +400,7 @@ _SIGNALS: frozenset[str] = frozenset(
         "TakeBack",
         "Leave",
         "_Rejected",
+        "_Spent",
     }
 )
 

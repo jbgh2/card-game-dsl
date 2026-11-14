@@ -1,0 +1,1 @@
+rotate_target_not_writable.cardlang:15:12: error: cannot rotate 'deck': it is a zone, and only a declared state variable can be written. A binder is a bound value, not a variable — and if a state variable of the same name exists, the two would not agree anyway (a read here means the binder; a write always goes to state)

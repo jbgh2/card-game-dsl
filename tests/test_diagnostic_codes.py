@@ -92,7 +92,8 @@ from typing import NoReturn
 import pytest
 
 import cardlang.resolve as resolve
-from cardlang import cli, libraries, pipeline
+from cardlang import cli, libraries, pipeline, query
+from cardlang.ast.nodes import Game, NodeKey
 from cardlang.diagnostic_codes import Code
 from cardlang.diagnostics import Diagnostic, DiagnosticBag, DiagnosticError
 from cardlang.parse import parse_library
@@ -108,6 +109,8 @@ from cardlang.runtime.errors import (
 from cardlang.runtime.state import IllegalMove
 from cardlang.stdlib.boards import BoardMisuse, BoardRefusal, board_entry
 from cardlang.stdlib.rules import STDLIB_NAME, STDLIB_SOURCE_NAME, load_stdlib
+from cardlang.typecheck import typecheck
+from cardlang.types import Type
 from tests.test_playout_records import _renamed_tichu
 from tests.test_rejections import REJECTIONS_DIR, case_paths
 from tools import glossary_index
@@ -350,6 +353,25 @@ def _query(game: str, at: str) -> Tells:
             if "refused" in answer:
                 records.append(answer["refused"])
         return frozenset(next(c for c in Code if c.slug == r["code"]) for r in records)
+
+    return tells
+
+
+def _query_untyped(game: str, at: str) -> Tells:
+    """A Checker Query whose Type Record lacks the expression asked about. The
+    type checker types every expression it reads, so no clean run of a file
+    on disk reaches it; this is what the query says if a check ever reads one
+    untyped."""
+
+    def tells(mp: pytest.MonkeyPatch, tmp: Path) -> frozenset[Code]:
+        def forgetting(game_tree: Game, *, types: dict[NodeKey, list[Type]] | None = None) -> Game:
+            checked = typecheck(game_tree, types=types)
+            if types is not None:
+                types.clear()
+            return checked
+
+        mp.setattr(query, "typecheck", forgetting)
+        return _query(game, at)(mp, tmp)
 
     return tells
 
@@ -629,7 +651,7 @@ WITNESSES: dict[Code, Tells] = {
     Code.POSITION_OUTSIDE_THE_FILE: _query("hearts.cardlang", "999:1"),
     Code.POSITION_OUTSIDE_THE_GAME: _query("hearts.cardlang", "1:1"),
     Code.NOT_AN_EXPRESSION: _query("hearts.cardlang", "90:9"),
-    Code.EXPRESSION_NOT_TYPED: _query("hearts.cardlang", "86:7"),
+    Code.EXPRESSION_NOT_TYPED: _query_untyped("hearts.cardlang", "86:7"),
     Code.NOTHING_SEEN_HERE: _query("hearts.cardlang", "86:14"),
     Code.SEEN_AT_ITS_SITES: _query("coup.cardlang", "236:11"),
 }
