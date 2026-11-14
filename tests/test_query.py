@@ -654,11 +654,11 @@ def test_a_registration_refusal_is_a_record_and_exits_2(monkeypatch: pytest.Monk
 
 
 @pytest.mark.parametrize("where", ["the check", "the query's own run of the passes"])
-def test_an_engine_failure_prints_its_envelope_and_keeps_its_traceback(
-    where: str, monkeypatch: pytest.MonkeyPatch
+def test_an_engine_failure_prints_its_envelope_and_exits_3(
+    where: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """As `check --json` records one (issue #1104), in either of the two runs
-    of the passes a query makes."""
+    """As `check --json` records one, in either of the two runs of the passes
+    a query makes: the engine's record, its traceback on stderr, exit 3."""
 
     def crashed(*_args: object) -> None:
         raise AssertionError("an engine invariant")
@@ -667,15 +667,16 @@ def test_an_engine_failure_prints_its_envelope_and_keeps_its_traceback(
         monkeypatch.setattr(cli, "check_source", crashed)
     else:
         monkeypatch.setattr(query, "ask_path", crashed)
-    out = io.StringIO()
-    with contextlib.redirect_stdout(out), pytest.raises(AssertionError):
-        cli.main(["query", str(HEARTS), "--at", "90:9", "--json"])
-    document = json.loads(out.getvalue())
+    code = cli.main(["query", str(HEARTS), "--at", "90:9", "--json"])
+    out, err = capsys.readouterr()
+    document = json.loads(out)
     assert read_envelope(document) is Kind.QUERY and document["answer"] is None
     (record,) = document["diagnostics"]
     assert (record["code"], record["author"], record["message"]) == (
         "engine-gap", "engine", "an engine invariant"
     )
+    assert code == 3
+    assert "Traceback (most recent call last)" in err
 
 
 def test_a_query_envelope_of_another_shape_is_refused() -> None:

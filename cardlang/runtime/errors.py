@@ -37,7 +37,11 @@ act, and the trees it spans answer different questions — a catch site asking
 What is deliberately NOT in this tree
 -------------------------------------
 `PrimitiveReadError` (runtime/reads.py) addresses the primitive-module author,
-not the game author, so it stays outside and roots at `RuntimeError`. That
+not the game author, so it stays outside and roots at `RuntimeError`. Its one
+kind that the game author can act on, `PrimitiveNameMissing` -- a name the
+module reads that the game no longer declares -- is told to the game by
+`cardlang.records.refusal_diagnostic`, and is still no `GameDescriptionError`:
+the file checks clean, so no harness should read it as an illegal game. That
 disjointness is exactly why `GameDescriptionError` roots at `Exception` rather
 than `RuntimeError`: rooting at `RuntimeError` would silently make every
 `PrimitiveReadError` a `GameDescriptionError`, which is false about its

@@ -409,8 +409,9 @@ _SIGNALS: frozenset[str] = frozenset(
 # whoever supplied a recorded history, whoever named the file a session saves
 # to, whoever edited the grammar, the engine maintainer when no Constructed
 # World can be built or a Paused Run stalls, whoever typed the command line,
-# whoever produced a Record Envelope a reader refuses, and the compile
-# channel, which already carries its own span.
+# whoever produced a Record Envelope a reader refuses, whoever set up a stream
+# the command line cannot write to, and the compile half of the Failure
+# Channel, which already carries its own span.
 _ADDRESSED_ELSEWHERE: frozenset[str] = frozenset(
     {
         "PrimitiveReadError",
@@ -424,8 +425,14 @@ _ADDRESSED_ELSEWHERE: frozenset[str] = frozenset(
         "PausedRunStalled",
         "UnreadableEnvelope",
         "_Refused",
+        "_StreamFailed",
     }
 )
+
+# Addressed to the game author, and raised by a Primitive module rather than a
+# game sentence: the name it reads stands nowhere in the game, so no line of
+# the game refused.
+_UNLOCATED_REFUSALS: frozenset[str] = frozenset({"PrimitiveNameMissing"})
 
 # The carrier the stamp writes through. Not itself raised.
 _CARRIERS: frozenset[str] = frozenset({"Located"})
@@ -438,7 +445,7 @@ def test_every_engine_exception_is_classified_for_location() -> None:
     red under: drop `"ChooserAbort"` from `_SIGNALS`."""
     from cardlang.runtime.errors import Located
 
-    classified = _REFUSALS | _SIGNALS | _ADDRESSED_ELSEWHERE
+    classified = _REFUSALS | _SIGNALS | _ADDRESSED_ELSEWHERE | _UNLOCATED_REFUSALS
     assert classified == set(engine_exception_classes())
     # The carrier does not appear above, and that is the design: an exception
     # by that name would put one catchable relation over two trees whose

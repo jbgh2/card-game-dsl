@@ -34,7 +34,7 @@ from __future__ import annotations
 import json
 import pickle
 from pathlib import Path
-from typing import get_args
+from typing import cast, get_args
 
 import pytest
 
@@ -53,7 +53,6 @@ from cardlang.records import (
     read_envelope,
     refusal_diagnostic,
 )
-from cardlang.runtime.state import IllegalMove
 from cardlang.stdlib.boards import BoardMisuse, BoardRefusal
 from tests.test_rejections import REJECTIONS_DIR, case_paths
 from tests.test_runtime_refusal_location import engine_exception_classes
@@ -207,6 +206,7 @@ EXPECTED: dict[str, tuple[Code, Author]] = {
     "IllegalMove": (Code.GAME_ERROR_RAISED, Author.GAME),
     "InstallationError": (Code.INCOMPLETE_INSTALLATION, Author.INSTALLATION),
     "GameRegistrationError": (Code.UNREGISTRABLE_GAME, Author.REGISTRATION),
+    "PrimitiveNameMissing": (Code.PRIMITIVE_READS_A_NAME_THE_GAME_LACKS, Author.GAME),
 }
 
 
@@ -216,10 +216,12 @@ def _refusal(cls: type[BaseException]) -> RuntimeRefusal:
         exc = cls("the leaked guard", "a sentence")
     elif cls is BoardRefusal:
         exc = cls(BoardMisuse.NO_LINES, "a sentence")
+    elif cls.__name__ == "PrimitiveNameMissing":
+        exc = cls("state variable", "wish", "cardlang/runtime/tichu.py")
     else:
         exc = cls("a sentence")
-    assert isinstance(exc, (errors.GameDescriptionError, IllegalMove, errors.InstallationError, errors.GameRegistrationError))
-    return exc
+    assert isinstance(exc, RUNTIME_REFUSALS)
+    return cast(RuntimeRefusal, exc)
 
 
 @pytest.mark.parametrize(

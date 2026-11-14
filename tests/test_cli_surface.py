@@ -77,17 +77,15 @@ registry:        commands and options: `cardlang.cli.build_parser` via
                  diagnostic rendering shared with the checker:
                  tests/test_rejections.py; the runtime failure hierarchy this
                  module renders: tests/test_failure_taxonomy.py; the file-shape
-                 dispatch: tests/test_command_line_slips.py; the append-only
+                 dispatch: tests/test_command_line_slips.py; an option
+                 written by a prefix of its name:
+                 tests/test_command_line_slips.py::test_no_command_takes_an_option_by_a_prefix;
+                 the append-only
                  observation log a mid-hand view is projected from:
                  tests/openspiel_ready/harness.py; the text `--view` prints,
                  `cardlang.play.view.render_view`, certified by
                  tests/test_play_view.py.
-does not prove:  Only the exact long spelling of each option. The parser is
-                 built without `allow_abbrev=False`, so every unambiguous
-                 prefix (`--info`, `--se`) reaches the same destination and no
-                 cell here crosses one; that axis is open and unmeasured
-                 (issue #624).
-                 A green here says nothing about whether a playout's REPORTED
+does not prove:  A green here says nothing about whether a playout's REPORTED
                  outcome is the right one — the returns and the decision count
                  are read back from the driver's and the adapter's own
                  derivations, and their correctness is those suites' claim,
@@ -141,6 +139,7 @@ from cardlang.openspiel.infostate import (
 )
 from cardlang.openspiel.replay import returns_for
 from cardlang.pipeline import check_source, game_identity
+from cardlang.records import read_envelope
 from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
@@ -302,7 +301,7 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("check", "--resume"): "refused",
     ("check", "--vs"): "refused",
     ("demo", "--emit-ir"): "refused",
-    ("demo", "--json"): "refused",
+    ("demo", "--json"): "accepted",
     ("demo", "--seed"): "accepted",
     ("demo", "--info-state"): "accepted",
     ("demo", "--at"): "accepted",
@@ -313,7 +312,7 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("demo", "--resume"): "refused",
     ("demo", "--vs"): "refused",
     ("play", "--emit-ir"): "refused",
-    ("play", "--json"): "refused",
+    ("play", "--json"): "accepted",
     ("play", "--seed"): "accepted",
     ("play", "--info-state"): "refused",
     ("play", "--at"): "refused",
@@ -373,6 +372,22 @@ _COMBINATION_EXPECTED: dict[tuple[str, ...], str] = {
     ("--decisions", "--info-state", "--seed", "--view"): "accepted",
     ("--at", "--decisions", "--info-state", "--seed", "--view"): "accepted",
 }
+# `--json` moves where each outcome is told, never which it is.
+_COMBINATION_EXPECTED |= {
+    tuple(sorted(("--json", *subset))): expected for subset, expected in _COMBINATION_EXPECTED.items()
+}
+
+
+def _told(out: str, err: str, subset: tuple[str, ...]) -> tuple[str, str]:
+    """What a run tells as refusals, and what it prints as its transcript: in
+    text, stderr and stdout; under `--json`, the envelope's messages and
+    stderr, stdout holding the envelope alone."""
+    if "--json" not in subset:
+        return err, out
+    document = json.loads(out)
+    read_envelope(document)
+    lines = [line for r in document["diagnostics"] for line in (r["message"], *(n["message"] for n in r["notes"]))]
+    return "\n".join(lines), err
 
 
 def test_every_cell_is_authored() -> None:
@@ -488,7 +503,8 @@ def test_play_option_combination_cell(
         assert main(argv) == 0
         return
     assert main(argv) == 2
-    err = capsys.readouterr().err
+    out, err = capsys.readouterr()
+    err, _transcript = _told(out, err, subset)
     assert "--at" in err, "the refusal must name the option that needs a companion"
     assert "--info-state" in err and "--view" in err, "the refusal must name what to add"
 
@@ -523,7 +539,7 @@ def test_a_refusing_game_under_every_option_combination(
     for option in subset:
         argv += [option, *_SAMPLE_VALUE[option]]
     code = main(argv)
-    out, err = capsys.readouterr()
+    err, out = _told(*capsys.readouterr(), subset)
     assert out == "", "a refused playout prints no part of a completed one"
     if _COMBINATION_EXPECTED[subset] == "accepted":
         assert code == 1, "the game is where to look, which is the exit code's arm"
