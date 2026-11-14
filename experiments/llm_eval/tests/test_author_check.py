@@ -184,7 +184,7 @@ def test_the_same_refusal_is_keyed_on_its_code_once_it_has_one() -> None:
 
 def test_the_json_form_waits_on_its_issue() -> None:
     assert "json" in CHECK_FORMS
-    with pytest.raises(NotImplementedError, match="#1046"):
+    with pytest.raises(NotImplementedError, match="#1136"):
         read_check(0, "{}", "", form="json")
     with pytest.raises(ValueError, match="unknown checker form"):
         read_check(0, "", "", form="xml")
