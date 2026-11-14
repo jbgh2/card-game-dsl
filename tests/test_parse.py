@@ -10,12 +10,13 @@ from __future__ import annotations
 import ast as pyast
 import dataclasses
 import pathlib
+from collections.abc import Iterator
 
 import pytest
 
 from cardlang import parse
-from cardlang.ast.nodes import Game, PlayersSpec, TypeArg, TypeRef, ZoneDecl
-from cardlang.diagnostics import DiagnosticError
+from cardlang.ast.nodes import FunctionDef, Game, NameRef, PlayersSpec, TypeArg, TypeRef, ZoneDecl
+from cardlang.diagnostics import DiagnosticError, Span
 from cardlang.parse import _parse_text_cached, parse_text
 from cardlang.pipeline import _check
 
@@ -375,3 +376,69 @@ def test_a_hint_keyword_that_is_not_a_clause_fires_nothing(where: str) -> None:
         f"a `transition_to` {where} is not a clause, and its hint fired: "
         f"{message}"
     )
+
+
+_DOCS = pathlib.Path(__file__).parent.parent / "docs"
+_SOURCES = sorted((_DOCS / "games").glob("*.cardlang")) + sorted((_DOCS / "libraries").glob("*.cardlang"))
+
+
+def _names_off_their_spelling(node: object, text: str) -> Iterator[str]:
+    """Every `NameRef` under `node` whose span is not its own spelling, at
+    the line and column that spelling starts on. A definition the builder
+    lowers from a `card_points { }` table (`spelled_as`) is not walked: its
+    nodes share their row's span, the `card` the lowering writes and the rank
+    key the designer wrote alike."""
+    if not dataclasses.is_dataclass(node) or isinstance(node, Span):
+        return
+    if isinstance(node, FunctionDef) and node.spelled_as is not None:
+        return
+    span = getattr(node, "span", None)
+    if isinstance(node, NameRef) and isinstance(span, Span):
+        line = text.count("\n", 0, span.start) + 1
+        column = span.start - (text.rfind("\n", 0, span.start) + 1) + 1
+        if text[span.start : span.end] != node.name or (span.line, span.column) != (line, column):
+            yield f"{span.line}:{span.column} {node.name!r} spans {text[span.start : span.end][:30]!r}"
+    for f in dataclasses.fields(node):
+        value = getattr(node, f.name)
+        for child in value if isinstance(value, tuple) else (value,):
+            yield from _names_off_their_spelling(child, text)
+
+
+@pytest.mark.parametrize("path", _SOURCES, ids=lambda p: p.name)
+def test_every_name_spans_its_own_spelling(path: pathlib.Path) -> None:
+    """A name's span is the text of its name, an assignment's target, a
+    `rotate`'s target and a subscripted zone in a movement included, so a
+    refusal of the name, and anything locating it, points at the name.
+    red under: build `assign_stmt`'s target `NameRef` with the statement's
+    `meta`.
+
+    property:        every `NameRef` the parse builder makes spans its own
+                     spelling, at the line and column the spelling starts on.
+    domain:          every `NameRef` of every corpus game and family library
+                     (`docs/games/*.cardlang`, `docs/libraries/*.cardlang`).
+    held by:         Pinned, here; the builder makes a name from its token in
+                     one place (`_Builder._name`) for the three slots that
+                     carried a wider span.
+    does not prove:  that a name the tree stores as a string spans its own
+                     spelling: a round's `source` and `into`, its winner
+                     function and move type, the role of `for each <role>`
+                     and of `each <role> simultaneously`, an offer's options,
+                     `transition_to:`, `legal_moves:`, `winner:`,
+                     `constrains:` and a `card_points { }` rank key carry no
+                     span of their own, and a refusal of one stands at its
+                     whole statement or clause (issue #1124). Nor that a name
+                     a definition lowered from a `card_points { }` table
+                     holds does: those share their row's span."""
+    text = path.read_text()
+    tree = parse.parse_library(text, str(path)) if path.parent.name == "libraries" else parse_text(text, str(path))
+    wrong = list(_names_off_their_spelling(tree, text))
+    assert not wrong, "\n".join(wrong[:5])
+
+
+def test_a_name_s_span_counts_the_line_offset() -> None:
+    """The name's own span, as every span, numbers the file's lines.
+    red under: drop `self._line_offset` from `_Builder._name`."""
+    text = "game G {\n  players: 2\n  max_length: 10\n  cards: standard52\n  zones { deck : Deck }\n  state { s : Integer = 0 }\n  phase p {\n    s := 1\n  }\n  winner: highest s\n}\n"
+    plain, offset = parse_text(text, "a.cardlang"), parse_text(text, "b.cardlang", line_offset=3)
+    (stmt,), (shifted,) = plain.phases[0].items, offset.phases[0].items
+    assert stmt.target.span.line == 8 and shifted.target.span.line == 11  # type: ignore[union-attr]

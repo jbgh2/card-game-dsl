@@ -48,7 +48,8 @@ library's loader).
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 Assumes:      a parsed AST (spans present, ``NameRef.ref_kind`` still
-              ``None``).
+              ``None``), and, where the caller holds it, the text it was
+              parsed from (``source``, a ``cardlang.parse.SourceText``).
 Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               rule templates are instantiated into concrete rules; every
               structural reference names a real declaration. This is the
@@ -56,7 +57,14 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               ``ref_kind``, never re-derives it.
               No check here decides which file a refusal of library text is
               told in: every refusal stands where the text it refuses stands,
-              and ``attribution.raise_if_errors`` tells it.
+              and ``attribution.raise_if_errors`` tells it. Nor does a check
+              withhold a refusal because another refusal exists: a refused
+              spelling marks the slot it stands in (``Refused``), a check
+              refusing on a fact read from a slot as written marks what clears
+              it (``Unless``), and ``DiagnosticBag.settle`` decides, at each
+              raise, which are told: a withheld refusal is told on the check
+              after its cause is fixed, and a check never passes while one is
+              withheld.
               A refusal of spliced library text that a game declaration its
               contract does not name decides -- a ``Card`` parameter's
               ``CARD_PARAMETER_FAMILY`` absent, not kept per player, or
@@ -100,6 +108,7 @@ from __future__ import annotations
 from cardlang.ast import nodes as n
 from cardlang.attribution import raise_if_errors
 from cardlang.diagnostics import DiagnosticBag
+from cardlang.parse import SourceText
 from cardlang.resolve import (
     classification,
     classified_checks,
@@ -244,6 +253,7 @@ from cardlang.resolve.rule_instantiation import (
 from cardlang.resolve.classification import (
     _classify_names as _classify_names,
     _name_positions as _name_positions,
+    _scope_facts as _scope_facts,
     _stamp_follows_reads as _stamp_follows_reads,
 )
 from cardlang.resolve.references import (
@@ -455,6 +465,7 @@ from cardlang.resolve.declared import (
     _tell_board_refusal as _tell_board_refusal,
     _unminted_direction as _unminted_direction,
     _written_state_name as _written_state_name,
+    _written_state_span as _written_state_span,
 )
 from cardlang.resolve.scope import (
     _DEFAULT_REFUSED_PRONOUNS as _DEFAULT_REFUSED_PRONOUNS,
@@ -467,9 +478,11 @@ from cardlang.resolve.scope import (
     _game_state_names as _game_state_names,
     _keyed_ids as _keyed_ids,
     _phase_scoped_names as _phase_scoped_names,
+    _phase_scoped_nodes as _phase_scoped_nodes,
     _phase_state_names as _phase_state_names,
     _pronoun_refused as _pronoun_refused,
     _refused_call_site_pronouns as _refused_call_site_pronouns,
+    _state_declarations as _state_declarations,
     _state_out_of_scope as _state_out_of_scope,
 )
 from cardlang.resolve.reaches import (
@@ -573,6 +586,7 @@ from cardlang.resolve.classifier import (
     _AlwaysSite as _AlwaysSite,
     _Categories as _Categories,
     _NamePosition as _NamePosition,
+    _ScopeFacts as _ScopeFacts,
     _always_message as _always_message,
     _callback_outside_slot as _callback_outside_slot,
     _categories as _categories,
@@ -586,6 +600,7 @@ from cardlang.resolve.classifier import (
     _position_refuses as _position_refuses,
     _query_nouns as _query_nouns,
     _record_scope as _record_scope,
+    _scope_refuses as _scope_refuses,
     _refuse_bare_always as _refuse_bare_always,
     _resolving_here as _resolving_here,
     _rewrite as _rewrite,
@@ -650,9 +665,16 @@ from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 
 
-def resolve(game: n.Game, *, scopes: dict[n.NodeKey, NamesInScope] | None = None) -> n.Game:
+def resolve(
+    game: n.Game,
+    *,
+    scopes: dict[n.NodeKey, NamesInScope] | None = None,
+    source: SourceText | None = None,
+) -> n.Game:
     """`scopes`, when given, is filled with the Scope Record: what a bare name
-    resolves to at every node the classifying walk visits."""
+    resolves to at every node the classifying walk visits. `source`, when
+    given, is the text `game` was parsed from, which an unresolved name's
+    refusal reads to offer the keywords the grammar accepts in its place."""
     bag = DiagnosticBag()
     # First: `uses` splices each named library's definitions but its rules in,
     # so everything below sees one flat game; `_instantiate_rules` splices the
@@ -679,7 +701,7 @@ def resolve(game: n.Game, *, scopes: dict[n.NodeKey, NamesInScope] | None = None
     zone_declarations.step(game, bag, position_names)
     written = game
     game, refused_binders = rule_instantiation.step(game, library_rules, bag)
-    game, cats = classification.step(game, refused_binders, bag, scopes=scopes)
+    game, cats = classification.step(game, refused_binders, bag, scopes=scopes, source=source)
     _validate_refs(game, cats, bag)
     classified_checks.step(
         game,

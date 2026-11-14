@@ -75,7 +75,7 @@ from cardlang.primitives_block import (
 )
 from cardlang import primitives_block
 from cardlang.attribution import cite_named, cite_origin
-from cardlang.diagnostics import DiagnosticBag, Said, listed
+from cardlang.diagnostics import DiagnosticBag, Said, SlotKind, Unless, listed
 from cardlang.resolve.walk import _child_nodes, _walk
 from cardlang.resolve.slots import _MOVE_TYPE_SLOT_OFFERS, slot_strings
 from cardlang.resolve.crossings import _cite_in
@@ -1133,6 +1133,7 @@ def _check_offered_containers(
                     f"" + cite_named(move_type, f"`{move_type.name}`") + f" inside `{phase_name}`"
                 ),
                 code=Code.OUT_OF_SCOPE,
+                unless=Unless(SlotKind.MOVE_TYPE, frozenset({move_type.name})),
             )
             continue
         for site in positions:

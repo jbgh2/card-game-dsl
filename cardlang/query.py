@@ -355,8 +355,7 @@ def locate(checked: Checked, line: int, column: int) -> Located | Told:
             span = _span(node)
             if span is None or span.source_name != checked.source_name:
                 continue
-            start, end = _extent(checked, node, span)
-            if start <= offset < end and (best is None or len(chain) > len(best[1])):
+            if span.start <= offset < span.end and (best is None or len(chain) > len(best[1])):
                 best = (node, chain)
     if best is None:
         return _told(
@@ -372,23 +371,11 @@ def locate(checked: Checked, line: int, column: int) -> Located | Told:
     for uses in checked.uses:
         if uses.span is not None and offset is not None and uses.span.start <= offset < uses.span.end:
             return Located(chain, "a `uses` line", _excerpt(checked, uses.span), uses.span, uses)
-    return Located(chain, _words(node), _excerpt(checked, span, node), span)
+    return Located(chain, _words(node), _excerpt(checked, span), span)
 
 
-def _extent(checked: Checked, node: object, span: Span) -> tuple[int, int]:
-    """The text a node is written as. A name is its own spelling, where its
-    span covers more (an assignment's target carries the assignment's span, a
-    subscripted zone the subscript's: issue #1106)."""
-    if isinstance(node, n.NameRef):
-        end = span.start + len(node.name)
-        if checked.program[span.start : end] == node.name:
-            return span.start, end
-    return span.start, span.end
-
-
-def _excerpt(checked: Checked, span: Span, node: object | None = None) -> str:
-    start, end = (span.start, span.end) if node is None else _extent(checked, node, span)
-    text = checked.program[start:end].split("\n")[0].strip()
+def _excerpt(checked: Checked, span: Span) -> str:
+    text = checked.program[span.start : span.end].split("\n")[0].strip()
     return text if len(text) <= 60 else text[:57] + "..."
 
 
@@ -460,7 +447,7 @@ def type_at(checked: Checked, chain: tuple[object, ...]) -> Typed | Told:
     assert span is not None
     if not isinstance(inner, _EXPR_KINDS):
         return _told(
-            f"{_words(inner)} (`{_excerpt(checked, span, inner)}`) is not an expression "
+            f"{_words(inner)} (`{_excerpt(checked, span)}`) is not an expression "
             "and the checker gives it no Type; point at an expression inside it",
             span,
             Code.NOT_AN_EXPRESSION,
@@ -471,6 +458,8 @@ def type_at(checked: Checked, chain: tuple[object, ...]) -> Typed | Told:
         typed = _typed(checked, node)
         if typed is not None:
             return typed
+    # Shadow Guard of typecheck's Contract, which types every expression the
+    # check reads: told to the asker, never raised, should a slot go untyped.
     around = next(
         (t for node in reversed(chain[:-1]) if (t := _typed(checked, node)) is not None),
         None,
@@ -481,7 +470,7 @@ def type_at(checked: Checked, chain: tuple[object, ...]) -> Typed | Told:
         else f"; the expression around it, `{around.text}`, is {' or '.join(around.types)}"
     )
     return _told(
-        f"the checker reads `{_excerpt(checked, span, inner)}` without working out a Type "
+        f"the checker reads `{_excerpt(checked, span)}` without working out a Type "
         f"of its own{nearby}",
         span,
         Code.EXPRESSION_NOT_TYPED,
@@ -499,7 +488,7 @@ def _typed(checked: Checked, node: object) -> Typed | None:
     assert span is not None
     return Typed(
         span,
-        _excerpt(checked, span, node),
+        _excerpt(checked, span),
         tuple(type_name(t) for t in found),
         any(isinstance(t, TAny) for t in found),
     )
@@ -551,7 +540,7 @@ def seats_at(checked: Checked, chain: tuple[object, ...]) -> Seats | Told:
     holder = chain[max(at, 0)]
     span = _span(holder)
     assert span is not None
-    said = f"{_words(holder)} (`{_excerpt(checked, span, holder)}`)"
+    said = f"{_words(holder)} (`{_excerpt(checked, span)}`)"
     reached = _reached(checked, holder)
     if reached:
         return _told(
@@ -639,7 +628,7 @@ def _site(checked: Checked, node: object, enclosing: tuple[object, ...]) -> Seat
     if span is None:
         return None
     zones = {z.name: z for z in checked.game.zones}
-    text = _excerpt(checked, span, node)
+    text = _excerpt(checked, span)
     match node:
         case n.Transfer():
             return _movement_site(checked, node, span, text, enclosing, zones)
@@ -954,8 +943,11 @@ def _render_scope(scope: Scope | Told | None) -> list[str]:
             out.append(f"  {words}: {', '.join(names)}")
     if not scope.at_a_name:
         out.append(
-            "  (every State Variable is listed; which are live here is judged at a "
-            "name, so point at one to see)"
+            "  (listed by the State Variable scope rules, the Pronouns a function or "
+            "procedure body may not read, and what a `state { }` default may read; "
+            "the rules of who is acting and of a Hosted Poll's body are not yet "
+            "applied (issue #1089), and what the slot a name fills takes is judged "
+            "at a name: point at one to see)"
         )
     return out
 

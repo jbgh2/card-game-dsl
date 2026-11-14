@@ -124,11 +124,11 @@ from cardlang.primitives_block import (
     declaring_phases,
 )
 from cardlang.attribution import cite_definition, cite_library, cite_named, cite_origin, cite_where
-from cardlang.diagnostics import DiagnosticBag, Route, Said, Sentence, Span
+from cardlang.diagnostics import DiagnosticBag, Route, Said, Sentence, Slot, SlotKind, Span, Unless
 from cardlang.domains import Role, role_of
 from cardlang.stdlib.hosted_poll import HOSTED_POLL_ALLOWED, HOSTED_POLL_REFUSED
 from cardlang.stdlib.zones import ZONE_PROJECTIONS, identity_to_all, reveals
-from cardlang.typecheck import COMBINATION_TYPE_NAME, POSITIVE_PARAM_DOMAIN
+from cardlang.typecheck import COMBINATION_TYPE_NAME
 from cardlang.types import Flavor
 from cardlang.resolve.walk import _child_nodes, _walk
 from cardlang.resolve.binders import _BINDER_SCOPE_FIELDS, _introduced_binders
@@ -147,6 +147,10 @@ from cardlang.resolve.slots import (
     slot_strings,
 )
 from cardlang.resolve.declared import (
+    board_mints,
+    type_slot,
+    positive_arguments,
+    kept_per_player,
     CARD_PARAMETER_FAMILY,
     _combination_outside_a_parameter,
     _deck_known,
@@ -1015,7 +1019,7 @@ def _check_play_source(
     named = _play_source_names(game)
     subscripted = _subscripted_ids(game)
     reported: set[int] = set()
-    for rule, fname, fn, reached, names in _rule_function_reads(game):
+    for rule, fname, fn, reached, nodes in _rule_function_reads(game):
         answer = (
             None if rule.name in own_rules
             else _contracted_answer_on(("function", fname), reached, _rule_clauses(rule))
@@ -1035,9 +1039,10 @@ def _check_play_source(
             if rule.origin is None
             else None
         )
-        for ref in names:
+        for ref in nodes:
             if (
-                _play_source_refused(ref.name, ref.ref_kind, named, id(ref) in subscripted)
+                isinstance(ref, n.NameRef)
+                and _play_source_refused(ref.name, ref.ref_kind, named, id(ref) in subscripted)
                 and id(ref) not in reported
             ):
                 reported.add(id(ref))
@@ -1110,6 +1115,7 @@ def _check_play_source(
                 f"the zone",
                 z.span,
                 code=Code.RESERVED_WORD,
+                unless=kept_per_player(z.name),
             )
     for nd in _walk(game):
         if isinstance(nd, n.StateDecl) and nd.name == PLAY_SOURCE_NAME:
@@ -1212,6 +1218,7 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
                     f"{_family_shape(index_of[name])}",
                     span,
                     code=Code.WRONG_ZONE_SHAPE,
+                    unless=kept_per_player(name),
                 )
             elif field == _PLAY_SLOT_FIELD and index_of[name] is not None:
                 bag.error(
@@ -1263,6 +1270,7 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
                     f"player, like {kept}"
                 ),
                 code=Code.WRONG_ZONE_SHAPE,
+                unless=kept_per_player(family),
             )
 
 
@@ -1324,6 +1332,12 @@ def _check_kernel_answers(game: n.Game, bag: DiagnosticBag) -> set[str]:
             f"`function {answer.name}(card : Card) = …`",
             answer.span or game.span,
             code=Code.WRONG_SIGNATURE,
+            # One parameter of a misspelled type, fixed to `Card`.
+            unless=Unless(
+                SlotKind.TYPE,
+                frozenset({"Card"}) if len(answer.params) == 1 else frozenset(),
+                frozenset(type_slot(answer.name, p.name).name for p in answer.params),
+            ),
         )
         refused.add("card_points" if answer.name == "card_points" else "trick_order")
     return refused
@@ -1839,7 +1853,13 @@ def _check_unread_clauses(
         if any(row.needs(nd, written) for nd in nodes for row in rows):
             continue
         span = _clause_span(written, clause, value) or written.span
-        bag.error(_UNREAD_SENTENCES[clause](written, nodes), span, code=Code.UNUSED_DECLARATION)
+        bag.error(
+            _UNREAD_SENTENCES[clause](written, nodes),
+            span,
+            code=Code.UNUSED_DECLARATION,
+            # A misspelled call of a reader, fixed.
+            unless=Unless(SlotKind.FUNCTION, frozenset(m for row in rows for m in row.members)),
+        )
 
 
 def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
@@ -2040,6 +2060,8 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                     parameter_known,
                     fn.span,
                     code=Code.UNKNOWN_CHECKER_TYPE,
+                    slot=type_slot(fn.name, p.name),
+                    unless=board_mints(base_of(p.type_name)),
                 )
     for phase in _walk(game):
         if not isinstance(phase, n.Phase) or not phase.outcome_cases:
@@ -2063,6 +2085,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                         known,
                         case.span or phase.span,
                         code=Code.UNKNOWN_CHECKER_TYPE,
+                        unless=board_mints(base_of(payload)),
                     )
 
 
@@ -2382,7 +2405,12 @@ def _check_procedures(
         if isinstance(nd, n.RunStmt):
             invoked.add(nd.name)
             if nd.name not in known:
-                bag.unknown(f"run of unknown procedure '{nd.name}'", nd.name, known, nd.span, code=Code.UNKNOWN_PROCEDURE)
+                bag.unknown(
+                    f"run of unknown procedure '{nd.name}'", nd.name, known, nd.span,
+                    code=Code.UNKNOWN_PROCEDURE, slot=Slot(SlotKind.PROCEDURE, f"{nd.span}"),
+                    # A `run` names a procedure taking as many arguments.
+                    fixes=(p for p, proc in known.items() if len(proc.params) == len(nd.args)),
+                )
             else:
                 _check_positive_arguments(known[nd.name], nd, bag)
     # Only the game's OWN procedures: a library's are its own to define, and
@@ -2396,6 +2424,7 @@ def _check_procedures(
                 f"spliced nowhere, and go entirely unchecked downstream)",
                 proc.span,
                 code=Code.UNUSED_DECLARATION,
+                unless=Unless(SlotKind.PROCEDURE, frozenset({proc.name})),
             )
 
 
@@ -2408,9 +2437,7 @@ def _check_positive_arguments(
     reach play unchecked; the written number is the one form whose membership
     is decided here. A missing or surplus argument is typecheck's arity check,
     so `zip` leaving it alone is that guard's case, not a gap."""
-    for param, arg in zip(proc.params, run.args):
-        if param.type_name != POSITIVE_PARAM_DOMAIN:
-            continue
+    for param, arg in positive_arguments(proc, run):
         head = (
             f"`run {run.name}` passes its `{param.name}`, which "
             + cite_named(proc, f"'{proc.name}'")

@@ -63,7 +63,7 @@ from cardlang.builtins.functions import (
 from cardlang import kernel_contracts as K
 from cardlang.primitives_block import Regime, call_namespace, regime
 from cardlang.attribution import cite_library, cite_named, cite_origin
-from cardlang.diagnostics import DiagnosticBag, LibraryCitation, Said, Sentence, Span, listed
+from cardlang.diagnostics import DiagnosticBag, LibraryCitation, Said, Sentence, Slot, SlotKind, Span, Unless, listed
 from cardlang.domains import (
     CARD_AXIS_ROLES,
     CARD_PARAM_DOMAINS,
@@ -82,6 +82,12 @@ from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, identity_to_all
 from cardlang.resolve.walk import _walk
 from cardlang.resolve.slots import _NAME_SLOTS, _ROUND_QUERY_REGISTRIES, _slot_root
 from cardlang.resolve.declared import (
+    type_slot,
+    board_mints,
+    content_kind_unless,
+    kept_per_player,
+    sets_holding,
+    sets_naming,
     CARD_PARAMETER_FAMILY,
     _combination_outside_a_parameter,
     _declared_suits_phrase,
@@ -233,9 +239,12 @@ def _bad_write_target(game: n.Game, node: n.AssignStmt | n.RotateStmt) -> Said |
     )
 
 
-def _bad_zone_endpoint(game: n.Game, node: n.Transfer | n.EpistemicOp, slot: str, what: str) -> Said | None:
+def _bad_zone_endpoint(
+    game: n.Game, node: n.Transfer | n.EpistemicOp, slot: str, what: str
+) -> tuple[Said, n.NameRef] | None:
     """Why this zone-position expression (a movement's `from <here>` /
-    `to <here>`, an epistemic op's target) is illegal, or None. The same move
+    `to <here>`, an epistemic op's target) is illegal, and the root name it
+    refuses, or None. The same move
     as `_bad_write_target`, one grammar position over: the position is
     name-shaped (the grammar rejects literals there), so its ROOT name has a
     classification, and most classifications cannot possibly be a zone.
@@ -261,7 +270,7 @@ def _bad_zone_endpoint(game: n.Game, node: n.Transfer | n.EpistemicOp, slot: str
     what_it_is = _WRITE_TARGET_KINDS.get(kind, f"a {kind}")
     if kind == "state_var":
         what_it_is = "a state variable"
-    return f"cannot {what} " + _named_ref(game, root) + f": it is {what_it_is}, not a zone"
+    return f"cannot {what} " + _named_ref(game, root) + f": it is {what_it_is}, not a zone", root
 
 
 # The closed set of statically enumerable move-parameter domains (decisions.md
@@ -326,6 +335,7 @@ def _check_move_params(
                 f"suits/ranks; a piece set enumerates neither",
                 span,
                 code=Code.PIECES_ARE_NOT_CARDS,
+                unless=content_kind_unless(game),
             )
             return
     if "Card" in types and mt.stake is not None:
@@ -387,6 +397,7 @@ def _check_move_params(
                 (*_FIXED_DOMAINS, "Card", *positions, *directions),
                 span,
                 code=Code.UNKNOWN_PARAMETER_DOMAIN,
+                unless=board_mints(t.removesuffix("?")),
             )
         # Exact string, matching `_FIXED_DOMAINS`'s own convention (never by
         # stripping a trailing `?`): `Rank?` is not in `_FIXED_DOMAINS`, so it
@@ -492,6 +503,7 @@ def _check_card_offering(
             f"which enumerates the actor's `{family}[player]` zone — this game "
             f"declares none",
             span,
+            unless=kept_per_player(family),
             for_game=(
                 cite_origin(origin, span) + f" offers {whose}move type "
                 + cite_named(move, f"`{move.name}`")
@@ -525,6 +537,7 @@ def _check_card_offering(
         f"declares none",
         span,
         code=Code.MISSING_DECLARATION,
+        unless=kept_per_player(family),
     )
 
 
@@ -544,7 +557,10 @@ def _check_offering_moves(
     offerings from reporting the same defect once per mention."""
     for name in names:
         if name not in defined_move_types:
-            bag.unknown(f"offer names unknown move type '{name}'", name, defined_move_types, span, code=Code.UNKNOWN_MOVE_TYPE)
+            bag.unknown(
+                f"offer names unknown move type '{name}'", name, defined_move_types, span,
+                code=Code.UNKNOWN_MOVE_TYPE, slot=Slot(SlotKind.MOVE_TYPE, f"{span}:{name}"),
+            )
 
 
 def _no_board_for_directions(game: n.Game, name: str) -> str:
@@ -672,6 +688,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         (*native_namespace, *defined_functions, *K.KERNEL_CONTRACT_NAMES),
                         nd.span,
                         code=Code.UNKNOWN_FUNCTION,
+                        slot=Slot(SlotKind.FUNCTION, f"{nd.span}"),
                     )
             case n.Call() if nd.func in defined_functions:
                 # A call the game's OWN `function` defines. Every arm below
@@ -698,6 +715,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"set has none of",
                     nd.span,
                     code=Code.PIECES_ARE_NOT_CARDS,
+                    unless=content_kind_unless(game),
                 )
             case n.Call() if nd.func in _CARD_POINTS_CALLS:
                 # An unanswered `card_points` (an answered one met the
@@ -787,6 +805,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         state_types,
                         nd.span,
                         code=Code.UNKNOWN_CHECKER_TYPE,
+                        slot=type_slot("state", nd.name),
+                        unless=board_mints(nd.type_name),
                     )
                 if nd.index is not None and role_of(nd.index) not in ZONE_INDEX_ROLES:
                     # Same guard as a zone's index role, same registry. Before
@@ -885,6 +905,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"a piece set has none of",
                     nd.span,
                     code=Code.PIECES_ARE_NOT_CARDS,
+                    unless=content_kind_unless(game),
                 )
             case (n.ForEach() | n.Quantifier()) if _refuses(_TEAM_RANGE_GATE, nd, game):
                 # The team domain of a game with no `teams:` is empty, so the
@@ -941,19 +962,27 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"a piece has no rank-of-suit identity",
                     nd.span,
                     code=Code.PIECES_ARE_NOT_CARDS,
+                    # Cleared as cards only where the set holds the card.
+                    unless=content_kind_unless(game) if game.deck in sets_holding(nd.rank, nd.suit) else (),
                 )
             case n.CardLiteral():
                 if nd.rank not in cats.ranks:
-                    bag.unknown(f"unknown rank '{nd.rank}' in card literal", nd.rank, cats.ranks, nd.span, code=Code.UNKNOWN_RANK)
+                    bag.unknown(
+                        f"unknown rank '{nd.rank}' in card literal", nd.rank, cats.ranks, nd.span,
+                        code=Code.UNKNOWN_RANK, unless=Unless(SlotKind.DECK, sets_naming(nd.rank)),
+                    )
                 if nd.suit not in cats.suits:
-                    bag.unknown(f"unknown suit '{nd.suit}' in card literal", nd.suit, cats.suits, nd.span, code=Code.UNKNOWN_SUIT)
+                    bag.unknown(
+                        f"unknown suit '{nd.suit}' in card literal", nd.suit, cats.suits, nd.span,
+                        code=Code.UNKNOWN_SUIT, unless=Unless(SlotKind.DECK, sets_naming(nd.suit)),
+                    )
             case n.RotateStmt():
                 # Both checks in ONE arm: a bare `case n.RotateStmt():` above a guarded
                 # one consumes the node, so the guarded arm never runs. (It did exactly
                 # that, and `tests/test_binder_scoping.py` caught it.)
                 bad = _bad_write_target(game, nd)
                 if bad is not None:
-                    bag.error(bad, nd.span, code=Code.NOT_WRITABLE)
+                    bag.error(bad, nd.target.span, code=Code.NOT_WRITABLE)
                 for value in nd.values:
                     if value not in cats.enums:
                         bag.unknown(
@@ -963,15 +992,16 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
             case n.AssignStmt():
                 bad = _bad_write_target(game, nd)
                 if bad is not None:
-                    bag.error(bad, nd.span, code=Code.NOT_WRITABLE)
+                    bag.error(bad, nd.target.span, code=Code.NOT_WRITABLE)
             case n.Transfer():
                 for endpoint, direction in (
                     ("source", "move cards from"),
                     ("dest", "move cards to"),
                 ):
-                    bad = _bad_zone_endpoint(game, nd, endpoint, direction)
-                    if bad is not None:
-                        bag.error(bad, nd.span, code=Code.WRONG_SORT_OF_NAME)
+                    endpoint_refused = _bad_zone_endpoint(game, nd, endpoint, direction)
+                    if endpoint_refused is not None:
+                        bad, root = endpoint_refused
+                        bag.error(bad, root.span, code=Code.WRONG_SORT_OF_NAME)
                 # The joint-selection matrix (decisions.md "Joint-predicate
                 # selection"): `jointly` is a DECISION over subsets, so it
                 # requires `chosen` — a dealt jointly-selection has no
@@ -1054,6 +1084,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             f"target one instance directly",
                             nd.span,
                             code=Code.WRONG_ZONE_SHAPE,
+                            unless=kept_per_player(nd.dest.name),
                         )
                     elif each_refused and nd.dest.ref_kind is not None:
                         # The executor consumes the NAME (`zones.instance(X,
@@ -1085,15 +1116,17 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"not expressible",
                     nd.span,
                     code=Code.PIECES_ARE_NOT_CARDS,
+                    unless=content_kind_unless(game),
                 )
             case n.EpistemicOp():
                 # The other member of the zone-position class: `shuffle turn` /
                 # `reveal one card from turn` checked clean and then reached an
                 # executor that requires an actual Zone as the op's target and
                 # refuses anything else, exactly like the movement endpoints.
-                bad = _bad_zone_endpoint(game, nd, "zone", nd.op)
-                if bad is not None:
-                    bag.error(bad, nd.span, code=Code.WRONG_SORT_OF_NAME)
+                zone_refused = _bad_zone_endpoint(game, nd, "zone", nd.op)
+                if zone_refused is not None:
+                    bad, root = zone_refused
+                    bag.error(bad, root.span, code=Code.WRONG_SORT_OF_NAME)
             case n.Winner() | n.StopResult() if (
                 nd.state_var is not None and nd.state_var not in cats.state_vars
             ):

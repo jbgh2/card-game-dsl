@@ -1,0 +1,19 @@
+// Guard: the classifier's unresolved name, at a `rotate` whose target stands
+// on the line after the keyword: the refusal stands at the name's own line
+// and column.
+game RotateTargetOnItsOwnLine {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state {
+    score[player] : Integer = 0
+    side : SeatDirection = left
+  }
+  phase play {
+    rotate
+      sied through [left, right]
+  }
+  winner: highest score
+}

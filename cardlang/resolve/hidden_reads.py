@@ -8,6 +8,14 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
 Assumes:      the classified tree, read-only; the bare-family check has
               run into the same bag, so a bare read is the acting seat's own
               instance.
+Establishes:  a refused read that a fix of a refused spelling would let its
+              seat make -- the family's index, a subscript that is the
+              misspelled name, an `as` seat around a bare subscript -- marks
+              what clears it, judged by the same own-instance test under that
+              fix (`_undecided_by`), and a refusal inside a body whose seat a
+              refused spelling leaves undecided marks that slot
+              (`_undecided_seat`), unless a construct inside binds a seat of
+              its own around it.
 Now illegal:  a zone read that its deciders cannot make, at a position
               ``HIDDEN_READ_POSITIONS`` classes as deciding, however the read
               is reached -- a ``let``, a function, a procedure, a phase
@@ -55,13 +63,18 @@ from cardlang.builtins.functions import (
 )
 from cardlang.primitives_block import ReadKind, classify_read
 from cardlang.attribution import cite_library, cite_all, cite_named, cite_origin, cite_where
-from cardlang.diagnostics import DiagnosticBag, Route, Said, Sentence, Span, rendered
-from cardlang.domains import ZONE_INDEX_ROLES, Role, role_of
+from cardlang.diagnostics import DiagnosticBag, Route, Said, Sentence, SlotKind, Span, Unless, rendered, text_slot
+from cardlang.domains import SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES, Role, role_names, role_of
 from cardlang.runtime.delegation import CHOOSER_HELPER, SOURCE_HELPER
 from cardlang.stdlib.zones import ZONE_PROJECTIONS, reveals
 from cardlang.resolve.walk import _child_nodes, _walk
 from cardlang.resolve.binders import _BINDER_SCOPE_FIELDS, _introduced_binders
-from cardlang.resolve.declared import _written_state_name
+from cardlang.resolve.declared import (
+    _simultaneous_role_refused,
+    _written_state_name,
+    kept_per_player,
+    simultaneous_role_slot,
+)
 from cardlang.resolve.crossings import _LibraryEntry, _cite_in, _entry_route
 from cardlang.resolve.seat_aliases import _ActorAliases, _aliases_after_let, _seat_rebinding
 
@@ -490,6 +503,27 @@ _NO_ACTOR_WHERE = {
 _ACTOR_SCOPE = _ReadScope(aliases=_ActorAliases(), acting=True, seat=-1)
 
 
+def _undecided_seat(stmt: n.Stmt) -> Unless | None:
+    """What clears a refusal inside `stmt` whose seat a refused spelling
+    leaves undecided: a simultaneous role refused, fixed to a seat role
+    (`simultaneous_role_slot`), or an `as` seat misspelled, fixed to any name
+    (narrowed per read by `_undecided_by`); None for any other statement."""
+    if isinstance(stmt, n.EachSimultaneous) and _simultaneous_role_refused(stmt):
+        return Unless(
+            SlotKind.SIMULTANEOUS_ROLE,
+            frozenset(role_names(SIMULTANEOUS_ROLES)),
+            frozenset({simultaneous_role_slot(stmt).name}),
+        )
+    if (
+        isinstance(stmt, n.AsBlock)
+        and isinstance(stmt.player, n.NameRef)
+        and stmt.player.ref_kind is None
+        and stmt.player.span is not None
+    ):
+        return Unless(SlotKind.TEXT, frozenset(), frozenset({text_slot(stmt.player.span).name}))
+    return None
+
+
 class _HiddenReads:
     """The reader of expression reads and the two verdicts over it.
 
@@ -529,6 +563,14 @@ class _HiddenReads:
         self.meeting: dict[int, tuple[tuple[n.NameRef, str], ...]] = {}
         # How many refusals `_tell` was asked to make.
         self.told = 0
+        # What clears the refusals told inside a body whose seat a refused
+        # spelling leaves undecided, innermost last, and what clears the
+        # refusal of the read being told (`_undecided_by`).
+        self.undecided_seats: list[Unless] = []
+        self.read_marks: tuple[Unless, ...] = ()
+        # The family whose refused index is judged as kept per player, while
+        # `_undecided_by` asks whether that fix clears a read.
+        self.kept_as_player: str | None = None
         self.zones = {z.name: z for z in game.zones}
         self.player_families = frozenset(
             z.name for z in game.zones if z.index is not None and role_of(z.index) is Role.PLAYER
@@ -752,6 +794,8 @@ class _HiddenReads:
 
     def _owned_by(self, zone: str) -> Role | None:
         """The role a zone family is owned by, or None for an unowned zone."""
+        if zone == self.kept_as_player:
+            return Role.PLAYER
         decl = self.zones[zone]
         if decl.index is None or decl.index in self.positions:
             return None
@@ -934,10 +978,54 @@ class _HiddenReads:
             )
             if accepted:
                 continue
+            self.read_marks = () if seat.every or not to_owner else self._undecided_by(read)
             if read.crossing is not None:
                 self._report_crossed(position, read, seat, to_owner)
-                continue
-            self._report(position, read, seat, to_owner, span or read.span, source and not in_choose)
+            else:
+                self._report(position, read, seat, to_owner, span or read.span, source and not in_choose)
+            self.read_marks = ()
+
+    def _seat_names(self, read: ZoneRead) -> frozenset[str]:
+        """The names which, written as `read`'s subscript, make it the
+        acting seat's own instance: each name in scope there, and `actor`,
+        judged by the same own-instance test."""
+        scope = read.index_scope
+        candidates: list[n.NameRef] = [n.NameRef("actor", ref_kind="pronoun")]
+        candidates += [n.NameRef(name, ref_kind="local") for name in {*(nm for nm, _ in scope.names), *scope.aliases.names}]
+        return frozenset(
+            c.name for c in candidates if self._own_reason(replace(read, index=c)) is not None
+        )
+
+    def _undecided_by(self, read: ZoneRead) -> tuple[Unless, ...]:
+        """What clears a read refused at one seat, whose projection shows the
+        owner what it reads, where the read rests on a refused spelling: the
+        family's refused index, where the read is the acting seat's own once
+        the family is kept per player; a subscript that is a misspelled bare
+        name, fixed to a name of the acting seat; or a misspelled `as` seat
+        around a subscript that is a bare name, fixed to that name."""
+        marks: list[Unless] = []
+        decl = self.zones[read.zone]
+        if decl.index is not None and decl.index not in self.positions and role_of(decl.index) is None:
+            self.kept_as_player = read.zone
+            try:
+                if self._own_reason(read) is not None:
+                    marks.append(kept_per_player(read.zone))
+            finally:
+                self.kept_as_player = None
+        if read.index is None or self._owned_by(read.zone) is None:
+            return tuple(marks)
+        bare = [s for s, _scope in self._spellings(read.index, read.index_scope) if isinstance(s, n.NameRef)]
+        for name in bare:
+            if name.ref_kind is None and name.span is not None:
+                marks.append(
+                    Unless(SlotKind.TEXT, self._seat_names(read), frozenset({text_slot(name.span).name}))
+                )
+        seats = frozenset(
+            slot for mark in self.undecided_seats if mark.kind is SlotKind.TEXT for slot in mark.names or ()
+        )
+        if seats and bare:
+            marks.append(Unless(SlotKind.TEXT, frozenset(nd.name for nd in bare), seats))
+        return tuple(marks)
 
     def _report_crossed(self, what: Said, read: ZoneRead, seat: _Seat, to_owner: bool) -> None:
         """A refused read the game's answer to a Definition Contract makes,
@@ -1115,7 +1203,10 @@ class _HiddenReads:
         key = (message, span, None if route is None else route.at)
         if key not in self._reported:
             self._reported.add(key)
-            self.bag.error(message, span, route=route, for_game=for_game, stands_on=stands_on, code=code)
+            self.bag.error(
+                message, span, route=route, for_game=for_game, stands_on=stands_on, code=code,
+                unless=(*self.undecided_seats, *self.read_marks),
+            )
 
     def _tell(
         self,
@@ -1699,19 +1790,32 @@ class _HiddenReads:
                         self._outside(outer, scope, seat)
                 if isinstance(stmt, n.AsBlock):
                     self._outside(stmt.player, scope, seat)
+                undecided = _undecided_seat(stmt)
+                enclosing_marks = self.undecided_seats
                 if rebound is None:
                     # A value domain (or a role no row defines, reported
                     # elsewhere): the acting seat stands, and the body loops.
                     assert isinstance(stmt, (n.ForEach, n.EachSimultaneous))
                     binder = stmt.binder if isinstance(stmt, n.ForEach) else stmt.role
                     loop = self._after(stmt.body, scope).shadow((binder,))
-                    self._stmt(stmt.body, loop, seat)
+                    self.undecided_seats = [*enclosing_marks, *(() if undecided is None else (undecided,))]
+                    try:
+                        self._stmt(stmt.body, loop, seat)
+                    finally:
+                        self.undecided_seats = enclosing_marks
                 else:
                     inner, inner_seat = self._seat_for(stmt, rebound, scope)
-                    if isinstance(stmt, (n.ForEach, n.EachSimultaneous)):
-                        self._stmt(stmt.body, inner, inner_seat)
-                    else:
-                        self._stmts(stmt.body, self._after_loop(stmt, inner), inner_seat)
+                    # A seat the construct binds anew is decided by it alone,
+                    # whatever spelling an enclosing seat rests on.
+                    kept: list[Unless] = enclosing_marks if inner.seat == scope.seat else []
+                    self.undecided_seats = [*kept, *(() if undecided is None else (undecided,))]
+                    try:
+                        if isinstance(stmt, (n.ForEach, n.EachSimultaneous)):
+                            self._stmt(stmt.body, inner, inner_seat)
+                        else:
+                            self._stmts(stmt.body, self._after_loop(stmt, inner), inner_seat)
+                    finally:
+                        self.undecided_seats = enclosing_marks
             case n.Offer():
                 self._outside(stmt.player, scope, seat)
             case n.TrickRound():

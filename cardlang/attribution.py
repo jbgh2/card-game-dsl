@@ -30,7 +30,9 @@ Assumes:      every diagnostic a pass collects carries the span of the text it
 Establishes:  `raise_if_errors` is the only way a pass after the splice raises
               its diagnostics, `raise_where_written` the only way a library
               checked alone raises its own, and `tell` the one place a
-              diagnostic's file is decided and its notes made; a refusal
+              diagnostic's file is decided and its notes made; each settles
+              its bag first (`DiagnosticBag.settle`), so what it tells holds no
+              refusal a refused spelling's fix would clear; a refusal
               it tells again (`_retold`) keeps the Near Misses it offers and
               its Diagnostic Code. Each diagnostic `tell` tells is a Told
               Diagnostic addressed to a library's Author where it is told in
@@ -176,6 +178,7 @@ def raise_where_written(bag: DiagnosticBag, author: Author) -> None:
     file's extension refused before any game is read, told to the game's."""
     if not bag.has_errors:
         return
+    bag.settle()
     bag.items[:] = [_bare(d) for d in bag.items]
     _raise(tuple(Told(d, author) for d in bag.items))
 
@@ -190,6 +193,7 @@ def keep_where_written(
     """Every diagnostic told where it stands: what `tell` reduces to while a
     Library Witness is checked, since its verdict is all that is asked of
     it, and so all of it told to the game's author."""
+    bag.settle()
     bag.items[:] = [_bare(d) for d in bag.items]
     return tuple(Told(d, Author.GAME) for d in bag.items)
 
@@ -204,6 +208,7 @@ def tell(
     """Decide the file of every diagnostic in `bag`, in place, and return
     each as told: to a library's author where it is told in the library's
     file, to the game's author otherwise."""
+    bag.settle()
     if _WITNESSING.get():
         return keep_where_written(bag, game, uses)
     holders = _holders(game)
