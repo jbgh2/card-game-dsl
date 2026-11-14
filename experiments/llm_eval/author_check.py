@@ -11,9 +11,9 @@ the checker that judged a draft is the one in this checkout, which
 `checker_import_root` reports and the run records.
 
 `read_check` is the one reader. Every round's output goes through it, and it
-is where the reader switches to `cardlang check --json` once issue #1046
-gives the checker a machine-readable form (`CHECK_FORMS`, and the marked
-seam in `read_check`). `refusal_key` is the one definition of which
+is where the reader takes `cardlang check --json`, the checker's
+machine-readable form, when that reader is built (issue #1136; `CHECK_FORMS`,
+and the marked seam in `read_check`). `refusal_key` is the one definition of which
 refusals are "the same refusal"; it keys on the diagnostic code when the
 record carries one, and on the message with its offers removed until then.
 
@@ -53,9 +53,9 @@ from cardlang.diagnostics import NOTE, line_kind
 #: would move the words.
 DRAFT_NAME: Final = "game.cardlang"
 
-#: The checker output forms the reader can read. `json` is issue #1046's
-#: `cardlang check --json`; until it exists the reader refuses the form
-#: rather than guessing at a record nobody has specified.
+#: The checker output forms the reader can read. `json` is `cardlang check
+#: --json`; the reader refuses the form until it reads the Record Envelope
+#: (issue #1136).
 CHECK_FORMS: Final[tuple[str, ...]] = ("text", "json")
 
 #: What a crashing interpreter prints. Its presence anywhere in the output
@@ -100,8 +100,8 @@ class Note:
 class Refusal:
     """One diagnostic the checker printed.
 
-    `code` is the diagnostic's stable code once the checker reports one
-    (issue #1046); the text form carries none. `near_misses` are the
+    `code` is the diagnostic's Diagnostic Code, which the JSON form carries
+    (issue #1136); the text form carries none. `near_misses` are the
     `did you mean` offers, as data.
     """
 
@@ -252,12 +252,12 @@ def read_check(
     if form not in CHECK_FORMS:
         raise ValueError(f"unknown checker form {form!r} (known: {', '.join(CHECK_FORMS)})")
     if form == "json":
-        # THE SEAM (issue #1046). Once `cardlang check --json` exists, parse
-        # its versioned record here into the same `Refusal`s, carrying each
-        # diagnostic's `code`, refuse a record version this reader does not
-        # know, and leave the verdict rules below unchanged.
+        # THE SEAM (issue #1136). Parse the versioned Record Envelope here
+        # into the same `Refusal`s, carrying each diagnostic's `code`, refuse
+        # a record version this reader does not know, and leave the verdict
+        # rules below unchanged.
         raise NotImplementedError(
-            "the checker has no JSON form yet (issue #1046); run with "
+            "this rig does not read the checker's JSON form yet (issue #1136); run with "
             "checker.form: text"
         )
     def result(verdict: CheckVerdict, refusals: Sequence[Refusal] = ()) -> CheckResult:

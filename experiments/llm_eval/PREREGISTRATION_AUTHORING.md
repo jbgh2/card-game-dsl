@@ -19,10 +19,16 @@ measures the first half directly and lists the counter-examples to the
 second: every refusal after which the model's next edit left the refusal
 standing.
 
-This run is the **before** measurement. The epic's diagnostic parts (#1045,
-#1046 and the rest) change what the checker says; the same config, re-run
-after they land, is the after. The comparison between the two is the
-benchmark's purpose, and neither run alone is a verdict on the epic.
+**Amended 2026-11-13, before any model was called.** This run measures the
+checker as it stands with the epic's diagnostic parts on main. No run was
+taken before those parts landed, so there is no before to compare it with:
+the run reports a level, and its list of refusals a model could not act on
+is the evidence the epic's finish line is read against. The amending commit
+is checkable the same way:
+
+```bash
+git log --format='%h %aI %s' -- experiments/llm_eval/PREREGISTRATION_AUTHORING.md
+```
 
 ## Design
 
@@ -103,9 +109,9 @@ Every figure is derived from the recorded rounds by `author_run` and
   lines (`author_run.carried_line`): the line lies in a block the two
   drafts share, so a line moved by an edit above it is still the same line,
   and of two lines with the same text (two `}`) only the one the refusal
-  stood at counts. The key is the diagnostic's code once the checker
-  reports one (#1046), and until then its message with the `did you mean`
-  offers removed; a message that quotes a line number ("opened on line 9")
+  stood at counts. The key is the diagnostic's message with the `did you mean`
+  offers removed, since the rig reads the checker's text form, which prints
+  no Diagnostic Code; a message that quotes a line number ("opened on line 9")
   changes its key when an edit moves that line, which can only lower the
   count. The definition is conservative on purpose: it counts only a
   refusal that stood still while the model edited something. Recorded and

@@ -16,7 +16,8 @@ round_limit: 8
 attempts: 2
 
 checker:
-  # `text` today; `json` waits on `cardlang check --json` (issue #1046).
+  # The rig reads the text form, the words a model is shown; its reader for
+  # `cardlang check --json` is issue #1136.
   form: text
   timeout_seconds: 120
 

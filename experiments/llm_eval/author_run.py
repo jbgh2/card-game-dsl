@@ -271,7 +271,7 @@ class FollowupStatus(Enum):
 def _syntax(refusal: Refusal) -> bool:
     """Whether a refusal is the parse stage's: the one stage order the text
     form shows, since a syntax error is reported before anything else runs.
-    Issue #1046's codes replace this reading."""
+    A Diagnostic Code replaces this reading once the rig reads the JSON form (issue #1136)."""
     return refusal.message.startswith("syntax error")
 
 
@@ -663,7 +663,7 @@ def checker_of(config: Mapping[str, Any], root: Path) -> Checker:
     if form not in CHECK_FORMS:
         raise ValueError(f"checker.form {form!r} is not one of {', '.join(CHECK_FORMS)}")
     if form == "json":
-        raise ValueError("checker.form json waits on `cardlang check --json` (issue #1046)")
+        raise ValueError("checker.form json has no reader in this rig yet (issue #1136); use the text form")
     return Checker(root=root, form=form, timeout_seconds=float(block.get("timeout_seconds", 120)))
 
 
