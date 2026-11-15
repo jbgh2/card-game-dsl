@@ -54,7 +54,7 @@ does not prove:  That a site emits the RIGHT value. A `move` whose view is a
                  malformed event is refused where it is consumed — by the
                  matrix at probe time, by a rendering that asks
                  `payload_refusal` — never where it is made; the rung is
-                 recorded at `EVENT_PAYLOADS`.
+                 recorded in `cardlang.runtime.observe`'s Contract.
 """
 
 from __future__ import annotations
