@@ -325,8 +325,9 @@ class TrickForm:
         # provenance no observer's stream entails (issue #256's no-leak
         # criterion; decisions.md "The Arrival Record"). The decider's
         # record is the decision node and its private recall.
-        ctx.rs.zones.single(self.play_zone).add(choice, actor, src_addr)
-        observe.movement(ctx, src_addr, (self.play_zone, None), [choice])
+        from cardlang.runtime.execute import deposit
+
+        deposit(ctx, ctx.rs.zones.single(self.play_zone), [choice], actor, src_addr)
         state["played"].append((actor, choice))
         ctx.trace("play", (actor, choice))
         if state["led_suit"] is None:
@@ -585,7 +586,6 @@ class ClimbForm:
         self.hands = ctx.rs.zones.families[stmt.source_zone]
         self.pile = ctx.rs.zones.single(stmt.play_zone)
         self.source_name: str = stmt.source_zone
-        self.pile_name: str = stmt.play_zone
         # The participant ring in seating order from the leader. `from` and
         # `over` are independent game expressions, so the leader need not be a
         # participant: in a game where going out does NOT end the hand, the
@@ -759,8 +759,9 @@ class ClimbForm:
         play: primitives.ClimbPlay = choice
         for c in play.cards:
             self.hands[actor].remove(c)
-        self.pile.add_all(play.cards, actor, (self.source_name, actor))
-        observe.movement(ctx, (self.source_name, actor), (self.pile_name, None), play.cards)
+        from cardlang.runtime.execute import deposit
+
+        deposit(ctx, self.pile, list(play.cards), actor, (self.source_name, actor))
         if play.wild is not None:
             # The cards are seen through the movement; the rank a wildcard
             # among them stands for is not, and every follower's legal set

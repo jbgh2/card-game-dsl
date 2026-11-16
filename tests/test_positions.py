@@ -730,8 +730,8 @@ def test_top_is_the_sequence_end_and_bottom_the_front() -> None:
     rs = RuntimeState(Seating(1), zones, random.Random(0))
     rs.position_domains = {"column": (1, 2, 3)}
     pile = zones.instance("pile", 1)
-    pile.add(Card("2", "spades"))
-    pile.add(Card("A", "spades"))
+    pile.add_all([Card("2", "spades")])
+    pile.add_all([Card("A", "spades")])
     ctx = Ctx(rs=rs, chooser=lambda p, c, k: c[:k])
 
     assert native_call("top_of", [pile], ctx) == Card("A", "spades")

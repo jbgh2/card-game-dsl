@@ -1,26 +1,28 @@
 """Zone capacity: `ZONE_CAPACITY` (cardlang/stdlib/zones.py) and the movement
-executor's overfill guard (`cardlang/runtime/execute.py::_deposit`).
+executor's overfill guard (`cardlang/runtime/execute.py::deposit`).
 
 property:   every LIBRARY_ZONE_TYPES row declares a capacity (an int or None
             for unbounded); every movement statement's append to a zone
             routes through the one capacity-checked helper, so a finite-capacity zone type
             (Cell) can never end up holding more than its declared capacity
 domain:     every LIBRARY_ZONE_TYPES row x the zone-append call sites
-            `_deposit` serves. One append sits deliberately outside it and is
-            not a gap: the driver's initial deck-seeding append, whose zone is
-            selected by `type_ref.name == "Deck"`, a row this registry always
-            maps to unbounded capacity, so it is audited-safe rather than
-            unchecked. The round forms' own appends -- `TrickForm.apply` and
-            `ClimbForm.apply` in cardlang/runtime/mechanics.py -- sit outside
-            too, and that one is a gap rather than a proven-safe exclusion:
-            issue #589.
+            `deposit` serves -- every movement statement and the trick and
+            climb forms' plays (tests/test_deposit_door.py holds every
+            append under cardlang/ to it). One append sits deliberately
+            outside it and is not a gap: the driver's initial deck-seeding
+            append, whose zone is selected by `type_ref.name == "Deck"`, a
+            row this registry always maps to unbounded capacity, so it is
+            audited-safe rather than unchecked.
 registry:   the capacity rows — cardlang/stdlib/zones.py::ZONE_CAPACITY; the
             type axis — cardlang/stdlib/zones.py::LIBRARY_ZONE_TYPES; the one
-            capacity-checked append — cardlang/runtime/execute.py::_deposit.
-does not prove:  that a round form's own appends respect capacity. They
-            sit outside the domain, and resolve checks only that a round's
-            `play_zone` names a KNOWN zone, never its declared TYPE, so a
-            green here is silent about a Cell play zone.
+            capacity-checked append — cardlang/runtime/execute.py::deposit.
+does not prove:  that the refusal a round form would meet reads well to a
+            designer. No game reaches one: a Cell is declared only as a
+            family indexed by its owner, and a round's play zone is one
+            zone, so the checker refuses every declaration that would put a
+            round's plays in a Cell before play starts (probed 2026-11-15:
+            `trick_pile : Cell<player>` is refused as an owned zone with no
+            index).
 """
 
 from __future__ import annotations
@@ -146,8 +148,8 @@ def test_freecell_corpus_game_still_typechecks_clean() -> None:
 
 def test_freecell_playout_never_trips_the_capacity_guard() -> None:
     """FreeCell's `to_cell` move type guards on `cells[slot] is empty`, so an
-    honest playout should never reach `_deposit`'s overfill branch -- a
-    refusal there would mean either FreeCell's guard or `_deposit`'s is wrong.
+    honest playout should never reach `deposit`'s overfill branch -- a
+    refusal there would mean either FreeCell's guard or `deposit`'s is wrong.
     Complements the full tests/test_playout_freecell.py run (its own
     per-decision `len(cell) <= 1` invariant checks), recorded as external
     evidence in the task report."""

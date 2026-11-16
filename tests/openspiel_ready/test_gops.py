@@ -88,7 +88,7 @@ def test_sealed_bid_derivation_before_and_after_the_reveal() -> None:
     # place it in the zone to render the projection both players would get.
     card = space.decode(a)
     r1.rs.zones.instance("hand", 0).remove(card)
-    r1.rs.zones.instance("bid", 0).add(card)
+    r1.rs.zones.instance("bid", 0).add_all([card])
     p0_view = information_state(0, r1.rs, r1.obs_logs[0])
     p1_view = information_state(1, r1.rs, r1.obs_logs[1])
     assert f"bid[0]=[{card}]" in p0_view, "the owner must see their own bid card"

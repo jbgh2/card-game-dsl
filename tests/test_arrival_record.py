@@ -367,9 +367,9 @@ def test_call_form_names_the_recorded_winner() -> None:
     h1 = rs.zones.instance("hand", 1)
     c0, c1 = h0.cards[0], h1.cards[0]
     h0.remove(c0)
-    pile.add(c0, actor=0, src=("hand", 0))
+    pile.add_all([c0], actor=0, src=("hand", 0))
     h1.remove(c1)
-    pile.add(c1, actor=1, src=("hand", 1))
+    pile.add_all([c1], actor=1, src=("hand", 1))
     winner = _call_builtin(rs, "highest_trump_or_led_suit", [pile, None])
     rank = rs.rank_index
     if c1.suit == c0.suit:

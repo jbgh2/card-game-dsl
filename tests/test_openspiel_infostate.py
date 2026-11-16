@@ -21,9 +21,9 @@ def _rs() -> RuntimeState:
         n.ZoneDecl(name="trick_pile", index=None, type_ref=n.TypeRef(name="TrickPile")),
     )
     rs = RuntimeState(Seating(2), ZoneStore(decls, players=(0, 1)), random.Random(0))
-    rs.zones.instance("hand", 0).add(Card("Q", "spades"))
-    rs.zones.instance("hand", 1).add(Card("2", "clubs"))
-    rs.zones.single("trick_pile").add(Card("7", "hearts"))
+    rs.zones.instance("hand", 0).add_all([Card("Q", "spades")])
+    rs.zones.instance("hand", 1).add_all([Card("2", "clubs")])
+    rs.zones.single("trick_pile").add_all([Card("7", "hearts")])
     rs.push_frame()
     rs.declare("score", indexed=False, value={0: 10, 1: 20})
     return rs
@@ -145,8 +145,8 @@ def test_a_view_holds_the_cards_themselves_in_one_canonical_order() -> None:
     """
     rs = _rs()
     hand = rs.zones.instance("hand", 0)
-    hand.add(Card("10", "spades"))
-    hand.add(Card("2", "hearts"))
+    hand.add_all([Card("10", "spades")])
+    hand.add_all([Card("2", "hearts")])
     assert [str(card) for card in hand.cards] == ["Q♠", "10♠", "2♥"]
 
     held = dict(derive(0, rs, []).zones)["hand[0]"]
