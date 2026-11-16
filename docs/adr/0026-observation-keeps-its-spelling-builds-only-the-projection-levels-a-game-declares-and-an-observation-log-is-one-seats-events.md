@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-15
 - **Ruled by:** the operator, on the Architect's counsel
-- **Record:** issue #999 (the counsel, and the ruling comment its `## Ruling` section links); the PRs landing its parts, #1001 through #1004
+- **Record:** issue #999 (the counsel, and the ruling comment its `## Ruling` section links); the PRs closing its parts, issues #1001 through #1004
 - **Governs:** decisions.md, "A seat's knowledge, rendered"; decisions.md, "Projections: what visibility controls"; the glossary's Observation Log and Observation Emitter entries
 
 ## Context
@@ -68,9 +68,11 @@ The operator took the counsel as written: "Yes, as counselled".
 
 ## Consequences
 
-- **Part 1 (#1001)** mints Observation Emitter.
+- **Part 1 (#1001)** mints Observation Emitter. Its first commit is the
+  whole-line capture, planted red, since Part 1 moves the emission of every
+  movement and needs the same oracle Part 2 does.
 - **Part 2 (#1004)**:
-  - its first commit is the whole-line capture, planted red;
+  - it holds the whole-line capture byte-identical;
   - its kinds include `was`;
   - its consumers include the six-game stream digest in
     `tests/test_trick_order_migration.py`;
