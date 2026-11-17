@@ -324,7 +324,10 @@ def test_no_module_runs_game_text_around_the_executor() -> None:
 
     red under: in `cardlang/runtime/mechanics.py`, import `_dispatch` from the
     executor and call it in place of `run_body`."""
-    entry_points = {"execute", "run_body", "REFUSALS", "phase_name", "zone_label"}
+    # `zone_label` and `deposit` run no game text: one renders an address, the
+    # other lands cards; a round form calls `deposit` from inside the round
+    # statement the executor is already running, so its refusal is stamped.
+    entry_points = {"execute", "run_body", "REFUSALS", "phase_name", "zone_label", "deposit"}
     for path in sorted((REPO / "cardlang").rglob("*.py")):
         if path.name == "execute.py":
             continue

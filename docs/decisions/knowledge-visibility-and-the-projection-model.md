@@ -220,6 +220,14 @@ A, one wood arrived at B." If A is `identity` but B is
 `count_only`, P observes a structurally weaker fact at the
 destination — "a piece arrived" without learning its type.
 
+**A card that lands is observed.** Every card that lands in a zone during
+play lands through one door (`execute.deposit`), and that door delivers the
+transfer to every seat through both sides' projections. A transfer is never
+written without being observed, and a new verb that moves cards is observed
+by routing through the door. One call is one observed transfer: cards moved
+between the same two zones as one step are one event, whatever order they
+were dealt in.
+
 **A seat's own decisions.** A seat asked to decide is told what it
 is asked, and each pick it makes enters its own log as one record,
 delivered to it alone at the moment the pick is made. A decision

@@ -211,27 +211,32 @@ def run_body(stmts: tuple[n.Stmt, ...], ctx: Ctx) -> None:
 # --- movement ---
 
 
-def _deposit(
+def deposit(
     ctx: Ctx,
     dest: Zone,
     cards: list[Card],
-    actor: Player | None = None,
-    src: tuple[str, Player | str | None] | None = None,
+    actor: Player | None,
+    src: tuple[str, Player | str | None],
 ) -> None:
-    """The one choke point every destination append (movement, gather, deal,
-    simultaneous pass) routes through, so a finite-capacity zone type can
-    never be silently overfilled. The zone-type registry (cardlang/stdlib/
-    zones.py ZONE_CAPACITY) owns which types are bounded; this is the Owner
-    Guard for overfill, and it does not replace a game's own guards
-    (`cells[slot] is empty`).
+    """The one door a card lands in a zone by during play: every movement,
+    gather, deal and simultaneous pass, and the trick and climb forms' plays.
+    It does three things, in this order, and no caller does any of them:
 
-    `actor`/`src` are the Arrival Record's two facts (issue #256): the
-    deciding actor — the chooser's seat for a chosen selection, else the
-    bound acting seat, else None; NEVER a defaulted 0 — and the source Zone
-    Address. The round forms append through `Zone.add`/`add_all` directly
-    (their own capacity story predates this choke point) and pass the same
-    two facts there."""
-    name, _ = ctx.rs.zones.locate(dest)
+    - refuses an overfill. The zone-type registry (cardlang/stdlib/zones.py
+      ZONE_CAPACITY) owns which types are bounded; this is the Owner Guard
+      for overfill, and it does not replace a game's own guards
+      (`cells[slot] is empty`);
+    - appends to the destination's Arrival Record (issue #256) with its two
+      facts: the deciding actor -- the chooser's seat for a chosen
+      selection, else the bound acting seat, else None; NEVER a defaulted 0
+      -- and the source Zone Address;
+    - delivers the transfer to every seat through both sides' declared
+      projections (`observe.movement`).
+
+    One call is one observed transfer, so a caller moving several cards
+    between the same two zones as one step deposits them in one call.
+    """
+    name, key = ctx.rs.zones.locate(dest)
     label = zone_label(ctx, dest)
     ztype = ctx.rs.zones.zone_type[name]
     cap = zone_capacity(ztype)
@@ -243,6 +248,7 @@ def _deposit(
             f"(`{label} is empty`)"
         )
     dest.add_all(cards, actor, src)
+    observe.movement(ctx, src, (name, key), cards)
 
 
 def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
@@ -280,11 +286,9 @@ def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
                 # or random one has no per-card decider — the bound acting
                 # seat, if any, is the movement's actor.
                 actor = player if stmt.selection_mode == "chosen" else ctx.current_player
-                _deposit(
+                deposit(
                     ctx, ctx.rs.zones.instance(stmt.dest.name, player), cards, actor, src_addr
                 )
-                if ctx.observer is not None:
-                    observe.movement(ctx, src_addr, (stmt.dest.name, player), cards)
     else:
         dest = evaluate(stmt.dest, ctx)
         if not isinstance(dest, Zone):
@@ -305,9 +309,7 @@ def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
         record_actor = (
             player if stmt.selection_mode == "chosen" else ctx.current_player
         )
-        _deposit(ctx, dest, selected, record_actor, src_addr)
-        if ctx.observer is not None:
-            observe.movement(ctx, src_addr, ctx.rs.zones.locate(dest), selected)
+        deposit(ctx, dest, selected, record_actor, src_addr)
 
 def _card_pred(filter_expr: n.Expr, ctx: Ctx) -> Callable[[Card], bool]:
     """A movement/reveal `where` filter as a candidate predicate: an ordinary
@@ -331,32 +333,17 @@ def _deal_round_robin(
     if stmt.where is None:
         i = 0
         while source.cards:
-            card = source.take_top(1)[0]
-            _deposit(
-                ctx,
-                ctx.rs.zones.instance(dest_family, players[i % len(players)]),
-                [card],
-                ctx.current_player,
-                src_addr,
-            )
-            dealt[players[i % len(players)]].append(card)
+            dealt[players[i % len(players)]].append(source.take_top(1)[0])
             i += 1
     else:
         pred = _card_pred(stmt.where, ctx)
         pool = [c for c in source.cards if pred(c)]
         for i, card in enumerate(pool):
             source.remove(card)
-            _deposit(
-                ctx,
-                ctx.rs.zones.instance(dest_family, players[i % len(players)]),
-                [card],
-                ctx.current_player,
-                src_addr,
-            )
             dealt[players[i % len(players)]].append(card)
-    if ctx.observer is not None:
-        for p in players:
-            observe.movement(ctx, src_addr, (dest_family, p), dealt[p])
+    # Each seat's share is one transfer, so it lands in one deposit.
+    for p in players:
+        deposit(ctx, ctx.rs.zones.instance(dest_family, p), dealt[p], ctx.current_player, src_addr)
 
 
 def _gather(stmt: n.Transfer, ctx: Ctx) -> None:
@@ -385,10 +372,7 @@ def _gather(stmt: n.Transfer, ctx: Ctx) -> None:
         for loc, zone in sources:
             if zone is dest:
                 continue
-            taken = zone.take_all()
-            if ctx.observer is not None:
-                observe.movement(ctx, loc, zones.locate(dest), taken)
-            _deposit(ctx, dest, taken, ctx.current_player, loc)
+            deposit(ctx, dest, zone.take_all(), ctx.current_player, loc)
 
 
 def _check_count(count: Any, mode: str | None) -> int:
@@ -621,7 +605,7 @@ def _epistemic(stmt: n.EpistemicOp, ctx: Ctx) -> None:
 def _reveal(stmt: n.EpistemicOp, zone: Zone, ctx: Ctx) -> None:
     # The revealed card STAYS in its zone — this is an epistemic event, not a
     # movement. It is public: every player's log gets it, regardless of the
-    # zone's declared visibility (unlike `observe.movement`, which projects
+    # zone's declared visibility (unlike a movement, which `deposit` delivers
     # per observer through the zone type).
     if stmt.where is not None:
         pred = _card_pred(stmt.where, ctx)
@@ -997,9 +981,7 @@ def _apply_pass(
     src_addr = ctx.rs.zones.locate(source)
     for card in selections[player]:
         source.remove(card)
-        _deposit(ctx, dest, [card], player, src_addr)
-    if ctx.observer is not None:
-        observe.movement(ctx, src_addr, ctx.rs.zones.locate(dest), selections[player])
+    deposit(ctx, dest, selections[player], player, src_addr)
 
 
 def _repeat_until(stmt: n.RepeatUntil, ctx: Ctx) -> None:

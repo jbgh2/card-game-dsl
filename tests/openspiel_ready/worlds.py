@@ -199,7 +199,7 @@ def permuted_replay(
             for c in plan.free[label]:
                 zone.remove(c)
             for c in assignment[label]:
-                zone.add(c)
+                zone.add_all([c])
 
     pause_b = run(path, seed, history, on_first_decision=mutate, picks=picks)
     assert isinstance(pause_b, DecisionNode), "world B ended where world A paused"

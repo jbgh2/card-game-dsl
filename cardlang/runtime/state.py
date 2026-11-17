@@ -134,7 +134,8 @@ class Zone:
     where — the fact the kernel performs every movement with and used to
     discard (issue #256; decisions.md "Knowledge, visibility, and the
     projection model", the arrival-record paragraph). Maintenance is total
-    over this class's own mutators: arrivals enter with `add`/`add_all`,
+    over this class's own mutators: arrivals enter with `add_all` (called
+    during play by `execute.deposit` alone, which tells each seat),
     leave with `remove`/`take_all`/`take_top` (oldest equal-valued entry
     first — value-matching IS the observational equivalence of duplicate
     copies), so multiset(record cards) == multiset(cards) at every statement
@@ -149,15 +150,6 @@ class Zone:
             Arrival(None, c, None) for c in self.cards
         ]
 
-    def add(
-        self,
-        card: Card,
-        actor: Player | None = None,
-        src: tuple[str, Player | str | None] | None = None,
-    ) -> None:
-        self.cards.append(card)
-        self.arrivals.append(Arrival(actor, card, src))
-
     def add_all(
         self,
         cards: Iterable[Card],
@@ -165,7 +157,8 @@ class Zone:
         src: tuple[str, Player | str | None] | None = None,
     ) -> None:
         for card in cards:
-            self.add(card, actor, src)
+            self.cards.append(card)
+            self.arrivals.append(Arrival(actor, card, src))
 
     def _drop_arrival(self, card: Card) -> None:
         # The oldest equal-valued entry leaves with its card. A card with no

@@ -450,8 +450,8 @@ def test_decode_pin_violation_trips_the_replay_guard() -> None:
         h2 = rs.zones.instance("hand", other)
         h1.remove(target)
         h2.remove(partner)
-        h1.add(partner)
-        h2.add(target)
+        h1.add_all([partner])
+        h2.add_all([target])
 
     with pytest.raises(ValueError, match="not among the live candidates"):
         run(PATH, seed, hist, on_first_decision=violate)
@@ -481,8 +481,8 @@ def test_log_pin_violation_replays_legally_but_is_distinguishable() -> None:
         h2 = rs.zones.instance("hand", opp)
         h1.remove(own_unplayed)
         h2.remove(opp_free)
-        h1.add(opp_free)
-        h2.add(own_unplayed)
+        h1.add_all([opp_free])
+        h2.add_all([own_unplayed])
 
     pause_b = run(PATH, seed, hist, on_first_decision=swap)
     assert isinstance(pause_b, DecisionNode)

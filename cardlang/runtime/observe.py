@@ -89,17 +89,18 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
   that only the route spells these kinds is issue #1004's constructor.
 - Establishes: a card transfer reaches each seat through both sides'
   declared projections (`movement`, through `view_of`), and a seat for whom
-  both sides are trivial receives no event. Held by: Derived and Pinned for
-  what a seat receives -- `view_of` is the one reading of a zone's
-  projection, read by `movement` and by `infostate`'s zone facts alike, and
-  the per-observer proofs under tests/openspiel_ready/ measure it;
-  Review-Enforced Prose for whether a transfer is observed at all -- no
-  check names a missing event, and the proofs' soundness converse perturbs
-  only the facts a seat sees at the position, which outlive the event.
-  Why not higher: emission sits beside the deposit rather than inside it --
-  each movement site pairs its zone write with its own `movement` call --
-  so a site that writes a zone without one emits nothing; observing from
-  the one deposit site is issue #1001.
+  both sides are trivial receives no event; every card that lands in a zone
+  during play is such a transfer, delivered by the site that lands it,
+  `execute.deposit`. Held by: Derived and Pinned for what a seat receives --
+  `view_of` is the one reading of a zone's projection, read by `movement`
+  and by `infostate`'s zone facts alike, and the per-observer proofs under
+  tests/openspiel_ready/ measure it; Derived and Pinned for whether a
+  transfer is observed -- `execute.deposit` is the one door a card lands by
+  during play and calls `movement` itself, and tests/test_deposit_door.py
+  holds the callers of `Zone.add_all` and of `movement` to it, with the
+  driver's deck seeding the one other write, which transfers nothing. Why
+  not higher: a `Zone` is a public class, so which code writes one is a
+  fact about the text.
 - Establishes: `view_of` answers the cards, a count, or nothing, for each
   projection `ZONE_PROJECTIONS` assigns; a level `PROJECTION_LEVELS`
   declares with no arm here is refused at play, not at declaration. Held

@@ -124,7 +124,7 @@ def _install(
             for card in list(hand.cards):
                 hand.remove(card)
             for card in world.deal[seat]:
-                hand.add(deck[card])
+                hand.add_all([deck[card]])
 
     return install
 
