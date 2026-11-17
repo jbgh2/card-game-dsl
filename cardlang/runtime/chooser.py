@@ -48,7 +48,7 @@ from typing import Any
 
 from cardlang.runtime.delegation import DECISION_POINTS
 from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.observe import PAYLOAD_SHAPES, render, state_delta
+from cardlang.runtime.observe import PAYLOAD_SHAPES, AskedEvent, ChoseEvent, render, state_delta
 from cardlang.runtime.state import Chooser, Ctx, LengthStop
 from cardlang.runtime.values import Player
 
@@ -183,7 +183,7 @@ def decide(
 
     admit()
     state_delta(ctx)
-    ctx.observe(decider, ("asked", ctx.current_phase.name, word, n, destination))
+    ctx.observe(decider, AskedEvent(ctx.current_phase.name, word, n, destination))
     recorded: list[Any] = []
 
     def record(pick: Any) -> None:
@@ -192,7 +192,7 @@ def decide(
         # this is where the bound falls, and for one walked pick by pick
         # `sequential_decisions` has admitted the pick before asking it.
         admit()
-        ctx.observe(decider, ("chose", render(pick)))
+        ctx.observe(decider, ChoseEvent(render(pick)))
         recorded.append(pick)
         rs.decisions_made += 1
 

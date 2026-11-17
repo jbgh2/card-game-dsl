@@ -124,6 +124,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.observe import MovementEvent
 from cardlang.stdlib import boards
 from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, board_entry
 from cardlang.types import TDir, TPlayer
@@ -967,13 +968,15 @@ def test_both_seats_see_the_king_a_crowning_places(tmp_path: Any) -> None:
     node = run(str(path), 0, tuple(history))
     assert isinstance(node, DecisionNode)
     crowning = [
-        ("move", "square[e7]", ("man:red",), "square[f8]", ("man:red",)),
-        ("move", "square[f8]", ("man:red",), "reserve[0]", ("man:red",)),
-        ("move", "kings[0]", ("king:red",), "square[f8]", ("king:red",)),
+        MovementEvent("square[e7]", ("man:red",), "square[f8]", ("man:red",)),
+        MovementEvent("square[f8]", ("man:red",), "reserve[0]", ("man:red",)),
+        MovementEvent("kings[0]", ("king:red",), "square[f8]", ("king:red",)),
     ]
     for seat in (0, 1):
         log = node.obs_logs[seat]
         at = log.index(crowning[0])
         assert log[at : at + 3] == crowning, log[at : at + 3]
-        steps = [e for e in log[:at] if e[0] == "move" and e[1].startswith("square[")]
-        assert steps and all(e[2] == ("man:red",) for e in steps), steps
+        steps = [
+            e for e in log[:at] if isinstance(e, MovementEvent) and e.source.startswith("square[")
+        ]
+        assert steps and all(e.source_view == ("man:red",) for e in steps), steps

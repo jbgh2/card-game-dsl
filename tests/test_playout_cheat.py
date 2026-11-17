@@ -26,6 +26,7 @@ import pytest
 from cardlang.ast import nodes as n
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AnnounceEvent, MovementEvent, ObservationEvent
 
 CHEAT = Path(__file__).parent.parent / "docs" / "games" / "cheat.cardlang"
 
@@ -73,9 +74,9 @@ def test_all_three_adjudication_branches_fire() -> None:
     pile_merges = 0
 
     for seed in range(6):
-        events: list[tuple[Any, ...]] = []
+        events: list[ObservationEvent] = []
 
-        def observer(player: int, event: tuple[Any, ...]) -> None:
+        def observer(player: int, event: ObservationEvent) -> None:
             if player == 0:
                 events.append(event)  # noqa: B023 -- consumed before the loop advances
 
@@ -84,14 +85,18 @@ def test_all_three_adjudication_branches_fire() -> None:
         claimant: int | None = None
         challenger: int | None = None
         for e in events:
-            if e[0] == "announce" and str(e[2]).startswith("play_"):
-                claimant = int(e[1])
-            elif e[0] == "announce" and e[2] == "call_cheat":
-                challenger = int(e[1])
-            elif e[0] == "move" and e[1] == "played" and e[3] == "pile":
+            if isinstance(e, AnnounceEvent) and str(e.value).startswith("play_"):
+                claimant = e.seat
+            elif isinstance(e, AnnounceEvent) and e.value == "call_cheat":
+                challenger = e.seat
+            elif isinstance(e, MovementEvent) and e.source == "played" and e.destination == "pile":
                 pile_merges += 1
-            elif e[0] == "move" and e[1] == "flipped" and str(e[3]).startswith("hand["):
-                taker = int(str(e[3]).split("[")[1].rstrip("]"))
+            elif (
+                isinstance(e, MovementEvent)
+                and e.source == "flipped"
+                and e.destination.startswith("hand[")
+            ):
+                taker = int(e.destination.split("[")[1].rstrip("]"))
                 assert challenger is not None and claimant is not None
                 if taker == challenger:
                     flips_to_challenger += 1

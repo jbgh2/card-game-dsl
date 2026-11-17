@@ -83,6 +83,7 @@ from cardlang.ast import nodes as n
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 from cardlang.runtime.skat import skat_bid_at, skat_next_bid
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card, Player
@@ -455,11 +456,11 @@ class Referee:
 
     # -- the observer: what each seat is shown, and the tricks -------------------
 
-    def observer(self, player: Player, event: tuple[Any, ...]) -> None:
-        if event[0] != "move":
+    def observer(self, player: Player, event: ObservationEvent) -> None:
+        if not isinstance(event, MovementEvent):
             return
-        _, src, src_view, dst, dst_view = event
-        source, target = str(src), str(dst)
+        source, src_view = event.source, event.source_view
+        target, dst_view = event.destination, event.destination_view
         if target == "deck":
             if not self.gathering and player == 0:
                 # The next deal's gather: the hand just played is scored.

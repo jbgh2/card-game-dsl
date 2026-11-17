@@ -87,7 +87,7 @@ from cardlang.openspiel.encoding import ActionSpace
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.observe import render
+from cardlang.runtime.observe import AnnounceEvent, ObservationEvent, render
 from tests.test_operator_guards import _OPERAND_FOR
 
 GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
@@ -162,9 +162,9 @@ def _play(game: n.Game, seed: int) -> Played:
             return [pick]
         return rng.sample(candidates, k)
 
-    def observer(player: int, event: tuple[Any, ...]) -> None:
-        if event[0] == "announce":
-            played.announces.append((player, event[2]))
+    def observer(player: int, event: ObservationEvent) -> None:
+        if isinstance(event, AnnounceEvent):
+            played.announces.append((player, event.value))
 
     play_game(game, rng, chooser=chooser, observer=observer)
     return played

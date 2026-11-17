@@ -39,6 +39,7 @@ from cardlang.openspiel.replay import generator_for, load
 from cardlang.runtime import execute
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AskedEvent, ChoseEvent, MovementEvent, ObservationEvent, WasEvent
 from cardlang.runtime.state import Ctx
 from tests.playout_policy import reference_policy_for
 
@@ -105,26 +106,29 @@ def test_a_simultaneous_block_lands_as_one_batch_at_block_exit(
     for number, entries in enumerate(blocks):
         where = f"{short_name} seed {seed}, block {number}"
         passed = sorted(
-            {seat for _, seat, event in entries if event[0] == "chose"}
+            {seat for _, seat, event in entries if isinstance(event, ChoseEvent)}
         )
         for observer in range(seats):
-            events = [event for _, seat, event in entries if seat == observer]
-            kinds = [event[0] for event in events]
+            events: list[ObservationEvent] = [
+                event for _, seat, event in entries if seat == observer
+            ]
+            kinds = [event.KIND for event in events]
             first_move = kinds.index("move") if "move" in kinds else len(kinds)
             before, batch = events[:first_move], events[first_move:]
             opening = next(
-                (i for i, event in enumerate(before) if event[0] != "was"), len(before)
+                (i for i, event in enumerate(before) if not isinstance(event, WasEvent)), len(before)
             )
             before = before[opening:]
-            assert all(event[0] in ("asked", "chose") for event in before), (
-                f"{where}: P{observer} learned {[e for e in before if e[0] not in ('asked', 'chose')]} "
+            assert all(isinstance(event, (AskedEvent, ChoseEvent)) for event in before), (
+                f"{where}: P{observer} learned "
+                f"{[e for e in before if not isinstance(e, (AskedEvent, ChoseEvent))]} "
                 f"before block-exit"
             )
-            assert all(event[0] == "move" for event in batch), (
-                f"{where}: P{observer}'s batch holds {[e[0] for e in batch]}, "
+            assert all(isinstance(event, MovementEvent) for event in batch), (
+                f"{where}: P{observer}'s batch holds {[e.KIND for e in batch]}, "
                 f"not movement events alone"
             )
-            assert all(event[0] != "asked" or observer in passed for event in before)
+            assert all(not isinstance(event, AskedEvent) or observer in passed for event in before)
             assert len(batch) == len(passed), (
                 f"{where}: P{observer} received {len(batch)} movement events for "
                 f"{len(passed)} seats' transfers"
@@ -132,7 +136,8 @@ def test_a_simultaneous_block_lands_as_one_batch_at_block_exit(
             order = [
                 int(match.group(1))
                 for event in batch
-                if (match := _SEAT_KEY.search(str(event[1]))) is not None
+                if isinstance(event, MovementEvent)
+                and (match := _SEAT_KEY.search(event.source)) is not None
             ]
             assert order == passed, (
                 f"{where}: P{observer}'s batch runs in the order {order}, not seat order {passed}"

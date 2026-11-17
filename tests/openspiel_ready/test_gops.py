@@ -26,6 +26,7 @@ Harness configuration rationale:
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import RevealEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs, action_strings
 
@@ -104,8 +105,8 @@ def test_sealed_bid_derivation_before_and_after_the_reveal() -> None:
     assert r2.player == 0, "round 2 must open on P0's bid"
     for q in (0, 1):
         log = r2.obs_logs[q]
-        assert ("reveal", "bid[0]", str(card)) in log, f"P{q} missed the bid[0] reveal"
-        assert ("reveal", "bid[1]", str(bid1)) in log, f"P{q} missed the bid[1] reveal"
+        assert RevealEvent("bid[0]", str(card)) in log, f"P{q} missed the bid[0] reveal"
+        assert RevealEvent("bid[1]", str(bid1)) in log, f"P{q} missed the bid[1] reveal"
         info = information_state(q, r2.rs, r2.obs_logs[q])
         discard_line = next(
             part for part in info.split("|")[1].split(";") if part.startswith("discard=")

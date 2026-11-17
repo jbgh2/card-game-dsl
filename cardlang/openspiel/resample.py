@@ -91,7 +91,7 @@ from cardlang.openspiel.replay import (
     run,
 )
 from cardlang.runtime.chance import Draw, Outcome, draw_kinds
-from cardlang.runtime.observe import render
+from cardlang.runtime.observe import AnnounceEvent, ObservationEvent, render
 from cardlang.runtime.state import ChooserAbort, RuntimeState
 from cardlang.runtime.values import Card, build_deck
 
@@ -159,7 +159,7 @@ class Entitlement:
     observer: int
     pause: DecisionNode
     information_state: str
-    log: tuple[tuple[Any, ...], ...]
+    log: tuple[ObservationEvent, ...]
     draws: tuple[Draw, ...]
     known: tuple[frozenset[Card], ...]  # per draw: the cards identified in its epoch
     identified: frozenset[_Unit]
@@ -168,9 +168,9 @@ class Entitlement:
 
 
 def _cards_named(x: Any, by_render: dict[str, Card]) -> Iterable[Card]:
-    """Every card an observation event or a Seat View field names: an exact
-    rendering in an event, a `Card` in a view, walked through tuples, lists
-    and mappings."""
+    """Every card an observation event's spelling or a Seat View field names:
+    an exact rendering in a spelling, a `Card` in a view, walked through
+    tuples, lists and mappings."""
     if isinstance(x, Card):
         yield x
     elif isinstance(x, str):
@@ -247,7 +247,7 @@ def entitlement(
     moved: dict[int, frozenset[_Unit]] = {}  # pick index -> the cards it moves, in their epochs
     unheard: dict[int, list[int]] = {}  # seat -> its non-card picks not yet announced
     heard: set[int] = set()
-    log: list[tuple[Any, ...]] = []
+    log: list[ObservationEvent] = []
     for moment in moments:
         if isinstance(moment, Drawn):
             # Shadow guard behind `refusal_in_text`, which refuses every game
@@ -266,12 +266,12 @@ def entitlement(
                 unheard.setdefault(moment.decider, []).append(moment.index)
         elif moment.player == observer:
             log.append(moment.event)
-            for card in _cards_named(moment.event, by_render):
+            for card in _cards_named(moment.event.spelled(), by_render):
                 identified.add((epoch.get(card), card))
-            if moment.event[0] == "announce":
-                _, seat, spelled = moment.event
+            if isinstance(moment.event, AnnounceEvent):
+                seat = moment.event.seat
                 for index in unheard.get(seat, []):
-                    if render(space.decode(history[index])) == spelled:
+                    if render(space.decode(history[index])) == moment.event.value:
                         heard.add(index)
                         unheard[seat].remove(index)
                         break
@@ -424,10 +424,10 @@ def _evaluate(
             for card in moment.draw.after:
                 epoch[card] = moment.draw.index
         elif isinstance(moment, Seen) and moment.player == owed.observer:
-            if heard >= len(owed.log) or moment.event[0] != owed.log[heard][0]:
+            if heard >= len(owed.log) or type(moment.event) is not type(owed.log[heard]):
                 raise _Rejected(f"observation {heard}: a different kind of event")
             if moment.event != owed.log[heard]:
-                raise _Rejected(f"observation {heard}: a different {moment.event[0]!r}")
+                raise _Rejected(f"observation {heard}: a different {moment.event.KIND!r}")
             heard += 1
 
     def moves_identified(aid: int) -> bool:

@@ -59,6 +59,7 @@ from cardlang.openspiel.replay import (
 )
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import ObservationEvent
 from cardlang.runtime.state import RuntimeState
 from tests.playout_policy import reference_policy_for
 
@@ -86,7 +87,7 @@ class _Call:
 class _NativeLine:
     history: tuple[int, ...]
     calls: tuple[_Call, ...]
-    logs: dict[int, list[tuple[Any, ...]]]
+    logs: dict[int, list[ObservationEvent]]
     returns: list[float]
     winners: frozenset[int]
 
@@ -94,7 +95,7 @@ class _NativeLine:
 def _native(path: str, seed: int) -> _NativeLine:
     game, space = load(path)
     seats = game.players.count
-    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(seats)}
+    logs: dict[int, list[ObservationEvent]] = {p: [] for p in range(seats)}
     world: list[RuntimeState] = []
     history: list[int] = []
     calls: list[_Call] = []
@@ -103,7 +104,7 @@ def _native(path: str, seed: int) -> _NativeLine:
     rng = random.Random(f"route-agreement:{seed}")
     policy = reference_policy_for(Path(path).stem, rng) or random_chooser(rng)
 
-    def observe(player: int, event: tuple[Any, ...]) -> None:
+    def observe(player: int, event: ObservationEvent) -> None:
         logs[player].append(event)
 
     def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
@@ -131,11 +132,11 @@ def _native(path: str, seed: int) -> _NativeLine:
     )
 
 
-def _replayed_logs(path: str, seed: int, history: tuple[int, ...]) -> dict[int, list[tuple[Any, ...]]]:
+def _replayed_logs(path: str, seed: int, history: tuple[int, ...]) -> dict[int, list[ObservationEvent]]:
     game, space = load(path)
-    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.count)}
+    logs: dict[int, list[ObservationEvent]] = {p: [] for p in range(game.players.count)}
 
-    def observe(player: int, event: tuple[Any, ...]) -> None:
+    def observe(player: int, event: ObservationEvent) -> None:
         logs[player].append(event)
 
     chooser = ReplayChooser(space, history)

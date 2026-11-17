@@ -13,6 +13,7 @@ from typing import Any
 
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AnnounceEvent, ChoseEvent, ObservationEvent
 
 SRC = """
 game OfferInEffect {
@@ -64,7 +65,7 @@ def _pick_first(player: int, candidates: list[Any], k: int) -> list[Any]:
 
 def test_offer_in_effect_runs_the_inner_decision_with_the_offered_actor() -> None:
     game = check_dsl(SRC, "offer_in_effect.cardlang")
-    logs: dict[int, list[tuple[Any, ...]]] = {0: [], 1: []}
+    logs: dict[int, list[ObservationEvent]] = {0: [], 1: []}
     result = play_game(
         game,
         random.Random(0),
@@ -79,20 +80,20 @@ def test_offer_in_effect_runs_the_inner_decision_with_the_offered_actor() -> Non
     # decision was announced).
     assert result.scores == {0: 1, 1: 1}
 
-    announces = [e for p in (0, 1) for e in logs[p] if e[0] == "announce"]
-    outer_announces = {e for e in announces if e[1:] == (0, "outer")}
-    inner_announces = {e for e in announces if e[1:] == (1, "inner_yes")}
+    announces = [e for p in (0, 1) for e in logs[p] if isinstance(e, AnnounceEvent)]
+    outer_announces = {e for e in announces if (e.seat, e.value) == (0, "outer")}
+    inner_announces = {e for e in announces if (e.seat, e.value) == (1, "inner_yes")}
     # Both decisions announce publicly — every player's log carries both.
     for player in (0, 1):
-        assert ("announce", 0, "outer") in logs[player]
-        assert ("announce", 1, "inner_yes") in logs[player]
+        assert AnnounceEvent(0, "outer") in logs[player]
+        assert AnnounceEvent(1, "inner_yes") in logs[player]
     assert outer_announces and inner_announces
 
     # The inner actor is the OFFERED player (1), not the outer actor (0):
     # only player 1 sees a "chose" for the inner pick.
-    chose_inner = [e for e in logs[1] if e == ("chose", "inner_yes")]
+    chose_inner = [e for e in logs[1] if e == ChoseEvent("inner_yes")]
     assert chose_inner
-    assert ("chose", "inner_yes") not in logs[0]
+    assert ChoseEvent("inner_yes") not in logs[0]
     # Symmetrically, only player 0 sees a "chose" for the outer pick.
-    assert ("chose", "outer") in logs[0]
-    assert ("chose", "outer") not in logs[1]
+    assert ChoseEvent("outer") in logs[0]
+    assert ChoseEvent("outer") not in logs[1]

@@ -40,6 +40,7 @@ from typing import Any
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import ChoseEvent, MovementEvent
 
 from .harness import GAMES_DIR
 
@@ -113,8 +114,8 @@ def test_a_delegated_decision_node_belongs_to_declarer() -> None:
     history.append(r.legal[0])
     after: Any = run(PATH, seed, tuple(history))
     assert isinstance(after, DecisionNode)
-    declarer_chose = [e for e in after.obs_logs[declarer] if e[0] == "chose"]
+    declarer_chose = [e for e in after.obs_logs[declarer] if isinstance(e, ChoseEvent)]
     dummy_moves = [e for e in after.obs_logs[dummy]
-                   if e[0] == "move" and f"dummy_hand[{dummy}]" in str(e[1])]
+                   if isinstance(e, MovementEvent) and f"dummy_hand[{dummy}]" in e.source]
     assert declarer_chose, "declarer holds no chose recall for the delegated draw"
     assert dummy_moves, "no movement left dummy's exposed hand"

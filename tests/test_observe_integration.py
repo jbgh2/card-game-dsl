@@ -8,14 +8,15 @@ from pathlib import Path
 from typing import Any
 
 from cardlang.pipeline import check_source
+from cardlang.runtime.observe import ChoseEvent, MovementEvent, ObservationEvent
 from cardlang.runtime.driver import play_game
 
 GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
 
 
-def _play_with_logs(path: str, seed: int) -> dict[int, list[tuple[Any, ...]]]:
+def _play_with_logs(path: str, seed: int) -> dict[int, list[ObservationEvent]]:
     game = check_source(GAMES / path)
-    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.count)}
+    logs: dict[int, list[ObservationEvent]] = {p: [] for p in range(game.players.count)}
     play_game(
         game,
         random.Random(seed),
@@ -27,43 +28,54 @@ def _play_with_logs(path: str, seed: int) -> dict[int, list[tuple[Any, ...]]]:
 def test_hearts_deal_is_private_per_recipient() -> None:
     logs = _play_with_logs("hearts.cardlang", 0)
     for p in range(4):
-        deals = [e for e in logs[p] if e[0] == "move" and e[3] == f"hand[{p}]"]
+        deals = [
+            e for e in logs[p] if isinstance(e, MovementEvent) and e.destination == f"hand[{p}]"
+        ]
         assert deals, f"player {p} saw no deal into their own hand"
         first = deals[0]
-        assert isinstance(first[4], tuple) and len(first[4]) == 13  # own: identity
+        own = first.destination_view
+        assert isinstance(own, tuple) and len(own) == 13  # own: identity
         other = [
-            e for e in logs[p] if e[0] == "move" and e[3] == f"hand[{(p + 1) % 4}]"
+            e
+            for e in logs[p]
+            if isinstance(e, MovementEvent) and e.destination == f"hand[{(p + 1) % 4}]"
         ]
-        assert other and other[0][4] == 13  # someone else's deal: a count
+        assert other and other[0].destination_view == 13  # someone else's deal: a count
 
 
 def test_hearts_trick_plays_are_public() -> None:
     logs = _play_with_logs("hearts.cardlang", 0)
     for p in range(4):
-        to_trick = [e for e in logs[p] if e[0] == "move" and e[3] == "trick_pile"]
+        to_trick = [
+            e for e in logs[p] if isinstance(e, MovementEvent) and e.destination == "trick_pile"
+        ]
         assert to_trick
         # every observer sees each played card at identity (TrickPile: identity to all)
-        assert all(isinstance(e[4], tuple) and len(e[4]) == 1 for e in to_trick)
+        assert all(
+            isinstance(e.destination_view, tuple) and len(e.destination_view) == 1
+            for e in to_trick
+        )
 
 
 def test_hearts_pass_hides_other_players_picks() -> None:
     logs = _play_with_logs("hearts.cardlang", 0)
     for p in range(4):
         # "chose" events are actor-only by construction; every one in p's log is p's own.
-        chose = [e for e in logs[p] if e[0] == "chose"]
+        chose = [e for e in logs[p] if isinstance(e, ChoseEvent)]
         assert chose  # p chose pass cards and trick plays
         # p sees others' hand->hand pass transfers only as counts
         pass_moves = [
             e
             for e in logs[p]
-            if e[0] == "move"
-            and e[1].startswith("hand[")
-            and e[3].startswith("hand[")
-            and e[1] != f"hand[{p}]"
-            and e[3] != f"hand[{p}]"
+            if isinstance(e, MovementEvent)
+            and e.source.startswith("hand[")
+            and e.destination.startswith("hand[")
+            and e.source != f"hand[{p}]"
+            and e.destination != f"hand[{p}]"
         ]
         assert pass_moves and all(
-            isinstance(e[2], int) and isinstance(e[4], int) for e in pass_moves
+            isinstance(e.source_view, int) and isinstance(e.destination_view, int)
+            for e in pass_moves
         )
 
 

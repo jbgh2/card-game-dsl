@@ -105,6 +105,7 @@ from cardlang.runtime import evaluate, execute, mechanics
 from cardlang.runtime.delegation import DECISION_POINTS, FORM_CONSTRUCTS
 from cardlang.runtime.driver import SEAT_KEY_BY_ROLE, GameResult, play_game
 from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.observe import AskedEvent, ChoseEvent, ObservationEvent
 from cardlang.runtime.state import RuntimeState, SpinSite
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -761,7 +762,7 @@ def test_native_and_replay_routes_stop_a_straddling_call_at_one_length() -> None
     and leave the decider one `asked`."""
     path = str(STRADDLE)
     game = check_source(STRADDLE)
-    logs: dict[int, list[tuple[Any, ...]]] = {0: [], 1: []}
+    logs: dict[int, list[ObservationEvent]] = {0: [], 1: []}
     world: list[RuntimeState] = []
     result = play_game(
         game, random.Random(SEED),
@@ -769,7 +770,7 @@ def test_native_and_replay_routes_stop_a_straddling_call_at_one_length() -> None
         on_first_decision=world.append,
     )
     assert _ended_by(result) == "length"
-    native = [e[0] for e in logs[0] if e[0] in ("asked", "chose")]
+    native = [e.KIND for e in logs[0] if isinstance(e, (AskedEvent, ChoseEvent))]
     assert native == ["asked", "chose", "chose"]
     assert world[0].decisions_made == 2
     assert len(world[0].zones.single("pile").cards) == 0, "a straddled call applies no pick"
@@ -780,14 +781,18 @@ def test_native_and_replay_routes_stop_a_straddling_call_at_one_length() -> None
     assert len(line.history) == 2
     node = run(path, SEED, tuple(line.history))
     assert isinstance(node, TerminalNode)
-    replayed = [e[0] for e in node_logs(path, tuple(line.history))[0] if e[0] in ("asked", "chose")]
+    replayed = [
+        e.KIND
+        for e in node_logs(path, tuple(line.history))[0]
+        if isinstance(e, (AskedEvent, ChoseEvent))
+    ]
     assert replayed == native
 
 
-def node_logs(path: str, history: tuple[int, ...]) -> dict[int, list[tuple[Any, ...]]]:
+def node_logs(path: str, history: tuple[int, ...]) -> dict[int, list[ObservationEvent]]:
     from cardlang.openspiel.replay import Seen
 
-    logs: dict[int, list[tuple[Any, ...]]] = {}
+    logs: dict[int, list[ObservationEvent]] = {}
 
     def listen(moment: object) -> None:
         if isinstance(moment, Seen):
@@ -804,13 +809,15 @@ def test_a_call_beginning_at_the_bound_is_never_asked() -> None:
     filled = check_dsl(
         STRADDLE.read_text().replace("max_length: 2", "max_length: 3"), "straddle3.cardlang"
     )
-    logs: dict[int, list[tuple[Any, ...]]] = {0: [], 1: []}
+    logs: dict[int, list[ObservationEvent]] = {0: [], 1: []}
     result = play_game(
         filled, random.Random(SEED), observer=lambda seat, event: logs[seat].append(event)
     )
     assert _ended_by(result) == "length"
-    assert [e[0] for e in logs[0] if e[0] in ("asked", "chose")] == ["asked", "chose", "chose", "chose"]
-    assert not [e for e in logs[1] if e[0] == "asked"], "the second call stops before its `asked`"
+    assert [e.KIND for e in logs[0] if isinstance(e, (AskedEvent, ChoseEvent))] == [
+        "asked", "chose", "chose", "chose"
+    ]
+    assert not [e for e in logs[1] if isinstance(e, AskedEvent)], "the second call stops before its `asked`"
 
 
 # --- the bounded game the registry pin plants ------------------------------------

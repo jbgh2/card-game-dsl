@@ -35,6 +35,7 @@ in every observer's information state while all four hands stay counts.
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import MovementEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -80,31 +81,31 @@ def test_pile_take_and_melds_derive_public_knowledge() -> None:
         # The take: the pile's top card moves to the taker's public stage
         # zone with full identity for EVERY observer.
         top_move = next(
-            e for e in log if e[0] == "move" and e[1] == "pile_top" and e[3] == "stage[2]"
+            e for e in log if isinstance(e, MovementEvent) and e.source == "pile_top" and e.destination == "stage[2]"
         )
-        assert isinstance(top_move[2], tuple) and isinstance(top_move[4], tuple)
+        assert isinstance(top_move.source_view, tuple) and isinstance(top_move.destination_view, tuple)
 
         # Staging: each hand card ARRIVES in the public stage zone with
         # identity for every observer (melding at a table is open), while
         # the hand SOURCE side stays a bare count for everyone but the taker.
         stagings = [
-            e for e in log if e[0] == "move" and e[1] == "hand[2]" and e[3] == "stage[2]"
+            e for e in log if isinstance(e, MovementEvent) and e.source == "hand[2]" and e.destination == "stage[2]"
         ]
         assert stagings
         for e in stagings:
-            assert isinstance(e[4], tuple) and len(e[4]) == 1
+            assert isinstance(e.destination_view, tuple) and len(e.destination_view) == 1
             if q == 2:
-                assert isinstance(e[2], tuple)
+                assert isinstance(e.source_view, tuple)
             else:
-                assert isinstance(e[2], int)
+                assert isinstance(e.source_view, int)
 
         # The close: the staged cards land on the TEAM meld pile — the
         # shared, growing meld object — with full identity for everyone.
         close = next(
-            e for e in log if e[0] == "move" and e[1] == "stage[2]" and str(e[3]).startswith("meld")
+            e for e in log if isinstance(e, MovementEvent) and e.source == "stage[2]" and str(e.destination).startswith("meld")
         )
-        assert isinstance(close[2], tuple) and isinstance(close[4], tuple)
-        meld_zone = str(close[3])  # e.g. "meldK[0]" — team-indexed
+        assert isinstance(close.source_view, tuple) and isinstance(close.destination_view, tuple)
+        meld_zone = str(close.destination)  # e.g. "meldK[0]" — team-indexed
 
         # The flush: the REST of the pile enters the taker's hand. Its
         # identity is public on the pile_rest SOURCE side for every
@@ -112,13 +113,13 @@ def test_pile_take_and_melds_derive_public_knowledge() -> None:
         # knowledge everyone already holds — while the receiving hand shows
         # only a count to everyone but the taker.
         flush = next(
-            e for e in log if e[0] == "move" and e[1] == "pile_rest" and e[3] == "hand[2]"
+            e for e in log if isinstance(e, MovementEvent) and e.source == "pile_rest" and e.destination == "hand[2]"
         )
-        assert isinstance(flush[2], tuple) and len(flush[2]) >= 1
+        assert isinstance(flush.source_view, tuple) and len(flush.source_view) >= 1
         if q == 2:
-            assert isinstance(flush[4], tuple)
+            assert isinstance(flush.destination_view, tuple)
         else:
-            assert isinstance(flush[4], int)
+            assert isinstance(flush.destination_view, int)
 
     # Rendered information states: the team meld pile is common knowledge —
     # identity in EVERY observer's state — while all four hands render as
@@ -156,13 +157,13 @@ def test_stock_draws_stay_hidden() -> None:
         (q, e)
         for q, log in r.obs_logs.items()
         for e in log
-        if e[0] == "move" and e[1] == "deck" and str(e[3]).startswith("hand[")
+        if isinstance(e, MovementEvent) and e.source == "deck" and str(e.destination).startswith("hand[")
     ]
     assert draws, "the greedy line drew from stock within 12 steps"
     for q, e in draws:
-        drawer = int(str(e[3])[5:-1])
-        assert isinstance(e[2], int)  # the stock face is hidden from everyone
+        drawer = int(str(e.destination)[5:-1])
+        assert isinstance(e.source_view, int)  # the stock face is hidden from everyone
         if q == drawer:
-            assert isinstance(e[4], tuple), "drawer sees the drawn card"
+            assert isinstance(e.destination_view, tuple), "drawer sees the drawn card"
         else:
-            assert isinstance(e[4], int), "others see a count only"
+            assert isinstance(e.destination_view, int), "others see a count only"

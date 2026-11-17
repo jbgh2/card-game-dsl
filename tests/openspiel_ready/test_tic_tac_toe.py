@@ -84,6 +84,7 @@ import pytest
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 
 from .harness import ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _advance
 from .partition import (
@@ -204,10 +205,10 @@ class TestReadiness(ReadinessProofs):
             square.cards[0], other.cards[0] = placed, mate
 
 
-def _board_moves(log: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
+def _board_moves(log: list[ObservationEvent]) -> list[MovementEvent]:
     """The board-directed ``move`` events in an observation log (destination a
     square) — the placements, in game order."""
-    return [e for e in log if e[0] == "move" and str(e[3]).startswith("square[")]
+    return [e for e in log if isinstance(e, MovementEvent) and str(e.destination).startswith("square[")]
 
 
 def test_placements_are_public_identity_events() -> None:
@@ -224,12 +225,12 @@ def test_placements_are_public_identity_events() -> None:
     """
     _, pause = _advance(PATH, 5, 4)
     assert isinstance(pause, DecisionNode)
-    boards: dict[int, list[tuple[Any, ...]]] = {}
+    boards: dict[int, list[MovementEvent]] = {}
     for p in range(len(pause.obs_logs)):
         moves = _board_moves(pause.obs_logs[p])
         assert moves, f"P{p} logged no board-directed placement events"
         for e in moves:
-            src_view, dst_view = e[2], e[4]
+            src_view, dst_view = e.source_view, e.destination_view
             assert isinstance(dst_view, tuple) and dst_view and all(
                 isinstance(c, str) for c in dst_view
             ), f"placement {e!r}: destination is not a full-identity view"

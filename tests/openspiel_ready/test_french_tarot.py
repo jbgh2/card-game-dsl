@@ -17,6 +17,7 @@ to TerminalNode through the replay engine and checks its returns.
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import AnnounceEvent, ChoseEvent, MovementEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs, greedy_pick
 
@@ -98,49 +99,53 @@ def test_discard_derives_hidden_observations() -> None:
 
     # The auction is public: every log hears the bid and every pass.
     for p, log in r.obs_logs.items():
-        assert ("announce", taker, "bid_petite") in log, f"P{p} never heard the bid"
+        assert AnnounceEvent(taker, "bid_petite") in log, f"P{p} never heard the bid"
         for other in range(4):
             if other != taker:
-                assert ("announce", other, "pass") in log, f"P{p} never heard P{other} pass"
+                assert AnnounceEvent(other, "pass") in log, f"P{p} never heard P{other} pass"
 
     # The chien merge (`chien` -> `hand[taker]`): count-only to a defender on
     # BOTH sides (the chien's own projection is count-only to everyone), but
     # identity into the taker's own hand.
-    chien_to_defender = next(e for e in defender_log if e[0] == "move" and e[1] == "chien")
-    assert chien_to_defender[2] == 6 and chien_to_defender[4] == 6
+    chien_to_defender = next(
+        e for e in defender_log if isinstance(e, MovementEvent) and e.source == "chien"
+    )
+    assert chien_to_defender.source_view == 6 and chien_to_defender.destination_view == 6
 
-    chien_to_taker = next(e for e in taker_log if e[0] == "move" and e[1] == "chien")
-    assert isinstance(chien_to_taker[4], tuple) and len(chien_to_taker[4]) == 6
+    chien_to_taker = next(
+        e for e in taker_log if isinstance(e, MovementEvent) and e.source == "chien"
+    )
+    assert isinstance(chien_to_taker.destination_view, tuple) and len(chien_to_taker.destination_view) == 6
 
     # The six discard picks surface as six "chose" events in the taker's log
     # only (the choice values themselves must never appear as another
     # player's "chose" — perfect recall of one's own decisions only).
-    discarded = {e[1] for e in taker_log if e[0] == "chose"} - {"bid_petite"}
+    discarded = {e.value for e in taker_log if isinstance(e, ChoseEvent)} - {"bid_petite"}
     assert len(discarded) == 6, discarded
     for p, log in r.obs_logs.items():
         if p == taker:
             continue
-        leaked = [e for e in log if e[0] == "chose" and e[1] in discarded]
+        leaked = [e for e in log if isinstance(e, ChoseEvent) and e.value in discarded]
         assert not leaked, f"P{p} observed the taker's private discard choice: {leaked}"
 
     # The discard movement itself (`hand[taker]` -> `discard[taker]`) — the
     # fidelity payoff — is count-only to a defender on BOTH sides, never the
     # old public-captured-pile leak.
     discard_to_defender = next(
-        e for e in defender_log if e[0] == "move" and e[3] == f"discard[{taker}]"
+        e for e in defender_log if isinstance(e, MovementEvent) and e.destination == f"discard[{taker}]"
     )
-    assert discard_to_defender[1] == f"hand[{taker}]"
-    assert discard_to_defender[2] == 6, "source (hand) must be count-only to a defender"
-    assert discard_to_defender[4] == 6, "dest (discard) must be count-only to a defender"
+    assert discard_to_defender.source == f"hand[{taker}]"
+    assert discard_to_defender.source_view == 6, "source (hand) must be count-only to a defender"
+    assert discard_to_defender.destination_view == 6, "dest (discard) must be count-only to a defender"
 
     # The taker sees identity on both sides of their own discard, the same
     # six cards leaving one zone and landing in the other.
     discard_to_taker = next(
-        e for e in taker_log if e[0] == "move" and e[3] == f"discard[{taker}]"
+        e for e in taker_log if isinstance(e, MovementEvent) and e.destination == f"discard[{taker}]"
     )
-    assert isinstance(discard_to_taker[2], tuple) and len(discard_to_taker[2]) == 6
-    assert isinstance(discard_to_taker[4], tuple) and len(discard_to_taker[4]) == 6
-    assert set(discard_to_taker[2]) == set(discard_to_taker[4]) == discarded
+    assert isinstance(discard_to_taker.source_view, tuple) and len(discard_to_taker.source_view) == 6
+    assert isinstance(discard_to_taker.destination_view, tuple) and len(discard_to_taker.destination_view) == 6
+    assert set(discard_to_taker.source_view) == set(discard_to_taker.destination_view) == discarded
 
     # Info state: a defender's rendering is a bare count; the taker's shows
     # the six actual identities.

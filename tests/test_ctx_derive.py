@@ -28,6 +28,7 @@ import pytest
 from cardlang.ast import nodes as n
 from cardlang.runtime import state as state_mod
 from cardlang.runtime.evaluate import _hermetic_ctx
+from cardlang.runtime.observe import ObservationEvent
 from cardlang.runtime.state import Ctx, Move, RuntimeState
 from cardlang.runtime.values import Card, Seating
 
@@ -42,7 +43,7 @@ def _full_ctx() -> Ctx:
     def tracer(event: str, data: Any) -> None:
         return None
 
-    def observer(p: int, event: tuple[Any, ...]) -> None:
+    def observer(p: int, event: ObservationEvent) -> None:
         return None
 
     return Ctx(

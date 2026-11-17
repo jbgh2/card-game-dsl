@@ -2,8 +2,8 @@
 as the information state spells it, pinned per game and seed.
 
 The information-state string embeds each seat's Observation Log verbatim, each
-event by its `repr` (`infostate.render_information_state`), so an event's
-spelling is part of the string OpenSpiel keys on, at every position and not
+event by the `repr` of its spelling (`spelled()`, read by
+`infostate.render_information_state`), so an event's spelling is part of the string OpenSpiel keys on, at every position and not
 only the first. tests/golden/infostate_format.json holds that string byte for
 byte at each game's first decision; this module holds the spelling of every
 event a seat is delivered on the whole line. It is the oracle the
@@ -14,7 +14,8 @@ changes, and this golden is what that claim fails against.
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:        for every game and seed of the domain, the sequence of
-                 (seat, event `repr`) pairs `Ctx.observe` delivers over a whole
+                 (seat, `repr` of the event's `spelled()`) pairs `Ctx.observe`
+                 delivers over a whole
                  played line hashes to the value captured in
                  tests/golden/observation_spelling.json.
 domain:          every game in the adapter registry
@@ -61,6 +62,7 @@ from cardlang.openspiel.registry import GAMES
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import ObservationEvent
 from cardlang.runtime.values import Player
 
 REPO = Path(__file__).parent.parent
@@ -112,13 +114,13 @@ def _game(name: str) -> n.Game:
 
 def _digest(name: str, seed: int) -> str:
     rng = random.Random(seed)
-    delivered: list[tuple[Player, tuple[Any, ...]]] = []
+    delivered: list[tuple[Player, ObservationEvent]] = []
 
-    def observer(player: Player, event: tuple[Any, ...]) -> None:
+    def observer(player: Player, event: ObservationEvent) -> None:
         delivered.append((player, event))
 
     play_game(_game(name), rng, lambda _name, _data: None, random_chooser(rng), observer=observer)
-    rendering = "\n".join(f"{p} {event!r}" for p, event in delivered)
+    rendering = "\n".join(f"{p} {event.spelled()!r}" for p, event in delivered)
     return hashlib.sha256(rendering.encode("utf-8")).hexdigest()
 
 

@@ -27,6 +27,7 @@ from typing import Any
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AnnounceEvent, ObservationEvent
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.tichu_combinations import (
     INTERRUPT_DECLINE,
@@ -178,16 +179,18 @@ def test_the_wish_is_asked_of_the_mahjong_player_and_compels_the_table() -> None
 def test_the_wish_is_a_public_announcement_every_seat_records() -> None:
     game = check_source(TICHU)
     driven = _Driven(3)
-    logs: dict[Player, list[tuple[Any, ...]]] = {p: [] for p in range(4)}
+    logs: dict[Player, list[ObservationEvent]] = {p: [] for p in range(4)}
 
-    def observer(player: Player, event: tuple[Any, ...]) -> None:
+    def observer(player: Player, event: ObservationEvent) -> None:
         logs[player].append(event)
 
     play_game(game, random.Random(3), None, driven, observer=observer, on_first_decision=driven.attach)
-    wishes = [e for e in logs[0] if e[0] == "announce" and e[2] in WISH_VALUES]
+    wishes = [e for e in logs[0] if isinstance(e, AnnounceEvent) and e.value in WISH_VALUES]
     assert wishes, "no wish was announced"
     for q in range(1, 4):
-        assert [e for e in logs[q] if e[0] == "announce" and e[2] in WISH_VALUES] == wishes
+        assert [
+            e for e in logs[q] if isinstance(e, AnnounceEvent) and e.value in WISH_VALUES
+        ] == wishes
 
 
 def test_a_wildcard_play_is_announced_and_two_histories_differ() -> None:
@@ -223,10 +226,10 @@ def test_a_wildcard_play_is_announced_and_two_histories_differ() -> None:
             self.base = tichu_reference_policy(self.rng)
             self.choose_high = choose_high
             self.done = False
-            self.log: list[tuple[Any, ...]] = []
+            self.log: list[AnnounceEvent] = []
 
-        def observer(self, player: Player, event: tuple[Any, ...]) -> None:
-            if player == 3 and event[0] == "announce":
+        def observer(self, player: Player, event: ObservationEvent) -> None:
+            if player == 3 and isinstance(event, AnnounceEvent):
                 self.log.append(event)
 
         def __call__(self, player: Player, candidates: list[Any], n: int) -> list[Any]:
@@ -243,7 +246,7 @@ def test_a_wildcard_play_is_announced_and_two_histories_differ() -> None:
                 return [high if self.choose_high else low]
             return self.base(player, candidates, n)
 
-    logs: list[list[tuple[Any, ...]]] = []
+    logs: list[list[AnnounceEvent]] = []
     for high in (False, True):
         twins = _Twins(high)
         try:
@@ -254,4 +257,4 @@ def test_a_wildcard_play_is_announced_and_two_histories_differ() -> None:
         logs.append(twins.log)
     assert logs[0][:-1] == logs[1][:-1], "the lines diverged before the twin play"
     assert logs[0][-1] != logs[1][-1], "the two assignments left a bystander's log identical"
-    assert "@" in str(logs[0][-1][2]) and "@" in str(logs[1][-1][2])
+    assert "@" in str(logs[0][-1].value) and "@" in str(logs[1][-1].value)

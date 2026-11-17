@@ -59,6 +59,7 @@ from cardlang.runtime.chance import (
     is_chance_free,
 )
 from cardlang.runtime.errors import ShadowGuardError
+from cardlang.runtime.observe import ObservationEvent
 from cardlang.runtime.chooser import sequential_decisions
 from cardlang.runtime.driver import EndedBy, GameResult, ScoredBy, play_game
 from cardlang.runtime.state import ChooserAbort, RuntimeState
@@ -97,7 +98,7 @@ class DecisionNode:
     player: int
     legal: list[int]  # global action ids, sorted ascending
     rs: RuntimeState  # the live world at the decision
-    obs_logs: dict[int, list[tuple[Any, ...]]]  # per-player observation logs
+    obs_logs: dict[int, list[ObservationEvent]]  # per-player observation logs
 
 
 @dataclass
@@ -359,11 +360,11 @@ class LiveLine:
 
     def play(self, policies: Mapping[int, SeatPolicy]) -> LiveEnd:
         game, space = load(self.path)
-        logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.count)}
+        logs: dict[int, list[ObservationEvent]] = {p: [] for p in range(game.players.count)}
         world: list[RuntimeState] = []
         views: dict[int, SeatView] = {}
 
-        def observe(player: int, event: tuple[Any, ...]) -> None:
+        def observe(player: int, event: ObservationEvent) -> None:
             logs[player].append(event)
 
         def ask(decider: int, legal: list[int]) -> int:
@@ -402,7 +403,7 @@ class Seen:
     the event."""
 
     player: int
-    event: tuple[Any, ...]
+    event: ObservationEvent
 
 
 @dataclass(frozen=True)
@@ -446,11 +447,11 @@ def run(
     given, is asked for each pick past the history instead of pausing there,
     and pauses the run itself by raising `ChooserAbort`."""
     game, space = load(path_str)
-    logs: dict[int, list[tuple[Any, ...]]] = {
+    logs: dict[int, list[ObservationEvent]] = {
         p: [] for p in range(game.players.count)
     }
 
-    def observe(player: int, event: tuple[Any, ...]) -> None:
+    def observe(player: int, event: ObservationEvent) -> None:
         logs[player].append(event)
         if listen is not None:
             listen(Seen(player, event))

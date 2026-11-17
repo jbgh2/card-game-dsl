@@ -68,6 +68,7 @@ from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.delegation import CONSTRUCTS
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import GameDescriptionError
+from cardlang.runtime.observe import AnnounceEvent, AskedEvent, ChoseEvent, MovementEvent, ObservationEvent, RevealEvent, WasEvent
 from cardlang.runtime.state import IllegalMove
 
 REPO = Path(__file__).resolve().parent.parent
@@ -89,7 +90,7 @@ class _Line:
     """What one seeded line delivered, each event with the stack of parts of
     the game running when it was emitted, innermost last."""
 
-    events: list[tuple[tuple[n.NodeKey | None, ...], int, int, tuple[Any, ...], int | None]] = field(
+    events: list[tuple[tuple[n.NodeKey | None, ...], int, int, ObservationEvent, int | None]] = field(
         default_factory=list
     )
     moves: list[dict[str, Any]] = field(default_factory=list)
@@ -147,7 +148,7 @@ def _play(path: Path, seed: int) -> _Line:
         made[0] += 1
         return uniform(player, candidates, amount)
 
-    def observed(seat: int, event: tuple[Any, ...]) -> None:
+    def observed(seat: int, event: ObservationEvent) -> None:
         keys = tuple(k for k, _ in stack)
         line.events.append((keys, stack[-1][1] if stack else 0, seat, event, moving[0]))
 
@@ -210,9 +211,9 @@ def _findings(path: Path, seed: int) -> tuple[list[str], set[n.NodeKey]]:
         pre = checked.program[: key[1]]
         return f"{path.name}:{pre.count(chr(10)) + 1}:{key[1] - pre.rfind(chr(10))} {key[3]}"
 
-    by_move: dict[int, dict[int, tuple[Any, ...]]] = defaultdict(dict)
+    by_move: dict[int, dict[int, MovementEvent]] = defaultdict(dict)
     for _keys, _exec, seat, emitted, moving in line.events:
-        if moving is not None and emitted[0] == "move":
+        if moving is not None and isinstance(emitted, MovementEvent):
             by_move[moving][seat] = emitted
 
     for mv in line.moves:
@@ -229,23 +230,26 @@ def _findings(path: Path, seed: int) -> tuple[list[str], set[n.NodeKey]]:
             continue
         for seat, holds in mv["holds"].items():
             obs = _observer(move, holds)
-            event: tuple[Any, ...] | None = by_move[mv["at"]].get(seat)
+            delivered: MovementEvent | None = by_move[mv["at"]].get(seat)
             if obs is None:
                 found.append(f"{at(key)}: seat {seat} holds {holds}; the query has no such kind of seat")
                 continue
-            if obs.learns is True and event is None:
+            if obs.learns is True and delivered is None:
                 found.append(f"{at(key)}: {obs.who} (seat {seat}) learns, says the query; play delivers nothing")
-            if obs.learns is False and event is not None:
-                found.append(f"{at(key)}: {obs.who} (seat {seat}) learns nothing, says the query; play delivers {event}")
-            if event is not None:
-                for projection, view in ((obs.source, event[2]), (obs.destination, event[4])):
+            if obs.learns is False and delivered is not None:
+                found.append(f"{at(key)}: {obs.who} (seat {seat}) learns nothing, says the query; play delivers {delivered}")
+            if delivered is not None:
+                for projection, view in (
+                    (obs.source, delivered.source_view),
+                    (obs.destination, delivered.destination_view),
+                ):
                     if projection is not None and not isinstance(view, _SHAPE.get(projection, object)):
                         found.append(f"{at(key)}: {obs.who} (seat {seat}) sees {view!r}; the query says {projection}")
 
-    by_exec: dict[int, list[tuple[tuple[n.NodeKey | None, ...], int, tuple[Any, ...]]]] = defaultdict(list)
+    by_exec: dict[int, list[tuple[tuple[n.NodeKey | None, ...], int, ObservationEvent]]] = defaultdict(list)
     for keys, exec_id, seat, event, _moving in line.events:
         by_exec[exec_id].append((keys, seat, event))
-        if event[0] == "was":
+        if isinstance(event, WasEvent):
             continue
         for key in keys:
             if key is None:
@@ -254,7 +258,7 @@ def _findings(path: Path, seed: int) -> tuple[list[str], set[n.NodeKey]]:
                 key = runs.get(key[:3], key)
             answer = answers.get(key)
             if isinstance(answer, Told) and answer.diagnostic.code is Code.NOTHING_SEEN_HERE:
-                found.append(f"{at(key)}: moves no card and asks no seat, says the query; play emits {event[0]}")
+                found.append(f"{at(key)}: moves no card and asks no seat, says the query; play emits {event.KIND}")
 
     for exec_id, evs in by_exec.items():
         key = evs[0][0][-1] if evs[0][0] else None
@@ -263,16 +267,16 @@ def _findings(path: Path, seed: int) -> tuple[list[str], set[n.NodeKey]]:
         seats = answers.get(key)
         if not isinstance(seats, q.Seats):
             continue
-        kinds = {event[0] for _keys, _seat, event in evs}
-        if seats.site == "reveal" and {s for _k, s, e in evs if e[0] == "reveal"} != set(range(checked.game.players.count)):
+        kinds = {event.KIND for _keys, _seat, event in evs}
+        if seats.site == "reveal" and {s for _k, s, e in evs if isinstance(e, RevealEvent)} != set(range(checked.game.players.count)):
             found.append(f"{at(key)}: a reveal that does not reach every seat")
         if seats.site == "shuffle" and kinds - {"was"}:
             found.append(f"{at(key)}: a shuffle that emits {sorted(kinds)}")
         for _keys, seat, event in evs:
-            if event[0] != "asked":
+            if not isinstance(event, AskedEvent):
                 continue
-            if seats.construct is not None and event[2] != seats.construct:
-                found.append(f"{at(key)}: asked as {event[2]!r}; the query says {seats.construct!r}")
+            if seats.construct is not None and event.construct != seats.construct:
+                found.append(f"{at(key)}: asked as {event.construct!r}; the query says {seats.construct!r}")
             if seats.decider == "the acting seat" and seat != line.actors.get(exec_id):
                 found.append(f"{at(key)}: asked seat {seat}; the acting seat was {line.actors.get(exec_id)}")
         for announced in _picks(evs):
@@ -283,21 +287,23 @@ def _findings(path: Path, seed: int) -> tuple[list[str], set[n.NodeKey]]:
     return found, line.ran
 
 
-def _picks(evs: list[tuple[tuple[n.NodeKey | None, ...], int, tuple[Any, ...]]]) -> list[bool]:
+def _picks(evs: list[tuple[tuple[n.NodeKey | None, ...], int, ObservationEvent]]) -> list[bool]:
     """Each pick made in one run of a site, and whether its decider's pick was
     announced before the next ask: a pick counts once its decider chose."""
     out: list[bool] = []
     asker: int | None = None
     chose = announced = False
-    for _keys, seat, event in [*evs, ((), -1, ("asked", "", "", 1, None))]:
-        if event[0] == "asked":
+    for _keys, seat, event in evs:
+        if isinstance(event, AskedEvent):
             if asker is not None and chose:
                 out.append(announced)
             asker, chose, announced = seat, False, False
-        elif event[0] == "chose" and seat == asker:
+        elif isinstance(event, ChoseEvent) and seat == asker:
             chose = True
-        elif event[0] == "announce" and event[1] == asker:
+        elif isinstance(event, AnnounceEvent) and event.seat == asker:
             announced = True
+    if asker is not None and chose:
+        out.append(announced)
     return out
 
 
@@ -350,8 +356,8 @@ def _asked_constructs() -> dict[str, set[str]]:
     for path in GAMES:
         line = _play(path, ORACLE_SEEDS[0])
         for _keys, _exec, _seat, event, _moving in line.events:
-            if event[0] == "asked":
-                out[event[2]].add(path.stem)
+            if isinstance(event, AskedEvent):
+                out[event.construct].add(path.stem)
     return out
 
 

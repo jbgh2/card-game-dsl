@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import random
-from typing import Any
-
 from cardlang.ast import nodes as n
+from cardlang.runtime.observe import AnnounceEvent, ChoseEvent, MovementEvent, ObservationEvent
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Seating
 
@@ -35,19 +34,19 @@ def test_locate_finds_singles_and_family_instances() -> None:
 def test_ctx_observer_defaults_to_none_and_observe_is_noop() -> None:
     rs = RuntimeState(Seating(4), _store(), random.Random(0))
     ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c)[:k])
-    ctx.observe(0, ("announce", 1, "pass"))  # must not raise
+    ctx.observe(0, AnnounceEvent(1, "pass"))  # must not raise
 
 
 def test_ctx_observe_delivers_to_installed_observer() -> None:
     rs = RuntimeState(Seating(4), _store(), random.Random(0))
-    seen: list[tuple[int, tuple[Any, ...]]] = []
+    seen: list[tuple[int, ObservationEvent]] = []
     ctx = Ctx(
         rs=rs,
         chooser=lambda p, c, k: list(c)[:k],
         observer=lambda pl, ev: seen.append((pl, ev)),
     )
-    ctx.observe(2, ("chose", "Q spades"))
-    assert seen == [(2, ("chose", "Q spades"))]
+    ctx.observe(2, ChoseEvent("Q spades"))
+    assert seen == [(2, ChoseEvent("Q spades"))]
 
 
 # Task 3: Observation emitter tests
@@ -57,11 +56,11 @@ from cardlang.runtime.chooser import decide
 from cardlang.runtime.values import Card, TeamOf
 
 
-def _ctx_with_log() -> tuple[Ctx, dict[int, list[tuple[Any, ...]]]]:
+def _ctx_with_log() -> tuple[Ctx, dict[int, list[ObservationEvent]]]:
     rs = RuntimeState(Seating(4), _store(), random.Random(0))
     rs.team_of = TeamOf({0: 0, 1: 1, 2: 0, 3: 1})
     rs.max_length = 10  # a bound the picks below do not reach
-    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(4)}
+    logs: dict[int, list[ObservationEvent]] = {p: [] for p in range(4)}
     ctx = Ctx(
         rs=rs,
         chooser=lambda p, c, k: list(c)[:k],
@@ -85,7 +84,7 @@ def test_each_pick_reaches_only_the_decider() -> None:
     ctx = ctx.in_phase(n.Phase("play", None, ()))
     picks = [Card("Q", "spades"), Card("2", "clubs")]
     assert decide(ctx, 2, picks, 2, "execute._select_from") == picks
-    assert logs[2][1:] == [("chose", str(picks[0])), ("chose", str(picks[1]))]
+    assert logs[2][1:] == [ChoseEvent(str(picks[0])), ChoseEvent(str(picks[1]))]
     assert logs[0] == logs[1] == logs[3] == []
 
 
@@ -93,7 +92,7 @@ def test_announce_reaches_everyone() -> None:
     ctx, logs = _ctx_with_log()
     observe.announce(ctx, 1, ("bid", 3))
     for p in range(4):
-        assert logs[p] == [("announce", 1, "bid(3)")]
+        assert logs[p] == [AnnounceEvent(1, "bid(3)")]
 
 
 def test_movement_projects_per_observer() -> None:
@@ -102,9 +101,9 @@ def test_movement_projects_per_observer() -> None:
     # deck (count_only to all) -> hand[1] (identity to owner, count to others)
     observe.movement(ctx, ("deck", None), ("hand", 1), cards)
     ident = tuple(sorted(str(c) for c in cards))
-    assert logs[1] == [("move", "deck", 2, "hand[1]", ident)]
+    assert logs[1] == [MovementEvent("deck", 2, "hand[1]", ident)]
     for p in (0, 2, 3):
-        assert logs[p] == [("move", "deck", 2, "hand[1]", 2)]
+        assert logs[p] == [MovementEvent("deck", 2, "hand[1]", 2)]
 
 
 def test_movement_identity_zone_is_public() -> None:
@@ -113,9 +112,9 @@ def test_movement_identity_zone_is_public() -> None:
     # hand[0] -> captured[1] (TeamPile: identity to all)
     observe.movement(ctx, ("hand", 0), ("captured", 1), card)
     ident = (str(Card("Q", "spades")),)
-    assert logs[0] == [("move", "hand[0]", ident, "captured[1]", ident)]
+    assert logs[0] == [MovementEvent("hand[0]", ident, "captured[1]", ident)]
     for p in (1, 2, 3):
-        assert logs[p] == [("move", "hand[0]", 1, "captured[1]", ident)]
+        assert logs[p] == [MovementEvent("hand[0]", 1, "captured[1]", ident)]
 
 
 def test_team_owner_resolution() -> None:

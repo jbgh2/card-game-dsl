@@ -74,6 +74,7 @@ import pytest
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, RecordedPick, load, run
+from cardlang.runtime.observe import MovementEvent
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card, build_deck
 
@@ -178,22 +179,22 @@ def test_challenge_verdict_is_a_public_function_of_hidden_content() -> None:
     rb = run(PATH, 5, (play, one, three, call))
     assert isinstance(ra, DecisionNode) and isinstance(rb, DecisionNode)
 
-    def flip_and_route(r: DecisionNode, q: int) -> tuple[tuple[object, ...], tuple[object, ...]]:
+    def flip_and_route(r: DecisionNode, q: int) -> tuple[MovementEvent, MovementEvent]:
         flip = next(
-            e for e in r.obs_logs[q] if e[0] == "move" and e[3] == "flipped"
+            e for e in r.obs_logs[q] if isinstance(e, MovementEvent) and e.destination == "flipped"
         )
         route = next(
-            e for e in r.obs_logs[q] if e[0] == "move" and e[1] == "flipped"
+            e for e in r.obs_logs[q] if isinstance(e, MovementEvent) and e.source == "flipped"
         )
         return flip, route
 
     for q in range(4):
         flip_a, route_a = flip_and_route(ra, q)
         flip_b, route_b = flip_and_route(rb, q)
-        assert flip_a[4] == ("A♠",), f"P{q} did not see the true flip identity"
-        assert flip_b[4] == ("3♥",), f"P{q} did not see the lying flip identity"
-        assert route_a[3] == "hand[1]", "a true claim must cost the challenger"
-        assert route_b[3] == "hand[0]", "a caught lie must cost the liar"
+        assert flip_a.destination_view == ("A♠",), f"P{q} did not see the true flip identity"
+        assert flip_b.destination_view == ("3♥",), f"P{q} did not see the lying flip identity"
+        assert route_a.destination == "hand[1]", "a true claim must cost the challenger"
+        assert route_b.destination == "hand[0]", "a caught lie must cost the liar"
         info_a = information_state(q, ra.rs, ra.obs_logs[q])
         info_b = information_state(q, rb.rs, rb.obs_logs[q])
         assert info_a != info_b, f"P{q} cannot see the challenge outcome"
@@ -275,14 +276,15 @@ def test_a_multi_card_play_carries_the_same_channel_as_a_single() -> None:
     cb = run(PATH, 5, (play, two, ace, three, call))
     assert isinstance(ca, DecisionNode) and isinstance(cb, DecisionNode)
     for q in range(4):
-        flip_a = next(e for e in ca.obs_logs[q] if e[0] == "move" and e[3] == "flipped")
-        flip_b = next(e for e in cb.obs_logs[q] if e[0] == "move" and e[3] == "flipped")
-        assert set(flip_a[4]) == {"A♠", "A♥"}, f"P{q} did not see both flipped cards"
-        assert set(flip_b[4]) == {"A♠", "3♥"}, f"P{q} did not see both flipped cards"
-        route_a = next(e for e in ca.obs_logs[q] if e[0] == "move" and e[1] == "flipped")
-        route_b = next(e for e in cb.obs_logs[q] if e[0] == "move" and e[1] == "flipped")
-        assert route_a[3] == "hand[1]", "an honest two-card claim must cost the challenger"
-        assert route_b[3] == "hand[0]", "a caught two-card lie must cost the liar"
+        flip_a = next(e for e in ca.obs_logs[q] if isinstance(e, MovementEvent) and e.destination == "flipped")
+        flip_b = next(e for e in cb.obs_logs[q] if isinstance(e, MovementEvent) and e.destination == "flipped")
+        assert isinstance(flip_a.destination_view, tuple) and isinstance(flip_b.destination_view, tuple)
+        assert set(flip_a.destination_view) == {"A♠", "A♥"}, f"P{q} did not see both flipped cards"
+        assert set(flip_b.destination_view) == {"A♠", "3♥"}, f"P{q} did not see both flipped cards"
+        route_a = next(e for e in ca.obs_logs[q] if isinstance(e, MovementEvent) and e.source == "flipped")
+        route_b = next(e for e in cb.obs_logs[q] if isinstance(e, MovementEvent) and e.source == "flipped")
+        assert route_a.destination == "hand[1]", "an honest two-card claim must cost the challenger"
+        assert route_b.destination == "hand[0]", "a caught two-card lie must cost the liar"
 
 
 # --- the constructive world generator -------------------------------------
@@ -333,11 +335,11 @@ def test_constructive_worlds_are_indistinguishable(seed: int) -> None:
     picks_a: list[RecordedPick] = []
     probe = run(PATH, seed, hist, picks=picks_a)
     assert isinstance(probe, DecisionNode)
-    flips = [e for e in probe.obs_logs[0] if e[0] == "move" and e[3] == "flipped"]
+    flips = [e for e in probe.obs_logs[0] if isinstance(e, MovementEvent) and e.destination == "flipped"]
     pickups = [
         e
         for e in probe.obs_logs[0]
-        if e[0] == "move" and e[1] == "pile" and str(e[3]).startswith("hand[")
+        if isinstance(e, MovementEvent) and e.source == "pile" and str(e.destination).startswith("hand[")
     ]
     assert len(flips) >= 2, "the line never exercised the flip channel"
     assert pickups, "the line never exercised a pile pickup"
@@ -434,12 +436,11 @@ def test_decode_pin_violation_trips_the_replay_guard() -> None:
     _, _space = load(PATH)
     by_render = {str(c): c for c in build_deck("standard52")}
 
-    flipped = [
-        by_render[s]
-        for e in pause_a.obs_logs[0]
-        if e[0] == "move" and e[3] == "flipped"
-        for s in e[4]
-    ]
+    flipped: list[Card] = []
+    for e in pause_a.obs_logs[0]:
+        if isinstance(e, MovementEvent) and e.destination == "flipped":
+            assert isinstance(e.destination_view, tuple)
+            flipped.extend(by_render[s] for s in e.destination_view)
     target = next(c for c in flipped if any(c in initial[p] for p in (1, 2, 3)))
     holder = next(p for p in (1, 2, 3) if target in initial[p])
     other = next(p for p in (1, 2, 3) if p != holder and plan.free[f"hand[{p}]"])

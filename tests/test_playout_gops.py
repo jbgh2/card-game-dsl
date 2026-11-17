@@ -22,6 +22,7 @@ from typing import Any
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import MovementEvent, ObservationEvent, RevealEvent
 
 GOPS = Path(__file__).parent.parent / "docs" / "games" / "gops.cardlang"
 GOLDEN = Path(__file__).parent / "golden" / "gops_scores.json"
@@ -46,9 +47,9 @@ def _run_and_verify(game: Any, seed: int) -> int:
     """Play one seeded game, recompute the whole hand from player 0's
     observation log, and verify every recomputable fact. Returns the number
     of tied rounds (for coverage assertions across seeds)."""
-    log: list[tuple[Any, ...]] = []
+    log: list[ObservationEvent] = []
 
-    def observer(player: int, event: tuple[Any, ...]) -> None:
+    def observer(player: int, event: ObservationEvent) -> None:
         if player == 0:
             log.append(event)
 
@@ -57,17 +58,23 @@ def _run_and_verify(game: Any, seed: int) -> int:
     # Slice the log into rounds: each round opens with the prize exposure.
     prizes: list[str] = []
     bids: list[tuple[str, str]] = []
-    routings: list[tuple[Any, ...]] = []
+    routings: list[MovementEvent] = []
     pending: dict[str, str] = {}
     for event in log:
-        if event[0] == "move" and event[1] == "prize_deck" and event[3] == "prize":
-            assert len(event[4]) == 1, f"seed {seed}: multi-card prize exposure"
-            prizes.append(event[4][0])
-        elif event[0] == "reveal":
-            pending[event[1]] = event[2]
+        if (
+            isinstance(event, MovementEvent)
+            and event.source == "prize_deck"
+            and event.destination == "prize"
+        ):
+            exposed = event.destination_view
+            assert isinstance(exposed, tuple)
+            assert len(exposed) == 1, f"seed {seed}: multi-card prize exposure"
+            prizes.append(exposed[0])
+        elif isinstance(event, RevealEvent):
+            pending[event.zone] = event.card
             if len(pending) == 2:
                 bids.append((pending.pop("bid[0]"), pending.pop("bid[1]")))
-        elif event[0] == "move" and event[1] == "prize":
+        elif isinstance(event, MovementEvent) and event.source == "prize":
             routings.append(event)
 
     assert len(prizes) == ROUNDS, f"seed {seed}: {len(prizes)} rounds"
@@ -90,7 +97,9 @@ def _run_and_verify(game: Any, seed: int) -> int:
     ties = 0
     for rnd, (prize, (b0, b1), routing) in enumerate(zip(prizes, bids, routings)):
         v0, v1 = VALUE[_rank(b0)], VALUE[_rank(b1)]
-        assert routing[2] == (prize,), f"seed {seed} round {rnd}: routed {routing[2]}"
+        assert routing.source_view == (prize,), (
+            f"seed {seed} round {rnd}: routed {routing.source_view}"
+        )
         if v0 == v1:
             ties += 1
             discarded += VALUE[_rank(prize)]
@@ -99,8 +108,8 @@ def _run_and_verify(game: Any, seed: int) -> int:
             winner = 0 if v0 > v1 else 1
             points[winner] += VALUE[_rank(prize)]
             dest = f"captured[{winner}]"
-        assert routing[3] == dest, (
-            f"seed {seed} round {rnd}: prize routed to {routing[3]}, expected {dest}"
+        assert routing.destination == dest, (
+            f"seed {seed} round {rnd}: prize routed to {routing.destination}, expected {dest}"
         )
 
     # Conservation: won points plus tied-away prizes account for the suit.

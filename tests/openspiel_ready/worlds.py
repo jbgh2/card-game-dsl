@@ -51,6 +51,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from cardlang.openspiel.replay import DecisionNode, RecordedPick, load, run
+from cardlang.runtime.observe import ObservationEvent
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card, build_deck
 
@@ -79,7 +80,7 @@ class WorldPlan:
         return [c for cards in self.free.values() for c in cards]
 
 
-def _scan_log_pins(log: list[tuple[Any, ...]], by_render: dict[str, Card]) -> set[Card]:
+def _scan_log_pins(log: list[ObservationEvent], by_render: dict[str, Card]) -> set[Card]:
     """Card identities named anywhere in an observation log — exact string
     match against the deck's renderings, walked through nested tuples (never
     substring matching: '10♦' contains no other card's rendering, but exact
@@ -96,7 +97,7 @@ def _scan_log_pins(log: list[tuple[Any, ...]], by_render: dict[str, Card]) -> se
                 scan(y)
 
     for event in log:
-        scan(event)
+        scan(event.spelled())
     return pins
 
 

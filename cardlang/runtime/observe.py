@@ -1,9 +1,9 @@
 """Per-observer [[observation-event]] emission — the [[projection]] substrate.
 
-Every event is a plain, deterministic, human-readable tuple. The kinds, and the
-shape of every field each kind carries, are `EVENT_PAYLOADS` below — the closed
-set and the authority, with `PAYLOAD_SHAPES` saying what each field shape
-admits. This is what each carries:
+Every event is a member of the closed union `ObservationEvent` below: one
+frozen kind per tag, whose fields each carry a `PAYLOAD_SHAPES` row saying
+what they admit, and which spells itself as a plain, deterministic,
+human-readable tuple (`spelled()`). This is each kind's spelling:
 
   ("asked", phase, construct, count, destination)
                                           delivered to the DECIDER alone,
@@ -57,21 +57,26 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
   what each zone type shows its owner and every other seat; a caller that
   keeps a seat's log installs `Ctx.observer` and appends every event
   delivered to that seat, in delivery order.
-- Establishes: the kinds of [[observation-event]] and the shape of every
-  field each kind carries are `EVENT_PAYLOADS`, what each shape admits is
-  `PAYLOAD_SHAPES`, and `payload_refusal` refuses, in words, a kind, an
-  arity or a field outside them. Held by: Born-Green Pin,
-  tests/test_observation_payloads.py, which plays every registered game
-  with an observer installed and holds every delivered event to its row,
-  beside member cells that redden on a shape admitting its nearest wrong
-  value. Why not higher: each emission site spells its tuple by hand, so the
-  table describes the events rather than constructing them, and emission
-  is unfenced -- `Ctx.observe` delivers whatever a site hands it, and a
-  malformed event is refused where it is consumed (a rendering asking
-  `payload_refusal`, the soundness matrix at probe time), never where it is
-  made. The tuple stays because each event's `repr` is the information
-  state's substrate (`infostate.render_information_state`); the closed
-  union that spells itself as today's tuple is issue #1004.
+- Establishes: every [[observation-event]] is a member of
+  `ObservationEvent`, with its kind's fields; each field holds a value its
+  `PAYLOAD_SHAPES` row admits, refused in words when the event is made; and
+  a held event cannot change. Held by: Unrepresentable for the kind, the
+  arity and the immutability -- the union, each kind's signature, `frozen`
+  and `slots` -- and every consumer dispatches over the union; Derived and
+  Pinned for the content -- one check, `_Admitted.__post_init__`, run by
+  every constructor, and tests/test_observation_payloads.py, whose refusal
+  cells redden on deleting it. Why not higher, for the content: a shape is
+  a predicate over spellings (a label's form, a card's rendering, a sorted
+  group), which no type states.
+- Establishes: each kind spells itself as its tag followed by its fields in
+  declaration order (`spelled()`), and that spelling, by its `repr`, is
+  what the information state embeds (`infostate.render_information_state`).
+  Held by: Born-Green Pin, tests/test_observation_spelling.py, every event
+  a seat is delivered along the whole line of every corpus game, red under
+  respelling one kind. Why not higher: a spelling is a format the string
+  OpenSpiel keys on carries, not a type; spelling an event by the
+  dataclass's own `repr` instead would move that string, which the same
+  pin reddens on.
 - Establishes: a decider is told what it is asked, and recalls each of its
   own picks, through one route: `chooser.decide`, the only caller of the
   Chooser, delivers the node's `was` events to every seat, then the
@@ -80,13 +85,12 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
   tests/test_asked_event.py::test_the_choke_point_is_the_only_caller_of_the_chooser
   holds the Chooser's callers to `chooser.decide`, and
   tests/test_asked_event.py::test_the_ask_is_derived_in_one_place holds the
-  modules naming `asked`; Review-Enforced Prose for the spellings -- a
-  second site handing `Ctx.observe` an `asked` or a `chose` tuple inside a
-  module that scrape admits, or a `chose` anywhere, meets no structural
-  check, only the behaviour pins and goldens a played line happens to
-  reach. Why not higher: which code
-  reaches the Chooser is a fact about the call graph, which no type holds;
-  that only the route spells these kinds is issue #1004's constructor.
+  modules naming the `asked` kind; Derived and Pinned for the events --
+  tests/test_asked_event.py::test_only_the_route_makes_an_ask_or_a_pick
+  holds every construction of an `AskedEvent` or a `ChoseEvent` under
+  `cardlang/` to `chooser.decide`. Why not higher: which code reaches the
+  Chooser, and which code constructs a kind, are facts about the text,
+  which no type holds.
 - Establishes: a card transfer reaches each seat through both sides'
   declared projections (`movement`, through `view_of`), and a seat for whom
   both sides are trivial receives no event; every card that lands in a zone
@@ -127,16 +131,18 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
   door, and
   tests/openspiel_ready/test_ismcts.py::test_a_constructed_world_keeps_the_public_state_a_seat_was_shown,
   red under dropping `state_delta(ctx)` from `chooser.decide`.
-- Illegal after: an event kind, or a field on one, that `EVENT_PAYLOADS`
-  does not declare first; a projection spelled beside `view_of`; a card,
-  rather than its rendering, in a payload (`_rendered`; issue #666).
+- Illegal after: an event that is not a member of `ObservationEvent`, or a
+  field outside its kind's shape; an event spelled other than by
+  `spelled()`; a projection spelled beside `view_of`; a card, rather than
+  its rendering, in a payload (`_rendered`; issue #666).
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Callable, Mapping
-from typing import Any, Literal, TypeGuard
+from dataclasses import dataclass, field, fields
+from typing import Any, ClassVar, Literal, TypeGuard, get_args
 
 from cardlang.domains import zone_observer_key
 from cardlang.runtime.delegation import CONSTRUCTS
@@ -218,21 +224,141 @@ PAYLOAD_SHAPES: dict[str, Callable[[object], bool]] = {
     "rendering": lambda value: value is None or isinstance(value, str),
 }
 
-# The closed set of observation-event kinds, each with the shape of every field
-# it carries after its tag (closed-domain completeness, decisions.md). Emission
-# sites: `announce`/`movement` below, `chooser.decide` (the `asked`, one
-# `chose` per pick, and the `was` events of `state_delta` below), and
-# `execute._reveal`. A new kind, or a new field on one, is
-# declared here first. Pinned by tests/test_observation_payloads.py, which plays
-# every registered game with an observer installed and holds every delivered
-# event to its row. Its rung is the module Contract's.
+# A view as an event carries it: the seen cards' renderings, a count, or nothing.
+RenderedView = tuple[str, ...] | int | None
+
+
+def _shaped(shape: str) -> Any:
+    """A field of an Observation Event, carrying the `PAYLOAD_SHAPES` row
+    that says what it admits."""
+    return field(metadata={"shape": shape})
+
+
+class _Admitted:
+    """What every [[observation-event]] kind shares: its tag, the shape of each
+    field, and the check that refuses an event outside them when it is made.
+
+    `KIND` is the tag `spelled()` leads with; `SHAPES` pairs each field, in
+    declaration order, with its `PAYLOAD_SHAPES` row.
+    """
+
+    __slots__ = ()
+    KIND: ClassVar[str]
+    SHAPES: ClassVar[tuple[tuple[str, str], ...]]
+
+    def __post_init__(self) -> None:
+        for position, (name, shape) in enumerate(self.SHAPES, start=1):
+            value = getattr(self, name)
+            if not PAYLOAD_SHAPES[shape](value):
+                # Unreachable from a game description: every value an emission
+                # site hands over is rendered by this module first, and the
+                # payload registry (`PAYLOAD_SHAPES`) is what each field admits.
+                raise AssertionError(
+                    f"field {position} of a {self.KIND!r} event is a {shape}, "
+                    f"not {value!r}: an emission site builds only the events "
+                    f"the payload registry admits"
+                )
+
+
+@dataclass(frozen=True, slots=True)
+class AskedEvent(_Admitted):
+    """The decision a seat is asked, delivered to the [[decider]] alone before
+    the Chooser is consulted; `destination` is None where the site cannot know
+    the zone the picks land in before the choice is made."""
+
+    KIND: ClassVar[str] = "asked"
+    phase: str = _shaped("phase")
+    construct: str = _shaped("construct")
+    count: int = _shaped("count")
+    destination: str | None = _shaped("destination")
+
+    def spelled(self) -> tuple[str, str, str, int, str | None]:
+        return ("asked", self.phase, self.construct, self.count, self.destination)
+
+
+@dataclass(frozen=True, slots=True)
+class ChoseEvent(_Admitted):
+    """One pick, delivered to the decider alone as it is made."""
+
+    KIND: ClassVar[str] = "chose"
+    value: str | int | None = _shaped("value")
+
+    def spelled(self) -> tuple[str, str | int | None]:
+        return ("chose", self.value)
+
+
+@dataclass(frozen=True, slots=True)
+class AnnounceEvent(_Admitted):
+    """A decision whose chosen value is public, delivered to every seat."""
+
+    KIND: ClassVar[str] = "announce"
+    seat: int = _shaped("seat")
+    value: str | int | None = _shaped("value")
+
+    def spelled(self) -> tuple[str, int, str | int | None]:
+        return ("announce", self.seat, self.value)
+
+
+@dataclass(frozen=True, slots=True)
+class MovementEvent(_Admitted):
+    """What one seat learned of a card transfer through each side's declared
+    projection."""
+
+    KIND: ClassVar[str] = "move"
+    source: str = _shaped("label")
+    source_view: RenderedView = _shaped("view")
+    destination: str = _shaped("label")
+    destination_view: RenderedView = _shaped("view")
+
+    def spelled(self) -> tuple[str, str, RenderedView, str, RenderedView]:
+        return ("move", self.source, self.source_view, self.destination, self.destination_view)
+
+
+@dataclass(frozen=True, slots=True)
+class RevealEvent(_Admitted):
+    """One card named in place, delivered to every seat whatever the zone's
+    declared visibility."""
+
+    KIND: ClassVar[str] = "reveal"
+    zone: str = _shaped("label")
+    card: str = _shaped("card")
+
+    def spelled(self) -> tuple[str, str, str]:
+        return ("reveal", self.zone, self.card)
+
+
+@dataclass(frozen=True, slots=True)
+class WasEvent(_Admitted):
+    """One slot of a [[state-delta]]: the rendering a State Variable slot had at
+    the previous decision node, None for a slot not then in scope."""
+
+    KIND: ClassVar[str] = "was"
+    variable: str = _shaped("variable")
+    slot: str | None = _shaped("rendering")
+    shown: str | None = _shaped("rendering")
+
+    def spelled(self) -> tuple[str, str, str | None, str | None]:
+        return ("was", self.variable, self.slot, self.shown)
+
+
+# The closed set of [[observation-event]] kinds (closed-domain completeness,
+# decisions.md): a consumer dispatches over it exhaustively, ending in
+# `assert_never`. A new kind is a member here first. Each kind spells itself as
+# the tuple the information state embeds (`spelled`), so the string OpenSpiel
+# keys on never meets a dataclass's own `repr`.
+ObservationEvent = AskedEvent | ChoseEvent | AnnounceEvent | MovementEvent | RevealEvent | WasEvent
+
+EVENT_KINDS: dict[str, type[ObservationEvent]] = {
+    kind.KIND: kind for kind in get_args(ObservationEvent)
+}
+
+for _kind in EVENT_KINDS.values():
+    _kind.SHAPES = tuple((f.name, f.metadata["shape"]) for f in fields(_kind))
+
+# Each kind's field shapes after its tag, in `spelled()` order: derived from
+# the kinds, never stated beside them.
 EVENT_PAYLOADS: dict[str, tuple[str, ...]] = {
-    "asked": ("phase", "construct", "count", "destination"),
-    "chose": ("value",),
-    "announce": ("seat", "value"),
-    "move": ("label", "view", "label", "view"),
-    "reveal": ("label", "card"),
-    "was": ("variable", "rendering", "rendering"),
+    kind: tuple(shape for _name, shape in cls.SHAPES) for kind, cls in EVENT_KINDS.items()
 }
 
 
@@ -258,37 +384,6 @@ PICK_SHOWN: dict[str, Literal["announced", "moved"] | None] = {
     "trick": "moved",
     "climb": None,
 }
-
-
-def payload_refusal(event: object) -> str | None:
-    """Why `event` is not an observation event `EVENT_PAYLOADS` describes, or
-    None when it is one.
-
-    For the consumers that must not read an event the table does not describe —
-    a rendering, a proof that perturbs events field by field — because nothing
-    downstream has a declared reading for one.
-    """
-    if not isinstance(event, tuple) or not event or not isinstance(event[0], str):
-        return (
-            f"{event!r} is not an observation event: an event is a tuple whose "
-            "first item names its kind"
-        )
-    kind, fields = event[0], event[1:]
-    row = EVENT_PAYLOADS.get(kind)
-    if row is None:
-        return (
-            f"observation event kind {kind!r} is not declared; the kinds are "
-            f"{', '.join(sorted(EVENT_PAYLOADS))}"
-        )
-    if len(fields) != len(row):
-        return (
-            f"a {kind!r} event carries {len(row)} field(s) ({', '.join(row)}), "
-            f"not {len(fields)}: {event!r}"
-        )
-    for position, (shape, value) in enumerate(zip(row, fields), start=1):
-        if not PAYLOAD_SHAPES[shape](value):
-            return f"field {position} of a {kind!r} event is a {shape}, not {value!r}"
-    return None
 
 
 def render_candidate(name: str, param: Any) -> str:
@@ -340,7 +435,7 @@ def announce(ctx: Ctx, actor: Player, value: Any) -> None:
     if ctx.observer is None:
         return
     for p in ctx.rs.seating.players:
-        ctx.observe(p, ("announce", actor, render(value)))
+        ctx.observe(p, AnnounceEvent(actor, render(value)))
 
 
 def render_state_variable(value: Any) -> str:
@@ -425,7 +520,7 @@ def state_delta(ctx: Ctx) -> None:
         key=lambda slot: (slot[0], slot[1] is not None, slot[1] or ""),
     )
     for name, key in changed:
-        event = ("was", name, key, before.get((name, key)))
+        event = WasEvent(name, key, before.get((name, key)))
         for p in rs.seating.players:
             ctx.observe(p, event)
 
@@ -519,7 +614,7 @@ def movement(
         dst_view = _projected(dst_proj, cards)
         ctx.observe(
             p,
-            ("move", _label(*src), _rendered(src_view), _label(*dst), _rendered(dst_view)),
+            MovementEvent(_label(*src), _rendered(src_view), _label(*dst), _rendered(dst_view)),
         )
 
 
@@ -534,8 +629,8 @@ def movement_seen(source_projection: str, destination_projection: str) -> bool:
 def _rendered(view: ZoneView) -> tuple[str, ...] | int | None:
     """A view as an event carries it: the seen cards by their renderings.
 
-    The information state spells the observation log as each event's `repr`,
-    so a card in a payload would change the string OpenSpiel keys on. A payload
+    The information state spells the observation log by each event's
+    spelling (`spelled()`), so a card in a payload would change the string OpenSpiel keys on. A payload
     therefore stays strings and counts, and carrying the cards themselves is a
     change of its own under the goldens' full width (issue #666). A reader of
     the log meets a card's rendering, never the card, and derives no fact by

@@ -41,6 +41,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.resolve import _walk
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.observe import AskedEvent, ObservationEvent
 from cardlang.runtime.state import ChooserAbort
 
 
@@ -370,9 +371,9 @@ def _asked_seats(game: n.Game, chooser: Any) -> list[tuple[int, str]]:
     """Every (seat, construct) the decider's own `asked` event carries."""
     seen: list[tuple[int, str]] = []
 
-    def observer(player: int, event: tuple[Any, ...]) -> None:
-        if event[0] == "asked":
-            seen.append((player, event[2]))
+    def observer(player: int, event: ObservationEvent) -> None:
+        if isinstance(event, AskedEvent):
+            seen.append((player, event.construct))
 
     play_game(game, random.Random(0), chooser=chooser, observer=observer)
     return seen

@@ -132,6 +132,7 @@ from cardlang.diagnostics import Span
 from cardlang.libraries import library_names, load_library
 from cardlang.resolve import _introduced_binders
 from cardlang.resolve import _walk as _resolve_walk
+from cardlang.runtime.observe import AskedEvent, MovementEvent, RevealEvent, WasEvent
 from cardlang.runtime.reads import PRIMITIVE_READS
 from tests.metamorphic.pairing import Event
 
@@ -417,29 +418,23 @@ def trace_rename(
         return inverse.get(label, label)
 
     def rename(event: Event) -> Event:
-        tag = event[0]
-        if tag == "move":
-            _, src, src_view, dst, dst_view = event
-            return (tag, relabel(src), src_view, relabel(dst), dst_view)
-        if tag == "reveal":
-            _, label, card = event
-            return (tag, relabel(label), card)
-        if tag == "asked":
+        if isinstance(event, MovementEvent):
+            return replace(
+                event, source=relabel(event.source), destination=relabel(event.destination)
+            )
+        if isinstance(event, RevealEvent):
+            return replace(event, zone=relabel(event.zone))
+        if isinstance(event, AskedEvent):
             # The zone an ask names is a label like any other. Its phase and
             # construct are not renamed — a phase name is swept by the
             # freshness check but never rewritten, and a construct is the
             # language's own closed word — so both compare as they stand.
-            _, phase, construct, count, destination = event
-            return (
-                tag,
-                phase,
-                construct,
-                count,
-                None if destination is None else relabel(destination),
+            destination = event.destination
+            return replace(
+                event, destination=None if destination is None else relabel(destination)
             )
-        if tag == "was":
-            _, variable, slot, shown = event
-            return (tag, state_inverse.get(variable, variable), slot, shown)
+        if isinstance(event, WasEvent):
+            return replace(event, variable=state_inverse.get(event.variable, event.variable))
         return event
 
     return rename

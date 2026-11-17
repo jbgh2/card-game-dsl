@@ -26,6 +26,8 @@ from typing import Any
 import pyspiel
 import utcommon
 
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
+
 N_SEEDS = 2048
 RESULTS = utcommon.HERE / "results_undertow.json"
 
@@ -59,22 +61,25 @@ _PLAY = re.compile(r"^hand\[(\d)\]$")
 _CAPT = re.compile(r"^captured\[(\d)\]$")
 
 
-def tricks_from_log(log: list[tuple[Any, ...]]) -> list[dict[str, Any]]:
+def tricks_from_log(log: list[ObservationEvent]) -> list[dict[str, Any]]:
     """Reconstruct tricks: plays (player, card), tide card + its player,
     winner — all from one observer's public move events."""
     tricks: list[dict[str, Any]] = []
     cur: dict[str, Any] = {"plays": []}
     for e in log:
-        if e[0] != "move":
+        if not isinstance(e, MovementEvent):
             continue
-        src, dst = e[1], e[3]
-        m = _PLAY.match(str(src))
+        src, dst = e.source, e.destination
+        m = _PLAY.match(src)
         if m and dst == "trick_pile":
-            card = e[4][0] if isinstance(e[4], tuple) else None
+            seen = e.destination_view
+            card = seen[0] if isinstance(seen, tuple) else None
             cur["plays"].append((int(m.group(1)), card))
             continue
         if src == "trick_pile" and dst == "tide_marker":
-            cur["tide_card"] = e[2][0]
+            left = e.source_view
+            assert isinstance(left, tuple)
+            cur["tide_card"] = left[0]
             continue
         w = _CAPT.match(str(dst))
         if w and src == "trick_pile" and len(cur["plays"]) == 4:

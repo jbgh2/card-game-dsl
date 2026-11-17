@@ -615,7 +615,7 @@ for seed in range(int(sys.argv[2])):
         _r.append(["trace", event, repr(data)])
 
     def observer(player, event, _r=record):
-        _r.append(["observe", repr(player), repr(event)])
+        _r.append(["observe", repr(player), repr(event.spelled())])
 
     from tests.playout_policy import reference_policy_for
     chooser = reference_policy_for(name, rng)

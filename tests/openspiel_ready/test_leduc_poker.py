@@ -29,6 +29,7 @@ from typing import Any
 
 import pytest
 
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 import cardlang.ast.nodes as n
 from cardlang.openspiel.encoding import _walk
 from cardlang.openspiel.infostate import information_state
@@ -185,19 +186,19 @@ def test_the_board_is_public_and_a_folded_card_is_not() -> None:
     seed = 5
     showdown = _events_for_line(seed, ["check", "check", "check", "check"])
     for observer in (0, 1):
-        board_moves = [e for e in showdown[observer] if e[0] == "move" and e[3] == "board"]
+        board_moves = [e for e in showdown[observer] if isinstance(e, MovementEvent) and e.destination == "board"]
         assert board_moves, f"P{observer} never observed the board card"
         assert any(
-            isinstance(e[4], tuple) and len(e[4]) == 1 and isinstance(e[4][0], str)
+            isinstance(e.destination_view, tuple) and len(e.destination_view) == 1 and isinstance(e.destination_view[0], str)
             for e in board_moves
         ), f"P{observer} did not learn the board card's identity: {board_moves}"
 
     folded = _events_for_line(seed, ["bet", "fold"])
-    mucks = [e for e in folded[0] if e[0] == "move" and e[1] == "hand[1]" and e[3] == "muck"]
+    mucks = [e for e in folded[0] if isinstance(e, MovementEvent) and e.source == "hand[1]" and e.destination == "muck"]
     assert mucks, "P0 never observed the folded card leave P1's hand"
     for e in mucks:
-        assert e[4] is None, f"P0 saw the folded card's identity leak to the muck: {e}"
-    assert not [e for e in folded[0] if e[0] == "move" and e[3] == "board"], (
+        assert e.destination_view is None, f"P0 saw the folded card's identity leak to the muck: {e}"
+    assert not [e for e in folded[0] if isinstance(e, MovementEvent) and e.destination == "board"], (
         "a first-street fold must not turn a board card — dealing one would "
         "shrink the set of hands the folder could have held"
     )
@@ -268,15 +269,15 @@ def test_adapter_agrees_over_two_whole_leduc_deals() -> None:
     assert (nodes, terminals) == (2 * 36, 2 * 49), (nodes, terminals)
 
 
-def _events_for_line(seed: int, names: list[str]) -> dict[int, list[tuple[Any, ...]]]:
+def _events_for_line(seed: int, names: list[str]) -> dict[int, list[ObservationEvent]]:
     """Every observer's full event log for a COMPLETED hand, the line given by
     move-type name. `replay.run` discards the logs when it returns TerminalNode,
     so this drives the game directly with the same `ReplayChooser` the
     adapter uses."""
     game_ast, space = load(PATH)
-    logs: dict[int, list[tuple[Any, ...]]] = {0: [], 1: []}
+    logs: dict[int, list[ObservationEvent]] = {0: [], 1: []}
 
-    def observe(player: int, event: tuple[Any, ...]) -> None:
+    def observe(player: int, event: ObservationEvent) -> None:
         logs[player].append(event)
 
     chooser = ReplayChooser(space, _ids(names))

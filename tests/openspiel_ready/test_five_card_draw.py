@@ -43,6 +43,7 @@ from typing import Any
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -95,19 +96,19 @@ def test_the_draw_count_is_public_and_the_discards_are_not() -> None:
     assert len(r.rs.zones.instance("discards", owner).cards) == 3
     assert not r.rs.zones.instance("discards", opponent).cards
 
-    def moves(log: list[tuple[Any, ...]], src: str, dst: str) -> list[tuple[Any, ...]]:
-        return [e for e in log if e[0] == "move" and e[1] == src and e[3] == dst]
+    def moves(log: list[ObservationEvent], src: str, dst: str) -> list[MovementEvent]:
+        return [e for e in log if isinstance(e, MovementEvent) and e.source == src and e.destination == dst]
 
     tosses = moves(r.obs_logs[opponent], f"hole[{owner}]", f"discards[{owner}]")
     assert len(tosses) == 3, f"the opponent must see three cards leave: {tosses}"
     for e in tosses:
-        assert e[2] == 1 and e[4] == 1, (
+        assert e.source_view == 1 and e.destination_view == 1, (
             f"a tossed card's identity leaked to the opponent on either side "
             f"of the movement: {e}"
         )
 
-    draws = [e for e in moves(r.obs_logs[opponent], "deck", f"hole[{owner}]") if e[2] == 3]
-    assert draws == [("move", "deck", 3, f"hole[{owner}]", 3)], (
+    draws = [e for e in moves(r.obs_logs[opponent], "deck", f"hole[{owner}]") if e.source_view == 3]
+    assert draws == [MovementEvent("deck", 3, f"hole[{owner}]", 3)], (
         f"the opponent must see three unnamed cards replace them: {draws}"
     )
 
@@ -116,8 +117,8 @@ def test_the_draw_count_is_public_and_the_discards_are_not() -> None:
     own = moves(r.obs_logs[owner], f"hole[{owner}]", f"discards[{owner}]")
     assert len(own) == 3, own
     for e in own:
-        assert e[2] == e[4] and isinstance(e[4], tuple) and len(e[4]) == 1, e
-    assert {e[4][0] for e in own} == {
+        assert e.source_view == e.destination_view and isinstance(e.destination_view, tuple) and len(e.destination_view) == 1, e
+    assert {e.destination_view[0] for e in own if isinstance(e.destination_view, tuple)} == {
         str(c) for c in r.rs.zones.instance("discards", owner).cards
     }
 
@@ -146,7 +147,7 @@ def test_standing_pat_emits_nothing_and_still_projects_per_observer() -> None:
     for observer in (0, 1):
         log = r.obs_logs[observer]
         assert not [
-            e for e in log if e[0] == "move" and str(e[3]).startswith("discards[")
+            e for e in log if isinstance(e, MovementEvent) and str(e.destination).startswith("discards[")
         ], f"P{observer} observed an exchange on a line where nobody tossed"
         state = information_state(observer, r.rs, log)
         for owner in (0, 1):

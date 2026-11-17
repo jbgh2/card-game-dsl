@@ -82,8 +82,8 @@ seat. The matrix:
 - perturbs every field of every event, deletes each event, swaps neighbouring
   events and appends one event of each kind, and requires a change each time.
 
-The per-field probes come from the declared payload table
-(`observe.EVENT_PAYLOADS`, perturbed through `PAYLOAD_PROBES`), never from how
+The per-field probes come from each event kind's declared field shapes
+(`observe.ObservationEvent`, perturbed through `PAYLOAD_PROBES`), never from how
 one rendering spells an event. That is what lets one matrix certify a string
 and a text alike. Three plants show the pin catches what it exists to catch: a
 text that drops a zone the seat sees, an event line that drops a field, and a
