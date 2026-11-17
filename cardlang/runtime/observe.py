@@ -71,12 +71,12 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
 - Establishes: each kind spells itself as its tag followed by its fields in
   declaration order (`spelled()`), and that spelling, by its `repr`, is
   what the information state embeds (`infostate.render_information_state`).
-  Held by: Born-Green Pin, tests/test_observation_spelling.py, every event
-  a seat is delivered along the whole line of every corpus game, red under
-  respelling one kind. Why not higher: a spelling is a format the string
-  OpenSpiel keys on carries, not a type; spelling an event by the
-  dataclass's own `repr` instead would move that string, which the same
-  pin reddens on.
+  Held by: Born-Green Pin, tests/test_observation_spelling.py, the
+  spelling of every event a seat is delivered along the whole line of
+  every corpus game, red under respelling one kind. That the renderer
+  embeds the spelling rather than the dataclass's own `repr` is
+  `infostate`'s Contract. Why not higher: a spelling is a format the string
+  OpenSpiel keys on carries, not a type.
 - Establishes: a decider is told what it is asked, and recalls each of its
   own picks, through one route: `chooser.decide`, the only caller of the
   Chooser, delivers the node's `was` events to every seat, then the

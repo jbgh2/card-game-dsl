@@ -54,11 +54,14 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
   it.
 - Establishes: the log is embedded verbatim -- the `repr` of each event's
   spelling (`spelled()`), in delivery order -- so the string OpenSpiel keys
-  on carries the log's own spelling. Held by: Born-Green Pin, twice --
+  on carries the log's own spelling. Held by: Born-Green Pin,
   tests/golden/infostate_format.json (tests/test_infostate_format.py), byte
-  for byte for every registered game's first decision and every seat, and
-  tests/test_observation_spelling.py, every event every seat is delivered
-  along the whole line. Why not higher: a spelling is a format, not a type.
+  for byte for every registered game's first decision and every seat, red
+  under rendering an event by the dataclass's own `repr`; what each event
+  spells along the whole line is `observe`'s Contract
+  (tests/test_observation_spelling.py), so a rendering that departs from
+  the spelling only for a kind no first decision carries (`was`) is
+  unpinned. Why not higher: a spelling is a format, not a type.
 - Establishes: `current_ask` is the one reading of what a seat was last
   asked. Held by: Derived and Pinned,
   tests/test_asked_event.py::test_the_ask_is_derived_in_one_place, which

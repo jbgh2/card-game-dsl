@@ -183,7 +183,8 @@ def decide(
 
     admit()
     state_delta(ctx)
-    ctx.observe(decider, AskedEvent(ctx.current_phase.name, word, n, destination))
+    if ctx.observer is not None:
+        ctx.observe(decider, AskedEvent(ctx.current_phase.name, word, n, destination))
     recorded: list[Any] = []
 
     def record(pick: Any) -> None:
@@ -192,7 +193,9 @@ def decide(
         # this is where the bound falls, and for one walked pick by pick
         # `sequential_decisions` has admitted the pick before asking it.
         admit()
-        ctx.observe(decider, ChoseEvent(render(pick)))
+        rendered = render(pick)
+        if ctx.observer is not None:
+            ctx.observe(decider, ChoseEvent(rendered))
         recorded.append(pick)
         rs.decisions_made += 1
 
