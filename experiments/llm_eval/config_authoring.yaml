@@ -108,8 +108,8 @@ roster: [frontier, mid]
 models:
   # Ids and request keys as the playing rigs' configs use them. Thinking is
   # adaptive at effort `high`, so a model reasons in its thinking blocks and
-  # its reply holds the file. 64000 output tokens holds the thinking and the
-  # largest corpus file several times over; the SDK sends a request that large
+  # its reply holds the file. 64000 output tokens leaves room for thinking
+  # beside the largest corpus file; the SDK sends a request that large
   # only as a stream, and `streaming: true` has the provider stream it (a key
   # the provider consumes and never sends).
   frontier:

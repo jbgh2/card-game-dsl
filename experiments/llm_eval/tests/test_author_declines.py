@@ -28,7 +28,8 @@ from ..spend import SpendLog
 from .test_author_check import HIGH_CARD, TWO_TYPOS
 from .test_author_run import ROOT, bench, block, config, rules, tree  # noqa: F401 -- fixtures
 
-#: A checker that fails the test if it is ever invoked.
+#: A checker whose every run is a crash, so a round it checked records a
+#: check; the tests that use it assert no round has one.
 NEVER_CHECKED = Checker(argv=("{python}", "-c", "raise SystemExit('the checker was called')"))
 
 
@@ -128,7 +129,7 @@ def test_the_run_stops_at_the_decline_limit(tmp_path: Path, tree: Path, rules: P
 def test_a_config_without_a_usable_decline_limit_is_refused_before_any_call(
     tmp_path: Path, tree: Path, rules: Path, limit: object
 ) -> None:
-    provider = ScriptedProvider([answered(block(HIGH_CARD))])
+    provider = FakeProvider(replies=[block(HIGH_CARD)])
     cfg = config(tmp_path)
     if limit == "absent":
         del cfg["decline_limit"]
@@ -389,8 +390,8 @@ def _stubbed(params: dict[str, Any], response: _Response | None = None) -> tuple
 
 #: What `AnthropicProvider.complete` sends for these two prompts under these
 #: params, captured from the provider before the conversation path existed.
-#: Born green; sending the `streaming` key in the request, moving the
-#: breakpoint, or reshaping the one user message reddens it.
+#: Born green; moving the breakpoint, or reshaping the one user message,
+#: reddens it.
 PLAYING_PARAMS: dict[str, Any] = {
     "max_tokens": 4000,
     "thinking": {"type": "disabled"},
