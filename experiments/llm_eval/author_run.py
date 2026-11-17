@@ -12,15 +12,21 @@ carries each earlier reply as an assistant turn (`author_prompt`); and the
 loop runs until the file checks green, the model gives up, the API declines
 a request, or the round limit is reached. Each attempt is one line of
 `attempts.jsonl` in the run's own directory, holding every round raw: the
-reply, the draft, what the checker printed, and a declined reply's stop
-details and request id. Everything the report says is derived from those
-rounds (`followups`, `author_report`), so a reader can re-derive any figure
-from the record.
+reply's text, the draft, what the checker printed, a declined reply's stop
+details and request id, the types of the reply's content blocks, and
+whether the reply was replayed into the next request. Everything the report
+prints is derived from those rounds (`followups`, `author_report`), so a
+reader can re-derive any figure it prints from the record. A round's
+`prompt_sha256` identifies the request as sent and is not re-derivable from
+the record alone: the record stores no content block, so the thinking
+blocks a later request replays are not in it.
 
 **A declined reply** (`stop_reason` "refusal") is the API's, not the
 checker's or the model's answer to a refusal: it ends its attempt at once
 (`AttemptOutcome.DECLINED`), and the run stops once the config's
-`decline_limit` attempts have ended that way.
+`decline_limit` attempts have ended that way. **A reply cut off at the
+output limit** is never replayed: its last block can be a thinking block
+with no signature, which the API refuses in a later request.
 
 **Held-out games.** A game's set is derived, never labelled: a slug with a
 corpus file (`docs/games/<slug>.cardlang`) is CORPUS, its file withheld and
@@ -465,7 +471,9 @@ class Bench:
 def request_digest(conversation: Conversation) -> str:
     """The SHA-256 of a round's request as sent: its `messages` list
     (`providers.conversation_messages`, the breakpoint included) as JSON with
-    sorted keys, an SDK content block in its `to_dict(mode="json")` form."""
+    sorted keys, an SDK content block in its `to_dict(mode="json")` form.
+    It identifies the request; the record cannot re-derive it, since it
+    stores no replayed content block."""
 
     def wire(block: Any) -> Any:
         if hasattr(block, "to_dict"):
@@ -474,6 +482,11 @@ def request_digest(conversation: Conversation) -> str:
 
     messages = conversation_messages(conversation)
     return _sha256(json.dumps(messages, sort_keys=True, ensure_ascii=False, default=wire))
+
+
+def content_type(block: Any) -> str:
+    """A reply content block's `type`, from an SDK block or its dict form."""
+    return str(block["type"] if isinstance(block, Mapping) else block.type)
 
 
 def decline_detail(reply: Reply) -> str:
@@ -511,6 +524,8 @@ def run_attempt(bench: Bench, game: GameSpec, model_ref: str, attempt: int) -> A
                 record.detail = f"{crossed} reached over the {bench.budget.counts.spelling()} window"
                 break
             conversation = build_prompt(bench.task, bench.references, brief, history)
+            if history and history[-1].reply:
+                record.rounds[-1]["replayed"] = True
             try:
                 reply = provider.converse(conversation)
             except Exception as exc:  # noqa: BLE001 -- any provider failure ends the attempt, recorded
@@ -533,6 +548,8 @@ def run_attempt(bench: Bench, game: GameSpec, model_ref: str, attempt: int) -> A
                 "stop_reason": reply.stop_reason,
                 "stop_details": None if reply.stop_details is None else reply.stop_details.as_dict(),
                 "request_id": reply.request_id,
+                "content_types": [content_type(block) for block in reply.content],
+                "replayed": False,
                 "reply_kind": read.kind.value,
                 "reason": read.reason,
                 "draft": read.draft,
@@ -554,8 +571,11 @@ def run_attempt(bench: Bench, game: GameSpec, model_ref: str, attempt: int) -> A
                     record.outcome = AttemptOutcome.GAVE_UP
                     record.detail = read.reason
                     break
-                case ReplyKind.NO_DRAFT | ReplyKind.TRUNCATED:
+                case ReplyKind.NO_DRAFT:
                     history.append(RoundView(number, None, read.reason, reply=reply.content))
+                    continue
+                case ReplyKind.TRUNCATED:
+                    history.append(RoundView(number, None, read.reason))
                     continue
                 case ReplyKind.DRAFT:
                     pass
@@ -837,6 +857,7 @@ def run(
     payload = provenance(
         config, config_path, specs, references, task, checker, facts, models, root, checker_root
     )
+    payload["planned_attempts"] = len(specs) * len(models) * attempts
     payload["reference_facts"] = {str(p.relative_to(root)): r.as_dict() for p, r in cache.taken.items()}
     record_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     bench = Bench(

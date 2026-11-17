@@ -25,7 +25,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO, assert_never
 
-from .author_prompt import ReplyKind
+from .author_prompt import ReplyKind, kind_of_stop
 from .author_run import (
     AttemptOutcome,
     Followup,
@@ -128,16 +128,21 @@ def table(attempts: Sequence[Mapping[str, Any]]) -> list[str]:
     return ["  ".join(cell.ljust(w) for cell, w in zip(r, widths)).rstrip() for r in rows]
 
 
+def round_kind(round_: Mapping[str, Any]) -> ReplyKind:
+    """A recorded round's kind, its stop reason read first as `read_reply`
+    reads it (`kind_of_stop`), so a refusal round stored as `no_draft` is
+    declined."""
+    return kind_of_stop(round_.get("stop_reason")) or ReplyKind(round_["reply_kind"])
+
+
 def declines(attempts: Sequence[Mapping[str, Any]]) -> list[str]:
-    """Every declined reply, read from its round's stop reason, so a record
-    whose rounds predate the declined kind is read the same way; apart from
-    the checker's refusals, because a decline is the instrument's and no
-    draft of the model's."""
+    """Every declined reply, apart from the checker's refusals, because a
+    decline is the instrument's and no draft of the model's."""
     met = [
         (a, r)
         for a in attempts
         for r in a["rounds"]
-        if r.get("stop_reason") == "refusal"
+        if round_kind(r) is ReplyKind.DECLINED
     ]
     ended = sum(1 for a in attempts if a["outcome"] == AttemptOutcome.DECLINED.value)
     lines = [
@@ -263,13 +268,19 @@ def report(run_dir: Path, out: TextIO) -> None:
           f"[{meta.get('checker', {}).get('form', '?')} form]")
     if meta.get("stopped"):
         write(f"RUN STOPPED: {meta['stopped']}")
+    planned = meta.get("planned_attempts")
+    if planned is None:
+        write(f"Attempts: {len(attempts)} recorded; the planned N is not recorded")
+    else:
+        partial = ", a partial N" if len(attempts) < planned else ""
+        write(f"Attempts: {len(attempts)} recorded of {planned} planned (games x models x attempts){partial}")
     write()
     for line in table(attempts):
         write(line)
     kinds = {kind: 0 for kind in ReplyKind}
     for a in attempts:
         for r in a["rounds"]:
-            kinds[ReplyKind(r["reply_kind"])] += 1
+            kinds[round_kind(r)] += 1
     write()
     write("Replies by kind: " + ", ".join(f"{reply_kind_words(k)} {n}" for k, n in kinds.items()))
     for line in declines(attempts):

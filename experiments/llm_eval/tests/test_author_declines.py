@@ -123,6 +123,44 @@ def test_the_run_stops_at_the_decline_limit(tmp_path: Path, tree: Path, rules: P
     printed = io.StringIO()
     report(run_dir, printed)
     assert f"RUN STOPPED: {stopped}" in printed.getvalue()
+    assert "Attempts: 2 recorded of 5 planned (games x models x attempts), a partial N" in printed.getvalue()
+
+
+def test_the_planned_n_is_the_filtered_runs(tmp_path: Path, tree: Path, rules: Path) -> None:
+    from ..author_facts import FactsRunner
+    from ..author_run import run
+
+    lowcard = {
+        "slug": "lowcard",
+        "name": "Low Card",
+        "variant": "2 players",
+        "source_url": "https://example.invalid/lowcard",
+        "rules_file": "lowcard.txt",
+    }
+    cfg = config(tmp_path, attempts=2)
+    cfg["games"] = [*cfg["games"], lowcard]
+    run_dir = run(
+        cfg,
+        tmp_path / "config.yaml",
+        rules,
+        games_filter=["highcard"],
+        registry={"fake": FakeProvider(replies=[block(HIGH_CARD)])},
+        facts=FactsRunner(repo_root=ROOT, playouts=2),
+        tree=tree,
+        out=io.StringIO(),
+    )
+    assert run_dir is not None
+    assert json.loads((run_dir / "run.json").read_text())["planned_attempts"] == 2
+    printed = io.StringIO()
+    report(run_dir, printed)
+    assert "Attempts: 2 recorded of 2 planned (games x models x attempts)\n" in printed.getvalue()
+
+
+def test_a_record_without_a_planned_n_says_so(tmp_path: Path) -> None:
+    _record(tmp_path / "run", [_attempt("green", [_round("draft")])])
+    printed = io.StringIO()
+    report(tmp_path / "run", printed)
+    assert "Attempts: 1 recorded; the planned N is not recorded" in printed.getvalue()
 
 
 @pytest.mark.parametrize("limit", ["absent", 0, -1])
@@ -201,6 +239,77 @@ def test_a_reply_with_nothing_to_replay_leaves_no_empty_assistant_turn(
     assert [m["role"] for m in second] == ["user", "user"]
     assert all(m["content"] for m in second)
     assert "held no file" in "".join(b["text"] for b in second[1]["content"])
+
+
+SIGNED = {"type": "thinking", "thinking": "", "signature": "sig-1"}
+
+
+def replied(text: str, content: tuple[Any, ...], stop_reason: str = "end_turn") -> Reply:
+    return Reply(text=text, input_tokens=40, output_tokens=16, stop_reason=stop_reason, content=content)
+
+
+def _sent(provider: ScriptedProvider) -> list[list[dict[str, Any]]]:
+    from ..providers import conversation_messages
+
+    return [conversation_messages(c) for c in provider.conversations]
+
+
+def test_a_signed_thinking_block_reaches_the_next_request_unchanged(
+    tmp_path: Path, tree: Path, rules: Path
+) -> None:
+    text = {"type": "text", "text": block(TWO_TYPOS)}
+    provider = ScriptedProvider([replied(block(TWO_TYPOS), (SIGNED, text)), answered(block(HIGH_CARD))])
+    _, _, [attempt] = bench(tmp_path, tree, rules, [], provider=provider)
+    assert attempt["outcome"] == "green"
+    _, second = _sent(provider)
+    assert [m["role"] for m in second] == ["user", "assistant", "user"]
+    assert second[1]["content"] == [SIGNED, text]
+    assert second[1]["content"][0] is SIGNED
+
+
+def test_a_complete_reply_without_a_file_is_replayed_as_returned(
+    tmp_path: Path, tree: Path, rules: Path
+) -> None:
+    content = (SIGNED, {"type": "text", "text": "I would rather explain."})
+    provider = ScriptedProvider([replied("I would rather explain.", content), answered(block(HIGH_CARD))])
+    _, _, [attempt] = bench(tmp_path, tree, rules, [], provider=provider)
+    assert attempt["rounds"][0]["reply_kind"] == "no_draft"
+    _, second = _sent(provider)
+    assert [m["role"] for m in second] == ["user", "assistant", "user"]
+    assert second[1]["content"] == list(content)
+
+
+def test_a_reply_cut_off_at_the_output_limit_is_never_replayed(
+    tmp_path: Path, tree: Path, rules: Path
+) -> None:
+    unsigned = {"type": "thinking", "thinking": ""}
+    provider = ScriptedProvider(
+        [replied("", (unsigned,), stop_reason="max_tokens"), answered(block(HIGH_CARD))]
+    )
+    _, _, [attempt] = bench(tmp_path, tree, rules, [], provider=provider)
+    assert attempt["outcome"] == "green"
+    _, second = _sent(provider)
+    assert [m["role"] for m in second] == ["user", "user"]
+    assert "cut off at the output limit" in "".join(b["text"] for b in second[1]["content"])
+
+
+def test_each_round_records_what_it_replayed_and_no_block(tmp_path: Path, tree: Path, rules: Path) -> None:
+    text = {"type": "text", "text": block(TWO_TYPOS)}
+    unsigned = {"type": "thinking", "thinking": ""}
+    provider = ScriptedProvider(
+        [
+            replied(block(TWO_TYPOS), (SIGNED, text)),
+            replied("", (unsigned,), stop_reason="max_tokens"),
+            answered(block(HIGH_CARD)),
+        ]
+    )
+    run_dir, _, [attempt] = bench(tmp_path, tree, rules, [], provider=provider)
+    assert run_dir is not None
+    rounds = attempt["rounds"]
+    assert [r["content_types"] for r in rounds] == [["thinking", "text"], ["thinking"], ["text"]]
+    assert [r["replayed"] for r in rounds] == [True, False, False]
+    record = (run_dir / "attempts.jsonl").read_text(encoding="utf-8")
+    assert "sig-1" not in record and "signature" not in record
 
 
 # --- the closed domains: every member is read --------------------------------
@@ -291,8 +400,8 @@ def test_the_report_calls_out_declines_apart_from_checker_findings(tmp_path: Pat
             request_id="req_1",
         )
     ]
-    # A record from before declines were their own kind: the decline is read
-    # from its stop reason, and its category was not recorded.
+    # A refusal round stored as no_draft, with no stop details: the decline
+    # is read from its stop reason, its category not recorded.
     earlier = [_round("no_draft", "refusal")]
     _record(
         tmp_path / "run",
@@ -309,6 +418,16 @@ def test_the_report_calls_out_declines_apart_from_checker_findings(tmp_path: Pat
     assert "highcard/fake/1 round 1: category not recorded (request not recorded)" in text
     assert "Decline categories: reasoning_extraction 1, not recorded 1" in text
     assert "Refusals a model could not act on: 0 occurrence(s)" in text
+
+
+def test_the_kind_tally_reads_a_refusal_round_stored_as_no_draft_as_declined(tmp_path: Path) -> None:
+    rounds = [_round("no_draft", "refusal"), {**_round("no_draft", "end_turn"), "round": 2}]
+    _record(tmp_path / "run", [_attempt("round_limit", rounds)])
+    printed = io.StringIO()
+    report(tmp_path / "run", printed)
+    text = printed.getvalue()
+    assert "Replies by kind: draft 0, gave up 0, no file 1, cut off 0, declined 1" in text
+    assert "Declined replies: 1 in 1 attempt(s)" in text
 
 
 # --- the provider ---------------------------------------------------------------
@@ -389,7 +508,7 @@ def _stubbed(params: dict[str, Any], response: _Response | None = None) -> tuple
 
 
 #: What `AnthropicProvider.complete` sends for these two prompts under these
-#: params, captured from the provider before the conversation path existed.
+#: params, as a literal; `complete` sends exactly this.
 #: Born green; moving the breakpoint, or reshaping the one user message,
 #: reddens it.
 PLAYING_PARAMS: dict[str, Any] = {

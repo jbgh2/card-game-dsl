@@ -15,7 +15,9 @@ the game, then the request for file 1. Each earlier round appends two
 turns: the model's reply as an assistant turn, replayed unchanged, and the
 rig's answer as a user turn, which is the checker's words verbatim for a
 draft, or why the reply held no file, then the request for the next file.
-A reply with no content to replay has no assistant turn. Each round's
+A round whose view carries no reply content has no assistant turn: a reply
+that came back empty, and one cut off at the output limit, which
+`author_run` never replays. Each round's
 conversation extends the one before it turn for turn, so the breakpoint on
 its last block lets round k+1 read what round k wrote.
 
@@ -199,11 +201,22 @@ class ReadReply:
     reason: str = ""
 
 
+def kind_of_stop(stop_reason: str | None) -> ReplyKind | None:
+    """The kind a stop reason alone fixes, read before the reply's text: a
+    decline, then a cut-off; None when the text decides."""
+    if stop_reason == "refusal":
+        return ReplyKind.DECLINED
+    if stop_reason == "max_tokens":
+        return ReplyKind.TRUNCATED
+    return None
+
+
 def read_reply(text: str, stop_reason: str | None) -> ReadReply:
     """What a reply holds: a draft, a give-up, or the reason it is neither."""
-    if stop_reason == "refusal":
+    stopped = kind_of_stop(stop_reason)
+    if stopped is ReplyKind.DECLINED:
         return ReadReply(ReplyKind.DECLINED, reason="the API declined the request")
-    if stop_reason == "max_tokens":
+    if stopped is ReplyKind.TRUNCATED:
         return ReadReply(
             ReplyKind.TRUNCATED,
             reason="the reply was cut off at the output limit before it ended",
