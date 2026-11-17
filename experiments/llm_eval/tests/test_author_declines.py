@@ -4,6 +4,30 @@ No test here calls a model. A scripted provider serves `Reply` objects, a
 stub client stands in for the SDK's, and `smoke` is driven through a
 patched `make_provider`. A declined reply is the API's `stop_reason:
 "refusal"`; "refusal" alone names the checker's diagnostics in this rig.
+
+Completeness ledger (decisions.md "Closed-domain completeness")
+---------------------------------------------------------------
+property:        every reply is read as exactly one `ReplyKind`, a decline
+                 before anything its text holds; a declined reply ends its
+                 attempt with no further request, and `decline_limit` declined
+                 attempts end the run; a config whose `decline_limit` is not a
+                 whole number of attempts is refused before any call; a later
+                 round's request is the conversation so far under one cache
+                 breakpoint; a reply cut off at the output limit is never
+                 replayed, and every other reply that holds content is
+                 replayed as returned.
+domain:          `ReplyKind` crossed with its reader and the report's tally,
+                 and `AttemptOutcome` crossed with the report's words, each
+                 enumerated from the enum; the position of a decline in an
+                 attempt (the first reply, after drafts); the `decline_limit`
+                 values a config author plausibly writes.
+held by:         a type where one can hold it: `run_attempt`, `stops_run`,
+                 `outcome_words` and `reply_kind_words` match exhaustively
+                 under `assert_never`. The rest is these pins.
+does not prove:  anything about the API. No test here reaches it, so that it
+                 accepts a replayed thinking block, streams this request, or
+                 declines the conversation less often than the single message
+                 is witnessed only by a run.
 """
 
 from __future__ import annotations
@@ -163,7 +187,7 @@ def test_a_record_without_a_planned_n_says_so(tmp_path: Path) -> None:
     assert "Attempts: 1 recorded; the planned N is not recorded" in printed.getvalue()
 
 
-@pytest.mark.parametrize("limit", ["absent", 0, -1])
+@pytest.mark.parametrize("limit", ["absent", 0, -1, "2", True, 2.0], ids=repr)
 def test_a_config_without_a_usable_decline_limit_is_refused_before_any_call(
     tmp_path: Path, tree: Path, rules: Path, limit: object
 ) -> None:
