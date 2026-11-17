@@ -850,6 +850,9 @@ def _smoke_calls(
         parsed = parse_response(reply.text, num_actions=1)
         print(f"    text        {reply.text[:120]!r}")
         print(f"    stop_reason {reply.stop_reason}")
+        if reply.stop_reason == "refusal":
+            category = reply.stop_details.category if reply.stop_details is not None else None
+            print(f"    declined    {category or 'no category given'}")
         print(f"    tokens      {reply.input_tokens} in / {reply.output_tokens} out")
         print(f"    cost        ${provider.usage.cost(provider.model):.6f}")
         if parsed.ok:

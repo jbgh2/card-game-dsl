@@ -7,12 +7,20 @@ checker answers, and the rig records how the loop went.
 Given a game's rules text (a file the operator supplies, with the URL it was
 read from) and `docs/authoring.md` with the configured reference files, a
 model drafts a `.cardlang` file; `cardlang check` runs on it (`author_check`);
-the checker's words go back to the model verbatim; and the loop runs until
-the file checks green, the model gives up, or the round limit is reached.
-Each attempt is one line of `attempts.jsonl` in the run's own directory,
-holding every round raw: the reply, the draft, and what the checker printed.
-Everything the report says is derived from those rounds (`followups`,
-`author_report`), so a reader can re-derive any figure from the record.
+the checker's words go back to the model verbatim, in a conversation that
+carries each earlier reply as an assistant turn (`author_prompt`); and the
+loop runs until the file checks green, the model gives up, the API declines
+a request, or the round limit is reached. Each attempt is one line of
+`attempts.jsonl` in the run's own directory, holding every round raw: the
+reply, the draft, what the checker printed, and a declined reply's stop
+details and request id. Everything the report says is derived from those
+rounds (`followups`, `author_report`), so a reader can re-derive any figure
+from the record.
+
+**A declined reply** (`stop_reason` "refusal") is the API's, not the
+checker's or the model's answer to a refusal: it ends its attempt at once
+(`AttemptOutcome.DECLINED`), and the run stops once the config's
+`decline_limit` attempts have ended that way.
 
 **Held-out games.** A game's set is derived, never labelled: a slug with a
 corpus file (`docs/games/<slug>.cardlang`) is CORPUS, its file withheld and
@@ -37,16 +45,17 @@ the attempt it stopped in as stopped, never as a result.
 
 Contract
 --------
-Assumes: the config names models defined under `models:`, games by slug, and
-reference files by repository path; the rules directory holds each game's
-rules file.
+Assumes: the config names models defined under `models:`, games by slug,
+reference files by repository path, and a `decline_limit`; the rules
+directory holds each game's rules file.
 Establishes: `<run_dir>/run.json` (the provenance, written before the first
 call) and `<run_dir>/attempts.jsonl` (one `AttemptRecord` per attempt,
 appended as each ends); every attempt's `outcome` is one of
 `AttemptOutcome`.
 Illegal after: showing a model a held-out game's corpus file or twin;
 counting a round's refusals from anywhere but its recorded check; a model
-call the budget was not checked before.
+call the budget was not checked before; a request in an attempt after its
+declined reply, or in a run after its `decline_limit`-th declined attempt.
 """
 
 from __future__ import annotations
@@ -66,7 +75,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, assert_never
 
 import yaml
 
@@ -100,7 +109,8 @@ from .author_prompt import (
     read_reply,
     task_text,
 )
-from .providers import PRICES, Provider
+from .prompts import Conversation
+from .providers import PRICES, ConversingProvider, Provider, Reply, conversation_messages
 from .run_eval import Budget, budget_of, ensure_provider, smoke, spend_log
 from .spend import SpendLog, billed_since, snapshot, spent
 
@@ -227,6 +237,27 @@ class AttemptOutcome(Enum):
     STOPPED_BY_CEILING = "stopped_by_ceiling"
     #: The checker could not be invoked (exit 2): the rig's fault.
     HARNESS_ERROR = "harness_error"
+    #: The API declined a request (`stop_reason` "refusal"); the attempt
+    #: ends at that reply, its category in `detail`.
+    DECLINED = "declined"
+
+
+def stops_run(outcome: AttemptOutcome) -> bool:
+    """Whether an attempt ending this way stops the run at once. A declined
+    attempt stops it only at the config's `decline_limit`."""
+    match outcome:
+        case AttemptOutcome.STOPPED_BY_CEILING | AttemptOutcome.PROVIDER_ERROR | AttemptOutcome.HARNESS_ERROR:
+            return True
+        case (
+            AttemptOutcome.GREEN
+            | AttemptOutcome.ROUND_LIMIT
+            | AttemptOutcome.GAVE_UP
+            | AttemptOutcome.CHECKER_FAILED
+            | AttemptOutcome.DECLINED
+        ):
+            return False
+        case _:
+            assert_never(outcome)
 
 
 class RealGameVerdict(Enum):
@@ -431,9 +462,32 @@ class Bench:
     root: Path
 
 
+def request_digest(conversation: Conversation) -> str:
+    """The SHA-256 of a round's request as sent: its `messages` list
+    (`providers.conversation_messages`, the breakpoint included) as JSON with
+    sorted keys, an SDK content block in its `to_dict(mode="json")` form."""
+
+    def wire(block: Any) -> Any:
+        if hasattr(block, "to_dict"):
+            return block.to_dict(mode="json")
+        raise TypeError(f"no JSON form for a {type(block).__name__} content block")
+
+    messages = conversation_messages(conversation)
+    return _sha256(json.dumps(messages, sort_keys=True, ensure_ascii=False, default=wire))
+
+
+def decline_detail(reply: Reply) -> str:
+    """A declined attempt's `detail`: the decline's category."""
+    category = reply.stop_details.category if reply.stop_details is not None else None
+    return category if category is not None else "no category given"
+
+
 def run_attempt(bench: Bench, game: GameSpec, model_ref: str, attempt: int) -> AttemptRecord:
-    """One attempt: drafts until green, a give-up, the limit or a stop."""
+    """One attempt: drafts until green, a give-up, a decline, the limit or a
+    stop."""
     provider = ensure_provider(dict(bench.config), model_ref, bench.registry)
+    if not isinstance(provider, ConversingProvider):
+        raise ValueError(f"model {model_ref!r}'s provider cannot send a conversation")
     providers = {model_ref: provider}
     record = AttemptRecord(
         game=game.slug,
@@ -456,9 +510,9 @@ def run_attempt(bench: Bench, game: GameSpec, model_ref: str, attempt: int) -> A
                 record.outcome = AttemptOutcome.STOPPED_BY_CEILING
                 record.detail = f"{crossed} reached over the {bench.budget.counts.spelling()} window"
                 break
-            prompt = build_prompt(bench.task, bench.references, brief, history)
+            conversation = build_prompt(bench.task, bench.references, brief, history)
             try:
-                reply = provider.complete(prompt)
+                reply = provider.converse(conversation)
             except Exception as exc:  # noqa: BLE001 -- any provider failure ends the attempt, recorded
                 record.outcome = AttemptOutcome.PROVIDER_ERROR
                 record.detail = f"{type(exc).__name__}: {exc}"
@@ -473,10 +527,12 @@ def run_attempt(bench: Bench, game: GameSpec, model_ref: str, attempt: int) -> A
             read = read_reply(reply.text, reply.stop_reason)
             row: dict[str, Any] = {
                 "round": number,
-                "prompt_sha256": hashlib.sha256(prompt.text.encode("utf-8")).hexdigest(),
-                "prompt_blocks": len(prompt.blocks),
+                "prompt_sha256": request_digest(conversation),
+                "prompt_blocks": sum(len(turn.content) for turn in conversation.turns),
                 "reply": reply.text,
                 "stop_reason": reply.stop_reason,
+                "stop_details": None if reply.stop_details is None else reply.stop_details.as_dict(),
+                "request_id": reply.request_id,
                 "reply_kind": read.kind.value,
                 "reason": read.reason,
                 "draft": read.draft,
@@ -489,13 +545,23 @@ def run_attempt(bench: Bench, game: GameSpec, model_ref: str, attempt: int) -> A
                 },
             }
             record.rounds.append(row)
-            if read.kind is ReplyKind.GAVE_UP:
-                record.outcome = AttemptOutcome.GAVE_UP
-                record.detail = read.reason
-                break
-            if read.draft is None:
-                history.append(RoundView(number, None, read.reason))
-                continue
+            match read.kind:
+                case ReplyKind.DECLINED:
+                    record.outcome = AttemptOutcome.DECLINED
+                    record.detail = decline_detail(reply)
+                    break
+                case ReplyKind.GAVE_UP:
+                    record.outcome = AttemptOutcome.GAVE_UP
+                    record.detail = read.reason
+                    break
+                case ReplyKind.NO_DRAFT | ReplyKind.TRUNCATED:
+                    history.append(RoundView(number, None, read.reason, reply=reply.content))
+                    continue
+                case ReplyKind.DRAFT:
+                    pass
+                case _:
+                    assert_never(read.kind)
+            assert read.draft is not None, "read_reply gives every DRAFT its draft"
             check = bench.checker.check(read.draft, workdir)
             row["check"] = check.as_dict()
             if check.verdict is CheckVerdict.GREEN:
@@ -510,7 +576,7 @@ def run_attempt(bench: Bench, game: GameSpec, model_ref: str, attempt: int) -> A
                 record.outcome = AttemptOutcome.CHECKER_FAILED
                 record.detail = f"{check.verdict.value}: {check.said[-2000:]}"
                 break
-            history.append(RoundView(number, read.draft, check.said, check.exit_code))
+            history.append(RoundView(number, read.draft, check.said, check.exit_code, reply.content))
         else:
             record.outcome = AttemptOutcome.ROUND_LIMIT
         record.real_game = real_game(bench, game, green_draft, workdir)
@@ -657,6 +723,21 @@ def preflight_models(config: Mapping[str, Any], models: Sequence[str]) -> None:
             )
 
 
+def decline_limit_of(config: Mapping[str, Any]) -> int:
+    """How many attempts may end declined before the run stops. The config
+    names it: a run that met declines with no stated limit would either
+    stop at a number nobody chose or spend through them."""
+    if "decline_limit" not in config:
+        raise ValueError(
+            "the config names no `decline_limit`: the number of attempts ending "
+            "in a declined reply that stops the run"
+        )
+    limit = config["decline_limit"]
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+        raise ValueError(f"decline_limit {limit!r} is not a whole number of attempts, at least 1")
+    return limit
+
+
 def checker_of(config: Mapping[str, Any], root: Path) -> Checker:
     block = dict(config.get("checker", {}))
     form = block.get("form", "text")
@@ -714,6 +795,7 @@ def run(
     preflight_models(config, models)
     round_limit = int(config["round_limit"])
     attempts = int(config.get("attempts", 1))
+    decline_limit = decline_limit_of(config)
     task = task_text(round_limit)
     references = context_files(
         list(config["references"]), [s.slug for s in specs], root
@@ -771,6 +853,7 @@ def run(
         root=root,
     )
     stopped: str | None = None
+    declined = 0
     with (run_dir / "attempts.jsonl").open("w", encoding="utf-8") as handle:
         for spec in specs:
             for model_ref in models:
@@ -783,13 +866,17 @@ def run(
                         f"{record.summary()} real game: {record.real_game.get('verdict')}",
                         file=out,
                     )
-                    if record.outcome in (
-                        AttemptOutcome.STOPPED_BY_CEILING,
-                        AttemptOutcome.PROVIDER_ERROR,
-                        AttemptOutcome.HARNESS_ERROR,
-                    ):
+                    if stops_run(record.outcome):
                         stopped = f"{record.outcome.value}: {record.detail}"
                         break
+                    if record.outcome is AttemptOutcome.DECLINED:
+                        declined += 1
+                        if declined >= decline_limit:
+                            stopped = (
+                                f"declined: {declined} attempt(s) ended declined, the "
+                                f"config's decline_limit; the last: {record.detail}"
+                            )
+                            break
                 if stopped:
                     break
             if stopped:
