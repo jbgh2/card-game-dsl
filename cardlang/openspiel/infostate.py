@@ -41,11 +41,10 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
   owner of the class, and
   tests/test_openspiel_infostate.py::test_a_derived_view_does_not_follow_the_world_it_came_from
   and ::test_a_view_cannot_be_written_through_into_the_world redden on
-  returning the frames' own values; Review-Enforced Prose for the log --
-  its events are immutable only while every field stays inside a shape
-  `EVENT_PAYLOADS` declares, which is checked where an event is consumed,
-  not where it is made. Why not higher: issue #1004 (frozen events; closes
-  issue #638).
+  returning the frames' own values; Unrepresentable for the log -- every
+  event is frozen and slotted, and each field's shape admits only strings,
+  integers, None and tuples of strings, checked when the event is made
+  (`observe`'s Contract).
 - Establishes: `render_information_state` is a function of the Seat View
   alone, so every rendering of a seat's knowledge consumes the one
   derivation. Held by: Born-Green Pin,
@@ -53,21 +52,22 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
   under giving the renderer a parameter only the world can supply. Why not
   higher: a parameter list is the renderer's to widen, and no type forbids
   it.
-- Establishes: the log is embedded verbatim -- each event's `repr`, in
-  delivery order -- so the string OpenSpiel keys on carries the log's own
-  spelling. Held by: Born-Green Pin, tests/golden/infostate_format.json
-  (tests/test_infostate_format.py), byte for byte for every registered
-  game's first decision and every seat; no pin holds a later position's
-  string byte for byte. Why not higher: an event's spelling is its tuple's
-  `repr`, so it moves with the tuple; one spelling per kind is
-  issue #1004.
+- Establishes: the log is embedded verbatim -- the `repr` of each event's
+  spelling (`spelled()`), in delivery order -- so the string OpenSpiel keys
+  on carries the log's own spelling. Held by: Born-Green Pin,
+  tests/golden/infostate_format.json (tests/test_infostate_format.py), byte
+  for byte for every registered game's first decision and every seat, red
+  under rendering an event by the dataclass's own `repr`; what each event
+  spells along the whole line is `observe`'s Contract
+  (tests/test_observation_spelling.py), so a rendering that departs from
+  the spelling only for a kind no first decision carries (`was`) is
+  unpinned. Why not higher: a spelling is a format, not a type.
 - Establishes: `current_ask` is the one reading of what a seat was last
   asked. Held by: Derived and Pinned,
   tests/test_asked_event.py::test_the_ask_is_derived_in_one_place, which
   holds the modules naming `asked` to the declaring, emitting, spelling
-  and deriving ones. Why not higher: a kind is a string tag, so which
-  module reads it is a fact about the text; the closed union that a
-  consumer dispatches over is issue #1004.
+  and deriving ones. Why not higher: which module reads a kind is a fact
+  about the text.
 - Illegal after: a renderer reading the live world; a second derivation of
   a seat's knowledge beside `derive`; a Seat View derived for a seat the
   table does not seat (`_facts` refuses it).
@@ -79,6 +79,8 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from cardlang.runtime.observe import (
+    AskedEvent,
+    ObservationEvent,
     ZoneView,
     public_state,
     render_state_variable,
@@ -109,7 +111,7 @@ class SeatView:
     player: int
     zones: tuple[tuple[str, ZoneView], ...]
     state: tuple[tuple[str, Any], ...]
-    obs_log: tuple[tuple[Any, ...], ...]
+    obs_log: tuple[ObservationEvent, ...]
 
 
 def _zone_facts(rs: RuntimeState, player: int) -> tuple[tuple[str, ZoneView], ...]:
@@ -129,7 +131,7 @@ def _zone_facts(rs: RuntimeState, player: int) -> tuple[tuple[str, ZoneView], ..
 
 
 def _facts(
-    player: int, rs: RuntimeState, obs_log: list[tuple[Any, ...]]
+    player: int, rs: RuntimeState, obs_log: list[ObservationEvent]
 ) -> SeatView:
     """The derivation, over the live world.
 
@@ -154,7 +156,7 @@ def _facts(
 
 
 def derive(
-    player: int, rs: RuntimeState, obs_log: list[tuple[Any, ...]]
+    player: int, rs: RuntimeState, obs_log: list[ObservationEvent]
 ) -> SeatView:
     """What `player` knows at this position, as a value safe to keep.
 
@@ -171,9 +173,8 @@ def derive(
     `render_state_variable` has no spelling for, so a view holding one derives
     here and is refused where it is rendered.
 
-    The observation log is not copied: every field shape `EVENT_PAYLOADS`
-    declares is immutable, and emission is not fenced against a payload outside
-    them (issue #638).
+    The observation log is not copied: every event is frozen, and its
+    constructor admits only immutable field values.
 
     Copying is why this is separate from `_facts`: the rendering path consumes
     its view before it returns, and has no use for a snapshot.
@@ -186,25 +187,7 @@ def derive(
     )
 
 
-@dataclass(frozen=True)
-class Ask:
-    """The last question put to a seat: the phase it was asked in, the
-    construct asking, how many picks it wants, and the zone they land in where
-    the site knew it before the choice.
-
-    How far THROUGH the call the seat is, is not a field: one Chooser call
-    is `count` decisions of the game tree, and the log holds one `chose` per
-    pick made since the ask, on every route, so a caller reads the seat's
-    position within the call off the log.
-    """
-
-    phase: str
-    construct: str
-    count: int
-    destination: str | None
-
-
-def current_ask(view: SeatView) -> Ask | None:
+def current_ask(view: SeatView) -> AskedEvent | None:
     """The last question put to `view`'s seat, or None before it has been asked
     anything.
 
@@ -214,6 +197,9 @@ def current_ask(view: SeatView) -> Ask | None:
     stored or terminal view, it is the last question the seat was put and not a
     claim that the seat is still answering it: the log carries no completion
     marker, so this reports what was asked rather than whether it is over.
+    How far through the call the seat is, is the log's too: one Chooser call
+    is `count` decisions of the game tree, and the log holds one `chose` per
+    pick made since the ask, on every route.
 
     The ONE reading of the ask. A consumer wanting to know which decision it is
     answering — a Seat Policy, a person's frame, a listing of a game's
@@ -222,9 +208,8 @@ def current_ask(view: SeatView) -> Ask | None:
     property the language exists to guarantee (this module's own contract).
     """
     for event in reversed(view.obs_log):
-        if event and event[0] == "asked":
-            _kind, phase, construct, count, destination = event
-            return Ask(phase, construct, count, destination)
+        if isinstance(event, AskedEvent):
+            return event
     return None
 
 
@@ -249,12 +234,12 @@ def render_information_state(view: SeatView) -> str:
     """The seat's knowledge as the string OpenSpiel keys on."""
     zones = ";".join(_zone_line(label, zone) for label, zone in view.zones)
     state_vars = ";".join(f"{k}={render_state_variable(v)}" for k, v in view.state)
-    obs = ";".join(repr(e) for e in view.obs_log)
+    obs = ";".join(repr(e.spelled()) for e in view.obs_log)
     return f"P{view.player}|" + zones + f"|state:{state_vars}|obs:{obs}"
 
 
 def information_state(
-    player: int, rs: RuntimeState, obs_log: list[tuple[Any, ...]]
+    player: int, rs: RuntimeState, obs_log: list[ObservationEvent]
 ) -> str:
     """The seat's knowledge, derived and rendered in one step.
 

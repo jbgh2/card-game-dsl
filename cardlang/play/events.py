@@ -1,9 +1,8 @@
 """One line of text per observation event: what a seat's view shows of its log.
 
-`EVENT_LINES` holds a line for every kind `observe.EVENT_PAYLOADS` declares,
-and each line spells every field its kind carries, so a seat shown its log is
-shown all of it. An event the table does not describe has no reading, and
-`event_line` refuses it in the table's own words rather than show part of it.
+`event_line` has a line for every kind of `observe.ObservationEvent`, matched
+exhaustively, and each line spells every field its kind carries, so a seat
+shown its log is shown all of it.
 
 A designed constraint: an event carries zone labels and card renderings, never
 the zones or the cards (`observe._rendered`, issue #666), and a line shows them
@@ -14,10 +13,17 @@ names the seat, and a group of cards keeps the event's own order.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
+from typing import assert_never
 
-from cardlang.runtime.observe import payload_refusal
+from cardlang.runtime.observe import (
+    AnnounceEvent,
+    AskedEvent,
+    ChoseEvent,
+    MovementEvent,
+    ObservationEvent,
+    RevealEvent,
+    WasEvent,
+)
 from cardlang.types import Flavor
 
 
@@ -89,35 +95,30 @@ def _landing(construct: str, destination: str | None) -> str:
     return ""
 
 
-# Each line takes its kind's fields in `EVENT_PAYLOADS` order, then the noun a
-# count is spelled with.
-EVENT_LINES: dict[str, Callable[..., str]] = {
-    "asked": lambda phase, construct, count, destination, noun: (
-        f"asked in `{phase}` to {_asking(construct, count, noun)}"
-        f"{_landing(construct, destination)}"
-    ),
-    "chose": lambda choice, noun: f"you chose {_decided(choice)}",
-    "announce": lambda seat, choice, noun: f"P{seat} announced {_decided(choice)}",
-    "move": lambda source, source_view, destination, destination_view, noun: (
-        f"moved from {source} ({_seen(source_view, noun)}) "
-        f"to {destination} ({_seen(destination_view, noun)})"
-    ),
-    "reveal": lambda label, card, noun: f"revealed {card} in {label}",
-    "was": lambda variable, slot, shown, noun: (
-        f"`{variable if slot is None else f'{variable}[{slot}]'}` "
-        + ("was not in scope" if shown is None else f"was `{shown}`")
-        + " at the decision before"
-    ),
-}
-
-
-def event_line(event: tuple[Any, ...], noun: Flavor = "card") -> str:
+def event_line(event: ObservationEvent, noun: Flavor = "card") -> str:
     """The line a seat's view shows for one event of its observation log."""
-    refusal = payload_refusal(event)
-    if refusal is not None:
-        raise AssertionError(
-            f"{refusal} — a seat's view shows only the events the payload table "
-            f"describes"
-        )
-    kind, *fields = event
-    return EVENT_LINES[kind](*fields, noun=noun)
+    match event:
+        case AskedEvent(phase, construct, count, destination):
+            return (
+                f"asked in `{phase}` to {_asking(construct, count, noun)}"
+                f"{_landing(construct, destination)}"
+            )
+        case ChoseEvent(choice):
+            return f"you chose {_decided(choice)}"
+        case AnnounceEvent(seat, choice):
+            return f"P{seat} announced {_decided(choice)}"
+        case MovementEvent(source, source_view, destination, destination_view):
+            return (
+                f"moved from {source} ({_seen(source_view, noun)}) "
+                f"to {destination} ({_seen(destination_view, noun)})"
+            )
+        case RevealEvent(label, card):
+            return f"revealed {card} in {label}"
+        case WasEvent(variable, slot, shown):
+            return (
+                f"`{variable if slot is None else f'{variable}[{slot}]'}` "
+                + ("was not in scope" if shown is None else f"was `{shown}`")
+                + " at the decision before"
+            )
+        case _:
+            assert_never(event)

@@ -85,7 +85,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import parse_text
 from cardlang.pipeline import _check
 from cardlang.runtime.driver import GameResult, play_game
-from cardlang.runtime.observe import render
+from cardlang.runtime.observe import ObservationEvent, render
 from cardlang.runtime.state import Chooser
 from cardlang.runtime.values import Player
 
@@ -111,7 +111,7 @@ _DEFAULT_SEED_COUNT = 3
 SEED_COUNT = int(os.environ.get("CARDLANG_METAMORPHIC_SEEDS", _DEFAULT_SEED_COUNT))
 SEEDS: tuple[int, ...] = tuple(range(SEED_COUNT))
 
-Event = tuple[Any, ...]
+Event = ObservationEvent
 Transform = Callable[[n.Game], n.Game]
 
 

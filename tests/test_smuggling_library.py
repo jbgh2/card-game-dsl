@@ -122,7 +122,7 @@ def _trace_digest(member: Path, seed: int) -> str:
     play_game(
         game,
         rng,
-        observer=lambda p, ev: events.append(f"{int(p)}{ev!r}"),
+        observer=lambda p, ev: events.append(f"{int(p)}{ev.spelled()!r}"),
         chooser=lambda p, c, k: rng.sample(c, k),
     )
     return hashlib.sha256("\n".join(events).encode()).hexdigest()[:16]

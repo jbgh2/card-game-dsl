@@ -621,7 +621,7 @@ def _reveal(stmt: n.EpistemicOp, zone: Zone, ctx: Ctx) -> None:
     card = matches[0]
     if ctx.observer is not None:
         for p in ctx.rs.seating.players:
-            ctx.observe(p, ("reveal", label, str(card)))
+            ctx.observe(p, observe.RevealEvent(label, str(card)))
 
 
 def _rotate(stmt: n.RotateStmt, ctx: Ctx) -> None:

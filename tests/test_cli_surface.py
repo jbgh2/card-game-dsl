@@ -144,7 +144,7 @@ from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import InstallationError
-from cardlang.runtime.observe import render
+from cardlang.runtime.observe import ChoseEvent, ObservationEvent, render
 from cardlang.runtime.state import RuntimeState
 
 REPO = Path(__file__).parent.parent
@@ -1018,7 +1018,7 @@ def _tree_walk(
     space = ActionSpace.for_game(game)
     rng = random.Random(seed)
     play_uniformly = random_chooser(rng)
-    logs: dict[int, list[tuple[Any, ...]]] = {
+    logs: dict[int, list[ObservationEvent]] = {
         p: [] for p in range(game.players.count)
     }
     world: list[RuntimeState] = []
@@ -1026,7 +1026,7 @@ def _tree_walk(
     views: list[str] = []
     shared: list[int] = []
 
-    def observe(player: int, event: tuple[Any, ...]) -> None:
+    def observe(player: int, event: ObservationEvent) -> None:
         logs[player].append(event)
 
     def watch(event: str, _data: Any) -> None:
@@ -1036,13 +1036,13 @@ def _tree_walk(
     def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
         # The picks this call has made so far, as the seat remembers them; the
         # engine enters them in the log itself once the call returns.
-        committed: list[tuple[Any, ...]] = []
+        committed: list[ObservationEvent] = []
         taken = play_uniformly(player, candidates, count)
         for choice in taken:
             recalled = logs[seat] + (committed if seat == player else [])
             views.append(information_state(seat, world[0], recalled))
             line.append(space.encode(choice))
-            committed.append(("chose", render(choice)))
+            committed.append(ChoseEvent(render(choice)))
         return taken
 
     play_game(
@@ -1214,22 +1214,22 @@ def _views_walk(path: Path, seed: int, seat: int, last: int) -> list[tuple[int, 
     game = check_source(path)
     rng = random.Random(seed)
     play_uniformly = random_chooser(rng)
-    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.count)}
+    logs: dict[int, list[ObservationEvent]] = {p: [] for p in range(game.players.count)}
     world: list[RuntimeState] = []
     views: list[tuple[int, SeatView]] = []
 
-    def observe(player: int, event: tuple[Any, ...]) -> None:
+    def observe(player: int, event: ObservationEvent) -> None:
         logs[player].append(event)
 
     def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
-        committed: list[tuple[Any, ...]] = []
+        committed: list[ObservationEvent] = []
         taken = play_uniformly(player, candidates, count)
         for choice in taken:
             recalled = logs[seat] + (committed if seat == player else [])
             views.append((player, derive(seat, world[0], recalled)))
             if len(views) > last:
                 raise _WalkedFarEnough
-            committed.append(("chose", render(choice)))
+            committed.append(ChoseEvent(render(choice)))
         return taken
 
     with pytest.raises(_WalkedFarEnough):

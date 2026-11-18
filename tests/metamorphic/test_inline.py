@@ -69,6 +69,7 @@ import pytest
 
 from cardlang.ast import nodes as n
 from cardlang.resolve import _walk
+from cardlang.runtime.observe import AnnounceEvent, MovementEvent, RevealEvent
 from tests.metamorphic import pairing
 from tests.metamorphic.inline import splice_procedures
 
@@ -224,30 +225,34 @@ def test_procedure_bodies_are_exercised(path: Path, reverse: bool, seed: int) ->
     a, _ = pairing.run_pair_source(path, splice_procedures, seed, reverse=reverse)
     events = [e for log in a.events.values() for e in log]
     if path.name == "coup.cardlang":
-        assert any("challenge" in str(e) for e in events), "challenge_window never contested"
-        assert any(e[0] == "reveal" for e in events), "prove_claim never revealed a card"
+        assert any("challenge" in str(e.spelled()) for e in events), (
+            "challenge_window never contested"
+        )
+        assert any(isinstance(e, RevealEvent) for e in events), "prove_claim never revealed a card"
         assert any(
-            e[0] == "move" and (str(e[1]).startswith("revealed") or str(e[3]).startswith("revealed"))
+            isinstance(e, MovementEvent)
+            and (e.source.startswith("revealed") or e.destination.startswith("revealed"))
             for e in events
         ), "lose_influence never flipped a card into revealed[]"
     elif path.name == "cheat.cardlang" and reverse:
-        assert any(e[0] == "announce" and e[2] == "call_cheat" for e in events), (
+        assert any(isinstance(e, AnnounceEvent) and e.value == "call_cheat" for e in events), (
             "resolve_play's window was never contested"
         )
-        assert any(e[0] == "move" and e[3] == "flipped" for e in events), (
+        assert any(isinstance(e, MovementEvent) and e.destination == "flipped" for e in events), (
             "resolve_play never flipped a challenged play"
         )
         assert any(
-            e[0] == "move" and e[1] == "flipped" and str(e[3]).startswith("hand[")
+            isinstance(e, MovementEvent) and e.source == "flipped" and e.destination.startswith("hand[")
             for e in events
         ), "resolve_play never routed a verdict"
     elif path.name == "cheat.cardlang":
-        assert any(e[0] == "announce" and e[2] == "allow" for e in events), (
+        assert any(isinstance(e, AnnounceEvent) and e.value == "allow" for e in events), (
             "resolve_play's window was never polled"
         )
-        assert any(e[0] == "move" and e[1] == "played" and e[3] == "pile" for e in events), (
-            "resolve_play never merged an unchallenged play"
-        )
+        assert any(
+            isinstance(e, MovementEvent) and e.source == "played" and e.destination == "pile"
+            for e in events
+        ), "resolve_play never merged an unchallenged play"
     elif path.name == "scopa.cardlang":
         # `take_the_played_card` has TWO call sites — the forced single-card
         # capture and the sum-capture — and the splice replaces each with the
@@ -260,15 +265,15 @@ def test_procedure_bodies_are_exercised(path: Path, reverse: bool, seed: int) ->
         # consequences are a deal deeper than this suite's sampled prefix
         # reaches, and tests/test_playout_scopa.py's per-deal settlement is
         # what proves them.
-        taken = [
-            len(e[4])
-            for e in events
-            if e[0] == "move" and e[1] == "table" and str(e[3]).startswith("captured[")
-        ]
+        taken: list[int] = []
+        for e in events:
+            if isinstance(e, MovementEvent) and e.source == "table" and e.destination.startswith("captured["):
+                assert isinstance(e.destination_view, tuple)
+                taken.append(len(e.destination_view))
         assert any(n == 1 for n in taken), "the forced single-card capture never ran"
         assert any(n > 1 for n in taken), "the sum-capture never ran"
         assert any(
-            e[0] == "move" and e[1] == "played" and str(e[3]).startswith("captured[")
+            isinstance(e, MovementEvent) and e.source == "played" and e.destination.startswith("captured[")
             for e in events
         ), "take_the_played_card never banked a played card"
     else:  # a new domain member slipped past the pin — never pass silently

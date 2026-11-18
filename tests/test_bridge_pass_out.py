@@ -19,6 +19,7 @@ from typing import Any
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AnnounceEvent, ObservationEvent
 from cardlang.runtime.values import Player
 
 BRIDGE = Path(__file__).parent.parent / "docs" / "games" / "bridge.cardlang"
@@ -38,9 +39,9 @@ def test_pass_out_routes_through_skip_to_next_hand() -> None:
 
     heard: list[str] = []
 
-    def observer(player: Player, event: tuple[Any, ...]) -> None:
-        if player == 0 and event[0] == "announce":
-            heard.append(str(event[2]))
+    def observer(player: Player, event: ObservationEvent) -> None:
+        if player == 0 and isinstance(event, AnnounceEvent):
+            heard.append(str(event.value))
 
     game = check_dsl(BRIDGE.read_text(), "bridge.cardlang")
     result = play_game(game, random.Random(1), chooser=chooser, observer=observer)

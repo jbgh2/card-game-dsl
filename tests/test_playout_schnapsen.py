@@ -28,6 +28,7 @@ from typing import Any
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 from cardlang.runtime.values import Player
 
 SCHNAPSEN = Path(__file__).parent.parent / "docs" / "games" / "schnapsen.cardlang"
@@ -64,16 +65,19 @@ class SchnapsenTricks:
         # One reconstructed trick: (winner, plays-in-order, trump-then).
         self.tricks: list[tuple[Player, list[tuple[Player, tuple[str, str]]], str]] = []
 
-    def observer(self, player: Player, event: tuple[Any, ...]) -> None:
-        if player != 0 or event[0] != "move":
+    def observer(self, player: Player, event: ObservationEvent) -> None:
+        if player != 0 or not isinstance(event, MovementEvent):
             return
-        _, src, _src_view, dst, dst_view = event
+        src, _src_view = event.source, event.source_view
+        dst, dst_view = event.destination, event.destination_view
         if dst == "trump_indicator" and src == "deck":
             # The turned-up trump card (the exchange arrival from a hand is
             # the trump JACK — same suit, deliberately not consumed).
+            assert isinstance(dst_view, tuple)
             (card_str,) = dst_view
             self.trump = _parse(card_str)[1]
         elif dst == "trick_pile" and isinstance(src, str) and src.startswith("hand["):
+            assert isinstance(dst_view, tuple)
             (card_str,) = dst_view  # one card per play
             self.pending.append((_seat(src, "hand"), _parse(card_str)))
         elif src == "trick_pile" and isinstance(dst, str) and dst.startswith("captured["):

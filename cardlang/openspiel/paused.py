@@ -61,6 +61,7 @@ from typing import Any, Protocol
 from cardlang.openspiel import replay
 from cardlang.runtime.chance import Outcome
 from cardlang.runtime.state import ChooserAbort
+from cardlang.runtime.observe import ObservationEvent
 
 Node = replay.DecisionNode | replay.TerminalNode
 # A line of play: the game file, the shuffle seed and the Draw Script.
@@ -160,7 +161,7 @@ class ThreadedRun:
     def start(self) -> Node:
         path, seed, script = self.line
         game, _ = replay.load(path)
-        logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.count)}
+        logs: dict[int, list[ObservationEvent]] = {p: [] for p in range(game.players.count)}
         world: list[Any] = []
 
         def listen(moment: replay.Moment) -> None:

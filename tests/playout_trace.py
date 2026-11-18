@@ -30,6 +30,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Player
 
@@ -169,12 +170,13 @@ class CoupReveals:
     def __init__(self) -> None:
         self.reveals: list[list[int | str]] = []
 
-    def observer(self, player: Player, event: tuple[Any, ...]) -> None:
-        if player != 0 or event[0] != "move":
+    def observer(self, player: Player, event: ObservationEvent) -> None:
+        if player != 0 or not isinstance(event, MovementEvent):
             return
-        _, _src, _src_view, dst, dst_view = event
+        dst, dst_view = event.destination, event.destination_view
         if isinstance(dst, str) and dst.startswith("revealed["):
             victim = _key_of(dst, "revealed")
+            assert isinstance(dst_view, tuple)
             for card_str in dst_view:
                 self.reveals.append([victim, rank_of(card_str)])
 
@@ -203,16 +205,19 @@ class TichuHands:
         self._hand_sizes: dict[int, int] = {}
         self._out_order: list[int] = []
 
-    def observer(self, player: Player, event: tuple[Any, ...]) -> None:
-        if player != 0 or event[0] != "move":
+    def observer(self, player: Player, event: ObservationEvent) -> None:
+        if player != 0 or not isinstance(event, MovementEvent):
             return
-        _, src, src_view, dst, dst_view = event
+        src, src_view = event.source, event.source_view
+        dst, dst_view = event.destination, event.destination_view
         if dst == "deck":
             self._hand_sizes.clear()
             self._out_order.clear()
         if isinstance(dst, str) and dst.startswith("captured["):
+            assert isinstance(dst_view, tuple)
             self._points += sum(_TICHU_POINTS.get(rank_of(c), 0) for c in dst_view)
         if isinstance(src, str) and src.startswith("captured["):
+            assert isinstance(src_view, tuple)
             self._points -= sum(_TICHU_POINTS.get(rank_of(c), 0) for c in src_view)
         if isinstance(dst, str) and dst.startswith("hand["):
             key = _key_of(dst, "hand")

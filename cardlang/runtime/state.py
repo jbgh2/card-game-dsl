@@ -27,6 +27,7 @@ from cardlang.runtime.values import Card, Combination, Player, Seating, TeamOf
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from cardlang.builtins.signatures import Sig
+    from cardlang.runtime.observe import ObservationEvent
     from cardlang.runtime.primitives import Declared
     from cardlang.runtime.trick_order import TrickOrderTable
     from cardlang.stdlib.boards import BoardEntry
@@ -629,7 +630,7 @@ class Ctx:
     winner: Player | None = None
     action: Move | None = None
     active_rules: tuple[n.RuleDef, ...] = ()
-    observer: Callable[[Player, tuple[Any, ...]], None] | None = None
+    observer: Callable[[Player, ObservationEvent], None] | None = None
     # Delegated Play (decisions.md "Delegated play"): the acting seat's
     # effective trick source — (declared family name, the zone the seat
     # actually plays from) — bound by the trick form for the scope of one
@@ -659,7 +660,7 @@ class Ctx:
         if self.tracer is not None:
             self.tracer(event, data)
 
-    def observe(self, player: Player, event: tuple[Any, ...]) -> None:
+    def observe(self, player: Player, event: ObservationEvent) -> None:
         """Deliver a per-observer observation event (the projection substrate).
         No observer installed (normal playouts) means no cost and no effect."""
         if self.observer is not None:

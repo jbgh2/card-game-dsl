@@ -27,6 +27,7 @@ line never reaches a knock. The turn-cycle projections ARE asserted below.
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, run
+from cardlang.runtime.observe import ChoseEvent, MovementEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -105,15 +106,15 @@ def test_knock_line_derives_showdown_observations() -> None:
     # The knocker's own log: the joint pick is a recorded decision (`chose`)
     # and the meld arrival is identity on both sides.
     k_log = combo_pause.obs_logs[knocker]
-    assert any(e[0] == "chose" for e in k_log)
+    assert any(isinstance(e, ChoseEvent) for e in k_log)
     own_meld = next(
         e
         for e in k_log
-        if e[0] == "move"
-        and str(e[1]).startswith("hand[")
-        and str(e[3]).startswith("meld")
+        if isinstance(e, MovementEvent)
+        and str(e.source).startswith("hand[")
+        and str(e.destination).startswith("meld")
     )
-    assert isinstance(own_meld[2], tuple) and isinstance(own_meld[4], tuple)
+    assert isinstance(own_meld.source_view, tuple) and isinstance(own_meld.destination_view, tuple)
 
     # The defender's view of the same meld: count-only on the knocker's hand
     # (the source), identity on the public meld pile (the destination).
@@ -121,11 +122,11 @@ def test_knock_line_derives_showdown_observations() -> None:
     d_meld = next(
         e
         for e in d_log
-        if e[0] == "move"
-        and str(e[1]).startswith("hand[")
-        and str(e[3]).startswith("meld")
+        if isinstance(e, MovementEvent)
+        and str(e.source).startswith("hand[")
+        and str(e.destination).startswith("meld")
     )
-    assert isinstance(d_meld[2], int) and isinstance(d_meld[4], tuple)
+    assert isinstance(d_meld.source_view, int) and isinstance(d_meld.destination_view, tuple)
 
     # The knock card reached `face_down` count-only for BOTH observers on the
     # destination side (the knocker's own source view stays identity — their
@@ -134,9 +135,9 @@ def test_knock_line_derives_showdown_observations() -> None:
         fd = next(
             e
             for e in log
-            if e[0] == "move" and e[3] == "face_down"
+            if isinstance(e, MovementEvent) and e.destination == "face_down"
         )
-        assert isinstance(fd[4], int), f"player {p} saw the knock card"
+        assert isinstance(fd.destination_view, int), f"player {p} saw the knock card"
 
 
 def test_turn_cycle_derives_observations() -> None:
@@ -163,26 +164,26 @@ def test_turn_cycle_derives_observations() -> None:
         (p, e)
         for p, log in r.obs_logs.items()
         for e in log
-        if e[0] == "move" and e[1] == "deck" and str(e[3]).startswith("hand[")
+        if isinstance(e, MovementEvent) and e.source == "deck" and str(e.destination).startswith("hand[")
     ]
     assert draws, "the greedy line drew from stock within 12 steps"
     for p, e in draws:
-        drawer = int(str(e[3])[5:-1])
+        drawer = int(str(e.destination)[5:-1])
         if p == drawer:
-            assert isinstance(e[4], tuple), "drawer sees the drawn card"
+            assert isinstance(e.destination_view, tuple), "drawer sees the drawn card"
         else:
-            assert isinstance(e[4], int), "opponent sees a count only"
+            assert isinstance(e.destination_view, int), "opponent sees a count only"
 
     # An open discard's arrival: identity to both players (public zone).
     for p, log in r.obs_logs.items():
         arrivals = [
             e
             for e in log
-            if e[0] == "move" and str(e[1]).startswith("hand[") and e[3] == "discard_top"
+            if isinstance(e, MovementEvent) and str(e.source).startswith("hand[") and e.destination == "discard_top"
         ]
         assert arrivals, "someone discarded within 12 steps"
         for e in arrivals:
-            assert isinstance(e[4], tuple) and len(e[4]) == 1
+            assert isinstance(e.destination_view, tuple) and len(e.destination_view) == 1
 
     # Rendered info states: own hand identity, opponent hand count-only.
     n1 = len(r.rs.zones.instance("hand", 1).cards)

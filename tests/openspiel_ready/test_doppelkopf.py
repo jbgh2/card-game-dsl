@@ -15,6 +15,7 @@ docs/open-questions/structural-infoset-proofs.md.
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import AnnounceEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -87,7 +88,7 @@ def test_quiet_poll_lap_is_public_and_leaks_nothing() -> None:
 
     for q in range(4):
         declines = [
-            e for e in r.obs_logs[q] if e[0] == "announce" and e[2] == "no_announcement"
+            e for e in r.obs_logs[q] if isinstance(e, AnnounceEvent) and e.value == "no_announcement"
         ]
         assert len(declines) == 4, f"P{q} saw {len(declines)} declines, expected 4"
         info = information_state(q, r.rs, r.obs_logs[q])
@@ -129,12 +130,12 @@ def test_announcement_is_public_and_narrows_by_event_not_by_zone() -> None:
         "no announcement became legal in 60 steps"
     )
 
-    event = ("announce", announcer, announced)
+    event = AnnounceEvent(announcer, announced)
     assert isinstance(r, DecisionNode)
     for q in range(4):
         assert event in r.obs_logs[q], f"P{q} did not observe the announcement"
         info = information_state(q, r.rs, r.obs_logs[q])
-        assert repr(event) in info, f"P{q}'s info state omits the announcement"
+        assert repr(event.spelled()) in info, f"P{q}'s info state omits the announcement"
         if q != announcer:
             assert f"hand[{announcer}]=#12" in info, (
                 "the announcement revealed zone contents, not just the event"

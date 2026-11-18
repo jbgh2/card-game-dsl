@@ -13,6 +13,7 @@ import random
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AnnounceEvent, ChoseEvent, MovementEvent, ObservationEvent
 from cardlang.runtime.tichu_combinations import INTERRUPT_DECLINE, Play
 from cardlang.runtime.tichu_combinations import WISH_TOKENS
 
@@ -136,33 +137,36 @@ def test_push_derives_hidden_observations() -> None:
     # The walk's declined windows are also "chose" events; the picks are the
     # card-valued remainder.
     chose0 = [
-        e[1]
+        e.value
         for e in r.obs_logs[0]
-        if e[0] == "chose" and str(e[1]) not in ("decline_grand", "no_call")
+        if isinstance(e, ChoseEvent) and str(e.value) not in ("decline_grand", "no_call")
     ]
     assert len(chose0) == 3
 
-    def gift_moves(log: list[tuple[Any, ...]], src: str, dst: str) -> list[tuple[Any, ...]]:
-        return [e for e in log if e[0] == "move" and e[1] == src and e[3] == dst]
+    def gift_moves(log: list[ObservationEvent], src: str, dst: str) -> list[MovementEvent]:
+        return [
+            e for e in log if isinstance(e, MovementEvent) and e.source == src and e.destination == dst
+        ]
 
     # The giver's outgoing pile: identity to the giver, counts to everyone else.
     (own_push,) = gift_moves(r.obs_logs[0], "hand[0]", "gift[0]")
-    assert isinstance(own_push[2], tuple) and set(own_push[4]) == set(chose0)
+    assert isinstance(own_push.source_view, tuple) and isinstance(own_push.destination_view, tuple)
+    assert set(own_push.destination_view) == set(chose0)
     (other_push,) = gift_moves(r.obs_logs[2], "hand[0]", "gift[0]")
-    assert other_push[2] == 3 and other_push[4] == 3, "a bystander saw the picks"
+    assert other_push.source_view == 3 and other_push.destination_view == 3, "a bystander saw the picks"
 
     # Giver-major routing witnessed by the receiver: p0's FIRST pick lands in
     # hand[1] (the lowest-numbered other seat), and p1 sees its identity plus
     # the source pile — but the source side collapses to a count.
     (recv,) = gift_moves(r.obs_logs[1], "gift[0]", "hand[1]")
-    assert recv[4] == (chose0[0],), "the receiver must see exactly what landed"
-    assert recv[2] == 1
+    assert recv.destination_view == (chose0[0],), "the receiver must see exactly what landed"
+    assert recv.source_view == 1
 
     # A bystander sees the same transfer as counts on both sides, and never
     # observes another giver's picks.
     (bystander,) = gift_moves(r.obs_logs[3], "gift[0]", "hand[1]")
-    assert bystander[2] == 1 and bystander[4] == 1, "a bystander saw a gift identity"
-    leaked = [e for e in r.obs_logs[3] if e[0] == "chose" and e[1] in chose0]
+    assert bystander.source_view == 1 and bystander.destination_view == 1, "a bystander saw a gift identity"
+    leaked = [e for e in r.obs_logs[3] if isinstance(e, ChoseEvent) and e.value in chose0]
     assert not leaked, f"P3 observed another giver's picks: {leaked}"
 
     # The pause after the push is the first climbing lead: the Mahjong holder.
@@ -219,14 +223,14 @@ def test_call_windows_are_public_announced_decisions() -> None:
     assert small_caller is not None, "no small-tichu window offered a call"
     assert small_caller != grand_caller, "the grand caller must be barred from small"
 
-    grand_ev = ("announce", grand_caller, "call_grand_tichu")
-    small_ev = ("announce", small_caller, "call_tichu")
+    grand_ev = AnnounceEvent(grand_caller, "call_grand_tichu")
+    small_ev = AnnounceEvent(small_caller, "call_tichu")
     assert isinstance(r, DecisionNode)
     for q in range(4):
         assert grand_ev in r.obs_logs[q], f"P{q} missed the grand call"
         assert small_ev in r.obs_logs[q], f"P{q} missed the small call"
         info = information_state(q, r.rs, r.obs_logs[q])
-        assert repr(grand_ev) in info and repr(small_ev) in info
+        assert repr(grand_ev.spelled()) in info and repr(small_ev.spelled()) in info
         for caller in (grand_caller, small_caller):
             if q != caller:
                 assert f"hand[{caller}]=[" not in info, (

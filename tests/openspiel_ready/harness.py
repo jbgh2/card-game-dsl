@@ -52,6 +52,7 @@ import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
+from cardlang.runtime.observe import ObservationEvent, WasEvent
 import cardlang.openspiel.game as ogame  # registers on import
 from cardlang.openspiel.infostate import (
     SeatView,
@@ -843,7 +844,7 @@ def told_apart(a: SeatView, b: SeatView) -> bool:
     (`_blind_decider`); the pair was never hidden from it, and a difference
     anywhere else is still the leak the swap proof refuses."""
     def private(view: SeatView) -> tuple[Any, ...]:
-        return (view.zones, tuple(e for e in view.obs_log if e[0] != "was"))
+        return (view.zones, tuple(e for e in view.obs_log if not isinstance(e, WasEvent)))
 
     return a != b and private(a) == private(b)
 
@@ -1436,7 +1437,7 @@ class ReadinessProofs:
         _game, space = load(path)
         history: list[int] = []
         r = run(path, seed, ())
-        prev: dict[int, list[tuple[Any, ...]]] = {}
+        prev: dict[int, list[ObservationEvent]] = {}
         steps = 0
         while isinstance(r, DecisionNode) and steps < 40:
             for q, log in r.obs_logs.items():

@@ -153,6 +153,7 @@ from cardlang.openspiel.seat_policy import (
     UniformSeatPolicy,
 )
 from cardlang.runtime.errors import GameDescriptionError
+from cardlang.runtime.observe import AskedEvent
 from cardlang.runtime.values import Card, deck_suits
 from tests.test_play_session import FIXTURES, _path
 
@@ -576,7 +577,7 @@ def test_the_lead_is_ranked_now_that_the_seat_is_told_it_leads() -> None:
         player=1,
         zones=(("trick_pile", ()), ("hand[1]", hand)),
         state=(),
-        obs_log=(("asked", "play", "trick", 1, "trick_pile"),),
+        obs_log=(AskedEvent("play", "trick", 1, "trick_pile"),),
     )
     legal = sorted(space.encode(card) for card in hand)
     assert ranked(view, legal) == space.encode(Card("K", "clubs"))
@@ -599,7 +600,7 @@ def test_a_card_decision_that_is_no_trick_play_still_draws() -> None:
         player=1,
         zones=(("trick_pile", ()), ("hand[1]", hand)),
         state=(),
-        obs_log=(("asked", "play", "transfer", 1, "discards"),),
+        obs_log=(AskedEvent("play", "transfer", 1, "discards"),),
     )
     legal = sorted(space.encode(card) for card in hand)
     assert ranked(view, legal) == drawn(view, legal)

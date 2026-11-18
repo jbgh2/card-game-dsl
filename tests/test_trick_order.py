@@ -207,6 +207,7 @@ from cardlang.resolve import _PRONOUNS
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 from cardlang.runtime.values import Card
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, identity_to_all
 
@@ -1465,14 +1466,20 @@ def test_readers_end_to_end() -> None:
     game = check_dsl(_READERS_GAME, "readers.cardlang")
     for seed in range(8):
         rng = random.Random(seed)
-        seen: list[tuple[int, tuple[Any, ...]]] = []
+        seen: list[tuple[int, ObservationEvent]] = []
 
-        def watch(p: int, e: tuple[Any, ...], log: Any = seen) -> None:
+        def watch(p: int, e: ObservationEvent, log: Any = seen) -> None:
             log.append((p, e))
 
         result = play_game(game, rng, None, random_chooser(rng), observer=watch)
-        deal = next(e for p, e in seen if p == 0 and e[0] == "move" and e[3] == "hand[0]")
-        rank, suit = _parse(deal[4][0])
+        deal = next(
+            e
+            for p, e in seen
+            if p == 0 and isinstance(e, MovementEvent) and e.destination == "hand[0]"
+        )
+        dealt = deal.destination_view
+        assert isinstance(dealt, tuple)
+        rank, suit = _parse(dealt[0])
         ranks = ("2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A")
         rank_value = ranks.index(rank)
         t = 1 if (rank == "J" or suit == "spades") else 0

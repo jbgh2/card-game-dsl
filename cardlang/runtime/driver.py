@@ -67,6 +67,7 @@ from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.evaluate import answer_context, evaluate
 from cardlang.runtime.execute import REFUSALS, execute
 from cardlang.runtime.execute import run_body as run_stmts
+from cardlang.runtime.observe import ObservationEvent
 from cardlang.runtime.state import (
     HALTS,
     Chooser,
@@ -381,7 +382,7 @@ def play_game(
     rng: random.Random,
     tracer: Callable[[str, Any], None] | None = None,
     chooser: Chooser | None = None,
-    observer: Callable[[Player, tuple[Any, ...]], None] | None = None,
+    observer: Callable[[Player, ObservationEvent], None] | None = None,
     on_first_decision: Callable[[RuntimeState], None] | None = None,
 ) -> GameResult:
     assert game.winner is not None or game.loser is not None, (

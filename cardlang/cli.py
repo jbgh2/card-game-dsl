@@ -172,7 +172,7 @@ from cardlang.runtime.errors import (
     InstallationError,
     Located,
 )
-from cardlang.runtime.observe import render
+from cardlang.runtime.observe import ObservationEvent, render
 from cardlang.runtime.reads import PrimitiveNameMissing
 from cardlang.runtime.state import IllegalMove, RuntimeState
 from cardlang.runtime.values import Player
@@ -1326,7 +1326,7 @@ def _demo(
         return
 
     drawn = random.randrange(2**31) if seed is None else seed
-    logs: dict[Player, list[tuple[Any, ...]]] = {p: [] for p in range(seats)}
+    logs: dict[Player, list[ObservationEvent]] = {p: [] for p in range(seats)}
     # What each seat flag prints, keyed by the flag, taken at one position.
     shown: dict[str, str] = {}
     world: list[RuntimeState] = []
@@ -1337,7 +1337,7 @@ def _demo(
     # playout hands it — so only a line that will be shown is rendered at all.
     decisions: list[str | None] = []
 
-    def observe(player: Player, event: tuple[Any, ...]) -> None:
+    def observe(player: Player, event: ObservationEvent) -> None:
         logs[player].append(event)
 
     def hold(rs: RuntimeState) -> None:

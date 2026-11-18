@@ -32,6 +32,7 @@ import glcommon
 
 from cardlang.openspiel import replay
 from cardlang.openspiel.infostate import information_state
+from cardlang.runtime.observe import ObservationEvent
 
 RESPONSE_LABELS = {"inspect", "wave"}
 
@@ -175,7 +176,7 @@ def check_perfect_recall(path: str) -> int:
     checked = 0
     for _ in range(10):
         history = random_history(path, 0, rng)
-        prev: dict[int, list[tuple[Any, ...]]] = {}
+        prev: dict[int, list[ObservationEvent]] = {}
         for cut in range(len(history) + 1):
             r = replay.run(path, 0, tuple(history[:cut]))
             if not isinstance(r, replay.DecisionNode):

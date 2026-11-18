@@ -158,6 +158,7 @@ import pytest
 from cardlang.pipeline import check_source
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AnnounceEvent, MovementEvent, ObservationEvent
 from cardlang.runtime.values import Card, Player
 
 TAROT = Path(__file__).parent.parent / "docs" / "games" / "french-tarot.cardlang"
@@ -391,7 +392,7 @@ class _Table:
 
     # --- the observation half ---------------------------------------------
 
-    def observe(self, player: Player, event: tuple[Any, ...]) -> None:
+    def observe(self, player: Player, event: ObservationEvent) -> None:
         # Observer 0's stream only, and only its PUBLIC events: the trick pile
         # and the capture piles project identity to every observer and an
         # announcement is heard by every seat, so seat 0 sees exactly what
@@ -399,9 +400,9 @@ class _Table:
         # is not read here; the offered sets come through the chooser hook.)
         if player != 0:
             return
-        if event[0] == "announce":
-            self._announced(Player(int(event[1])), str(event[2]))
-        elif event[0] == "move":
+        if isinstance(event, AnnounceEvent):
+            self._announced(Player(event.seat), str(event.value))
+        elif isinstance(event, MovementEvent):
             self._moved(event)
 
     def _announced(self, who: Player, said: str) -> None:
@@ -416,21 +417,23 @@ class _Table:
         if level > hand.level:
             hand.taker, hand.level = who, level
 
-    def _moved(self, event: tuple[Any, ...]) -> None:
-        _, src, src_view, dst, dst_view = event
-        src, dst = str(src), str(dst)
+    def _moved(self, event: MovementEvent) -> None:
+        src, src_view = event.source, event.source_view
+        dst, dst_view = event.destination, event.destination_view
         if src == "deck" and dst == "chien":
             # One deal into the chien per hand, and the only movement into that
             # zone: it is where a hand begins.
             self.hands.append(_Hand())
             self._pending.clear()
         elif src.startswith("hand[") and dst == "trick_pile":
+            assert isinstance(dst_view, tuple)
             (card_str,) = dst_view  # one card per play
             play = (Player(int(src[src.index("[") + 1 : -1])), _parse(str(card_str)))
             self._hand.plays.append(play)
             self._pending.append(play)
         elif src == "trick_pile" and dst.startswith("captured["):
             seat = Player(int(dst[len("captured[") : -1]))
+            assert isinstance(src_view, tuple)
             drained = [_parse(str(c)) for c in src_view]
             self._hand.captured.setdefault(seat, []).extend(drained)
             if all(c.suit == "excuse" for c in drained):
@@ -442,6 +445,7 @@ class _Table:
             # pile to the trick winner's.
             frm = Player(int(src[len("captured[") : -1]))
             to = Player(int(dst[len("captured[") : -1]))
+            assert isinstance(src_view, tuple)
             for c in (_parse(str(x)) for x in src_view):
                 self._hand.captured[frm].remove(c)
                 self._hand.captured.setdefault(to, []).append(c)
@@ -525,7 +529,7 @@ def _play(
     game: Any,
     rng: random.Random,
     script: Callable[[Player, list[Any], int], list[Any] | None] | None = None,
-    tap: Callable[[Player, tuple[Any, ...]], None] | None = None,
+    tap: Callable[[Player, ObservationEvent], None] | None = None,
 ) -> tuple[_Table, Any]:
     """One full match against the table's record. `script` may claim any
     decision (return None to leave it to the random pick); `tap` sees every
@@ -543,7 +547,7 @@ def _play(
                 return scripted
         return pick(player, candidates, n)
 
-    def observe(player: Player, event: tuple[Any, ...]) -> None:
+    def observe(player: Player, event: ObservationEvent) -> None:
         if tap is not None:
             tap(player, event)
         tbl.observe(player, event)
@@ -1075,10 +1079,10 @@ def test_the_forced_discard_shows_its_atouts_to_the_table() -> None:
             return [candidates[names.index("bid_petite")]]
         return [candidates[names.index("pass")]]
 
-    hops: list[tuple[Player, tuple[Any, ...]]] = []
+    hops: list[tuple[Player, MovementEvent]] = []
 
-    def tap(player: Player, event: tuple[Any, ...]) -> None:
-        if event[0] == "move" and "shown_atouts" in (str(event[1]), str(event[3])):
+    def tap(player: Player, event: ObservationEvent) -> None:
+        if isinstance(event, MovementEvent) and "shown_atouts" in (event.source, event.destination):
             hops.append((player, event))
 
     table, result = _play(
@@ -1102,16 +1106,18 @@ def test_the_forced_discard_shows_its_atouts_to_the_table() -> None:
     # onward tuck shows the same identities leaving while the hidden discard
     # takes them as a bare count.
     shown = tuple(sorted(str(c) for c in h0.shown))
-    arrivals = {p: e for p, e in hops if str(e[3]) == "shown_atouts"}
-    tucks = {p: e for p, e in hops if str(e[1]) == "shown_atouts"}
+    arrivals = {p: e for p, e in hops if e.destination == "shown_atouts"}
+    tucks = {p: e for p, e in hops if e.source == "shown_atouts"}
     assert set(arrivals) == set(tucks) == set(range(SEATS))
     for p in range(SEATS):
         arr, tuck = arrivals[p], tucks[p]
-        assert tuple(sorted(str(c) for c in arr[4])) == shown, f"P{p}: {arr}"
-        assert tuple(sorted(str(c) for c in tuck[2])) == shown, f"P{p}: {tuck}"
+        arrived, tucked = arr.destination_view, tuck.source_view
+        assert isinstance(arrived, tuple) and isinstance(tucked, tuple)
+        assert tuple(sorted(str(c) for c in arrived)) == shown, f"P{p}: {arr}"
+        assert tuple(sorted(str(c) for c in tucked)) == shown, f"P{p}: {tuck}"
         if p != 0:
-            assert arr[2] == 3, f"P{p} saw inside the taker's hand: {arr}"
-            assert tuck[4] == 3, f"P{p} saw inside the discard: {tuck}"
+            assert arr.source_view == 3, f"P{p} saw inside the taker's hand: {arr}"
+            assert tuck.destination_view == 3, f"P{p} saw inside the discard: {tuck}"
 
 
 def test_seed0_characterization() -> None:

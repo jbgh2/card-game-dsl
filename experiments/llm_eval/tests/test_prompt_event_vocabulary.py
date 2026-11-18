@@ -55,7 +55,7 @@ def _kinds_emitted(corpus_key: str, seed: int = 7) -> set[str]:
     rng = random.Random(seed)
     kinds: set[str] = set()
     try:
-        play_game(game, rng, observer=lambda _p, e: kinds.add(str(e[0])))
+        play_game(game, rng, observer=lambda _p, e: kinds.add(e.KIND))
     except Exception:  # noqa: BLE001 - a line that ends early still emitted
         pass
     return kinds

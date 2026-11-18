@@ -10,6 +10,7 @@ import pytest
 
 from cardlang.ast import nodes as n
 from cardlang.openspiel.infostate import derive, information_state
+from cardlang.runtime.observe import AnnounceEvent, ChoseEvent, ObservationEvent
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
 
@@ -44,7 +45,7 @@ def test_state_variables_are_public() -> None:
 
 
 def test_observation_log_is_included_and_ordered() -> None:
-    log: list[tuple[Any, ...]] = [("announce", 1, "bid(3)"), ("chose", "7 of hearts")]
+    log: list[ObservationEvent] = [AnnounceEvent(1, "bid(3)"), ChoseEvent("7 of hearts")]
     s = information_state(0, _rs(), log)
     assert "bid(3)" in s
     assert s.index("bid(3)") < s.index("chose")  # log order preserved

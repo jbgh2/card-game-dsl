@@ -1,42 +1,50 @@
 """Every observation event's payload, declared once and probed field by field.
 
-property:        Every event an emission site delivers to an observer carries a
-                 kind `cardlang.runtime.observe.EVENT_PAYLOADS` declares and,
-                 field by field, a value inside the shape that kind's row names
-                 — checked by execution over every registered game — and
-                 `observe.payload_refusal` refuses, in words, a kind, an arity
-                 or a field outside the table. The shapes tell their fields
-                 apart: no string is both a label and a card, a card is the
-                 rendering of a card some component set holds, and a group of
-                 cards travels in the one sorted order, so a site that hands
-                 over a label in a card's place, a card no set holds, or cards
-                 in the order they sat is refused. Every shape a row names has
-                 one perturbation in the soundness matrix's payload probe table
+property:        Every [[observation-event]] is a member of the closed union
+                 `cardlang.runtime.observe.ObservationEvent`, one frozen,
+                 slotted kind per tag, and its constructor refuses, in words, a
+                 field outside the shape `PAYLOAD_SHAPES` names for it, so no
+                 event outside the vocabulary can be made, and a held event
+                 cannot change. Each kind spells itself (`spelled()`) as its
+                 tag followed by its fields, in declaration order. Every event
+                 an emission site delivers, over every registered game, is a
+                 member of the union. The shapes tell their fields apart: no
+                 string is both a label and a card, a card is the rendering of
+                 a card some component set holds, and a group of cards travels
+                 in the one sorted order, so a site that hands over a label in
+                 a card's place, a card no set holds, or cards in the order
+                 they sat is refused. Every shape a kind's fields name has one
+                 perturbation in the soundness matrix's payload probe table
                  that keeps a value inside its shape and changes it, and one
-                 synthetic member the matrix builds an appended event from, so
-                 the matrix probes an event's content field by field for any
-                 rendering rather than by the spelling of one.
-domain:          The kinds and each kind's fields are the rows of
-                 `EVENT_PAYLOADS`; the shapes are `PAYLOAD_SHAPES`. A shape's
-                 members are the alternatives its predicate admits, cells per
-                 alternative below, each beside the nearest values an emission
-                 site could plausibly hand over instead, and every one of those
-                 is crossed with every field that carries the shape. The card
-                 and label shapes are also crossed with the rendering of every
-                 card and piece the component sets hold. The emission axis is
-                 every registered game played along a bounded seeded line with
-                 an observer installed, and the sweep must meet every kind at
+                 synthetic member the matrix builds an appended event from.
+domain:          The kinds are `EVENT_KINDS`, derived from the union; each
+                 kind's fields and their shapes are its `SHAPES`, read off its
+                 dataclass fields, and `EVENT_PAYLOADS` is derived from them.
+                 The shapes are `PAYLOAD_SHAPES`. A shape's members are the
+                 alternatives its predicate admits, cells per alternative
+                 below, each beside the nearest values an emission site could
+                 plausibly hand over instead, and every one of those is crossed
+                 with every field that carries the shape. The card and label
+                 shapes are also crossed with the rendering of every card and
+                 piece the component sets hold. The emission axis is every
+                 registered game played along a bounded seeded line with an
+                 observer installed, and the sweep must meet every kind at
                  least once, so no kind is certified by a line that never
                  emitted it.
-registry:        the kinds and their fields,
-                 `cardlang.runtime.observe.EVENT_PAYLOADS`; the field shapes,
-                 `cardlang.runtime.observe.PAYLOAD_SHAPES`; the refusal,
-                 `cardlang.runtime.observe.payload_refusal`; the cards, every
-                 set in `cardlang.runtime.values.COMPONENT_SETS` as
-                 `build_deck` builds it; the probes and the synthetic members,
-                 `tests.openspiel_ready.partition`'s `PAYLOAD_PROBES` and
-                 `SYNTHETIC_PAYLOAD`; the games,
+registry:        the union and its kinds,
+                 `cardlang.runtime.observe.ObservationEvent` and `EVENT_KINDS`;
+                 the field shapes, `cardlang.runtime.observe.PAYLOAD_SHAPES`;
+                 the cards, every set in `cardlang.runtime.values.COMPONENT_SETS`
+                 as `build_deck` builds it; the probes and the synthetic
+                 members, `tests.openspiel_ready.partition`'s `PAYLOAD_PROBES`
+                 and `SYNTHETIC_PAYLOAD`; the games,
                  `cardlang.openspiel.registry.GAMES`.
+held by:         Unrepresentable for kind and arity (the union, a dataclass's
+                 signature); Derived and Pinned for content (the one
+                 constructor check, `_Admitted.__post_init__`, red under
+                 deleting it: every `test_a_field_outside_its_shape_is_refused`
+                 cell); Unrepresentable for change once made (`frozen` and
+                 `slots`).
 does not prove:  That a site emits the RIGHT value. A `move` whose view is a
                  well-formed count of the wrong cards passes every cell here;
                  which observer learns what is the per-observer proofs' claim
@@ -45,24 +53,22 @@ does not prove:  That a site emits the RIGHT value. A `move` whose view is a
                  a label is held to its spelling rather than the game's zones,
                  so a well-formed label naming no zone passes, and a decision
                  value is any string, so a label or a card handed over as one
-                 passes. The sweep is bounded and seeded, so
-                 a shape alternative only a later position or another line
-                 emits is unwitnessed by it — a `move` out of a trivial zone
-                 into an identity one among them, which the member cells cover
-                 and no swept line reaches. Emission itself is unfenced:
-                 `Ctx.observe` delivers whatever tuple a site hands it, and a
-                 malformed event is refused where it is consumed — by the
-                 matrix at probe time, by a rendering that asks
-                 `payload_refusal` — never where it is made; the rung is
-                 recorded in `cardlang.runtime.observe`'s Contract.
+                 passes. The sweep is bounded and seeded, so a shape
+                 alternative only a later position or another line emits is
+                 unwitnessed by it -- a `move` out of a trivial zone into an
+                 identity one among them, which the member cells cover and no
+                 swept line reaches. That `spelled()` is today's spelling: the
+                 whole-line capture (tests/test_observation_spelling.py) holds
+                 that.
 """
 
 from __future__ import annotations
 
 import random
+import dataclasses
 from functools import cache
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 
@@ -197,7 +203,7 @@ def test_every_shape_answers_rather_than_raises(shape: str, value: Any) -> None:
 
     red under: drop the `isinstance` from the `construct` predicate in
     `observe.PAYLOAD_SHAPES` — an unhashable value then raises `TypeError`
-    here, and `payload_refusal` and `event_line` crash on it in turn."""
+    here, and an event's constructor crashes on it rather than refusing."""
     assert observe.PAYLOAD_SHAPES[shape](value) in (True, False)
 
 
@@ -212,13 +218,31 @@ def test_every_card_a_component_set_holds_is_a_card_and_never_a_label(
     assert not observe.PAYLOAD_SHAPES["label"](rendering)
 
 
-def _well_formed(kind: str) -> tuple[Any, ...]:
-    return (kind, *(SHAPE_MEMBERS[shape][0] for shape in observe.EVENT_PAYLOADS[kind]))
+def _members(kind: str) -> tuple[Any, ...]:
+    return tuple(SHAPE_MEMBERS[shape][0] for shape in observe.EVENT_PAYLOADS[kind])
 
 
-@pytest.mark.parametrize("kind", sorted(observe.EVENT_PAYLOADS))
-def test_a_well_formed_event_of_each_kind_is_accepted(kind: str) -> None:
-    assert observe.payload_refusal(_well_formed(kind)) is None
+def _well_formed(kind: str) -> observe.ObservationEvent:
+    return observe.EVENT_KINDS[kind](*_members(kind))
+
+
+def test_every_kind_is_one_member_of_the_union() -> None:
+    """The kinds a consumer dispatches over are the union's members, each with
+    its own tag.
+
+    red under: add a kind to `ObservationEvent` that reuses another's `KIND`
+    -- the tags no longer key one member each."""
+    members = get_args(observe.ObservationEvent)
+    assert len({kind.KIND for kind in members}) == len(members)
+    assert set(observe.EVENT_KINDS.values()) == set(members)
+    assert set(observe.EVENT_PAYLOADS) == set(observe.EVENT_KINDS)
+
+
+@pytest.mark.parametrize("kind", sorted(observe.EVENT_KINDS))
+def test_a_well_formed_event_of_each_kind_spells_its_tag_then_its_fields(kind: str) -> None:
+    """red under: reorder two fields in one kind's `spelled()` -- that kind's
+    cell parts from the declaration order."""
+    assert _well_formed(kind).spelled() == (kind, *_members(kind))
 
 
 @pytest.mark.parametrize(
@@ -232,30 +256,33 @@ def test_a_well_formed_event_of_each_kind_is_accepted(kind: str) -> None:
 )
 def test_a_field_outside_its_shape_is_refused(kind: str, index: int, wrong: int) -> None:
     shape = observe.EVENT_PAYLOADS[kind][index]
-    fields = list(_well_formed(kind))
-    fields[index + 1] = _REFUSALS[shape][wrong]
-    refusal = observe.payload_refusal(tuple(fields))
-    assert refusal is not None
-    assert kind in refusal and shape in refusal
+    fields = list(_members(kind))
+    fields[index] = _REFUSALS[shape][wrong]
+    with pytest.raises(AssertionError) as refused:
+        observe.EVENT_KINDS[kind](*fields)
+    assert repr(kind) in str(refused.value) and shape in str(refused.value)
 
 
-@pytest.mark.parametrize("kind", sorted(observe.EVENT_PAYLOADS))
+@pytest.mark.parametrize("kind", sorted(observe.EVENT_KINDS))
 @pytest.mark.parametrize("change", ["one field short", "one field over"])
 def test_an_event_of_the_wrong_length_is_refused(kind: str, change: str) -> None:
+    fields = _members(kind)
+    fields = fields[:-1] if change == "one field short" else (*fields, "extra")
+    with pytest.raises(TypeError):
+        observe.EVENT_KINDS[kind](*fields)
+
+
+@pytest.mark.parametrize("kind", sorted(observe.EVENT_KINDS))
+def test_an_event_cannot_change_once_made(kind: str) -> None:
+    """A held event reads as it did when it was delivered.
+
+    red under: drop `frozen=True` from one kind -- its field assignment
+    succeeds; drop `slots=True` -- a new attribute lands in its `__dict__`."""
     event = _well_formed(kind)
-    event = event[:-1] if change == "one field short" else (*event, "extra")
-    refusal = observe.payload_refusal(event)
-    assert refusal is not None and kind in refusal
-
-
-@pytest.mark.parametrize(
-    "event",
-    [("nonesuch", 42), (), ["announce", 0, "bid"], "chose", (7, "Q♠")],
-    ids=["undeclared kind", "empty", "a list", "a bare string", "an untagged tuple"],
-)
-def test_an_event_outside_the_vocabulary_is_refused(event: Any) -> None:
-    refusal = observe.payload_refusal(event)
-    assert refusal is not None
+    name = event.SHAPES[0][0]
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        setattr(event, name, getattr(event, name))
+    assert not hasattr(event, "__dict__")
 
 
 def test_every_shape_has_one_probe_and_one_synthetic_member() -> None:
@@ -294,13 +321,13 @@ class _Enough(Exception):
 
 
 @cache
-def _swept(file_name: str) -> tuple[tuple[Any, ...], ...]:
+def _swept(file_name: str) -> tuple[observe.ObservationEvent, ...]:
     """Every event one bounded, seeded line of `file_name` delivers, to every
     observer, in delivery order."""
     game, _ = load(str(GAMES_DIR / file_name))
     rng = random.Random(_SWEEP_SEED)
     uniform = random_chooser(rng)
-    events: list[tuple[Any, ...]] = []
+    events: list[observe.ObservationEvent] = []
     made = [0]
 
     def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
@@ -325,16 +352,18 @@ def _swept(file_name: str) -> tuple[tuple[Any, ...], ...]:
 
 
 @pytest.mark.parametrize("short_name", sorted(GAMES))
-def test_every_emitted_event_matches_its_declared_payload(short_name: str) -> None:
+def test_every_emitted_event_is_a_member_of_the_union(short_name: str) -> None:
+    """An emission site in code the type checker reads as `Any` could still
+    hand `Ctx.observe` something else; executing every game says none does."""
+    members = get_args(observe.ObservationEvent)
     for event in _swept(GAMES[short_name]):
-        refusal = observe.payload_refusal(event)
-        assert refusal is None, f"{short_name}: {refusal}"
+        assert isinstance(event, members), f"{short_name}: {event!r}"
 
 
 def test_the_sweep_meets_every_declared_kind() -> None:
     """The per-game cells are only as good as the kinds the lines reached."""
-    seen = {event[0] for file_name in GAMES.values() for event in _swept(file_name)}
-    assert seen == set(observe.EVENT_PAYLOADS), (
+    seen = {event.KIND for file_name in GAMES.values() for event in _swept(file_name)}
+    assert seen == set(observe.EVENT_KINDS), (
         f"the sweep reached only {sorted(seen)}; lengthen the line or add a "
         f"seed rather than letting a kind go uncertified"
     )

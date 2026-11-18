@@ -22,16 +22,16 @@ domain:          The decision sites are the rows of
                  phase-less decision, a site the table does not hold, and an
                  undeclared construct word — each proven loud in the layer that
                  owns it: the choke point refuses the first two in the
-                 runtime's channel, and the third is refused at every consumer
-                 that reads it, since emission is unfenced by design.
+                 runtime's channel, and the third is refused by the event's
+                 constructor, so it never reaches a log.
 registry:        decision sites, `cardlang.runtime.delegation.DECISION_POINTS`
                  and the scrape at
                  tests/test_delegated_play.py::test_every_decision_point_is_classified;
                  round forms, `cardlang.runtime.mechanics.build_form`; event
                  kinds and their fields,
-                 `cardlang.runtime.observe.EVENT_PAYLOADS`; field shapes,
+                 `cardlang.runtime.observe.EVENT_KINDS`; field shapes,
                  `cardlang.runtime.observe.PAYLOAD_SHAPES`; the person's
-                 reading, `cardlang.play.events.EVENT_LINES`; the games,
+                 reading, `cardlang.play.events.event_line`; the games,
                  `cardlang.openspiel.registry.GAMES`; the shapes' own member
                  and refusal cells,
                  tests/test_observation_payloads.py.
@@ -61,10 +61,16 @@ import pytest
 
 from cardlang.openspiel.registry import GAMES
 from cardlang.pipeline import check_source
-from cardlang.play.events import EVENT_LINES
 from cardlang.runtime.delegation import DECISION_POINTS
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.observe import EVENT_PAYLOADS, PAYLOAD_SHAPES
+from cardlang.runtime.observe import (
+    EVENT_KINDS,
+    EVENT_PAYLOADS,
+    PAYLOAD_SHAPES,
+    AskedEvent,
+    ObservationEvent,
+)
+from tests.openspiel_ready import partition
 
 CARDLANG = Path(__file__).resolve().parent.parent / "cardlang"
 GAMES_DIR = Path(__file__).resolve().parent.parent / "docs" / "games"
@@ -168,15 +174,15 @@ def _round_forms() -> set[str]:
 
 def _play_collecting(
     game_key: str, seed: int = SEED
-) -> tuple[list[tuple[int, list[Any], int]], dict[int, list[tuple[Any, ...]]]]:
+) -> tuple[list[tuple[int, list[Any], int]], dict[int, list[ObservationEvent]]]:
     """Play one registered game, recording every decision as it is asked and
     every observation event each seat receives."""
     game = check_source(GAMES_DIR / GAMES[game_key])
     rng = random.Random(seed)
     decisions: list[tuple[int, list[Any], int]] = []
-    logs: dict[int, list[tuple[Any, ...]]] = {}
+    logs: dict[int, list[ObservationEvent]] = {}
 
-    def observe(player: int, event: tuple[Any, ...]) -> None:
+    def observe(player: int, event: ObservationEvent) -> None:
         logs.setdefault(player, []).append(event)
 
     def chooser(player: int, candidates: list[Any], n: int) -> list[Any]:
@@ -190,8 +196,8 @@ def _play_collecting(
     return decisions, logs
 
 
-def _asks(log: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
-    return [event for event in log if event and event[0] == "asked"]
+def _asks(log: list[ObservationEvent]) -> list[AskedEvent]:
+    return [event for event in log if isinstance(event, AskedEvent)]
 
 
 # =============================================================================
@@ -254,19 +260,20 @@ def test_the_choke_point_is_the_only_caller_of_the_chooser() -> None:
     )
 
 
-def test_every_declared_kind_has_a_line() -> None:
+@pytest.mark.parametrize("kind", sorted(EVENT_KINDS))
+def test_every_declared_kind_has_a_line(kind: str) -> None:
     """A kind a seat can receive is a kind a seat's own view can read.
 
-    `play/events.py` states this in prose; the check is here, because a kind
-    declared and unlined passes `payload_refusal` and then raises where a
-    person reads their log.
+    The type checker holds `event_line`'s match exhaustive; this executes it,
+    one event of each kind.
 
-    red under: delete a row from `play.events.EVENT_LINES` (or declare a kind
-    in `EVENT_PAYLOADS` with no line) — the key sets part."""
-    assert set(EVENT_PAYLOADS) == set(EVENT_LINES), (
-        "observation-event kinds and the lines a seat's view shows for them "
-        "disagree — every declared kind carries a reading"
-    )
+    red under: delete one `case` arm from `play.events.event_line` -- that
+    kind reaches `assert_never` and raises."""
+    from cardlang.play.events import event_line
+
+    cls = EVENT_KINDS[kind]
+    event = cls(*(partition.SYNTHETIC_PAYLOAD[shape] for _name, shape in cls.SHAPES))
+    assert event_line(event)
 
 
 def test_destination_knowability_is_stated_for_every_construct() -> None:
@@ -330,7 +337,7 @@ def test_a_decider_is_told_what_it_is_asked(site: str) -> None:
     decisions, logs = _play_collecting(SITE_WITNESS[site])
     assert decisions, f"{SITE_WITNESS[site]} made no decision at seed {SEED}"
     asked = {seat: _asks(log) for seat, log in logs.items()}
-    assert any(ask[2] == word for asks in asked.values() for ask in asks), (
+    assert any(ask.construct == word for asks in asked.values() for ask in asks), (
         f"{SITE_WITNESS[site]} reaches {site} and no seat was told it was being "
         f"asked by {word!r} — an ask from a NEIGHBOURING site would pass a "
         f"weaker cell than this one"
@@ -349,7 +356,8 @@ def test_an_ask_names_a_phase_and_a_declared_construct(site: str) -> None:
     _decisions, logs = _play_collecting(SITE_WITNESS[site])
     seen = [ask for log in logs.values() for ask in _asks(log)]
     assert seen, f"{SITE_WITNESS[site]} emitted no ask at seed {SEED}"
-    for _kind, phase, construct, count, _destination in seen:
+    for ask in seen:
+        phase, construct, count = ask.phase, ask.construct, ask.count
         assert isinstance(phase, str) and phase, "an ask names the phase it is asked in"
         assert construct in declared, f"{construct!r} is not a declared construct"
         assert isinstance(count, int) and not isinstance(count, bool) and count > 0
@@ -361,10 +369,10 @@ def test_the_destination_is_named_exactly_where_it_is_knowable(site: str) -> Non
     before the choice says nothing, rather than a plausible wrong zone."""
     word = SITE_CONSTRUCT[site]
     _decisions, logs = _play_collecting(SITE_WITNESS[site])
-    seen = [ask for log in logs.values() for ask in _asks(log) if ask[2] == word]
+    seen = [ask for log in logs.values() for ask in _asks(log) if ask.construct == word]
     assert seen, f"{SITE_WITNESS[site]} emitted no {word!r} ask at seed {SEED}"
     knowable = DESTINATION_KNOWABILITY[word] is BEFORE
-    named = [ask[4] for ask in seen]
+    named = [ask.destination for ask in seen]
     if knowable:
         assert any(label is not None for label in named), (
             f"{site} evaluates its destination before it selects, so an ask "
@@ -386,13 +394,16 @@ def test_the_ask_is_derived_in_one_place() -> None:
     Vacuous until the kind exists and meaningful after, so it carries its
     mutation rather than its red run.
 
-    red under: name `"asked"` in a fifth module under `cardlang/` — say, a
-    policy scanning its own log for the kind instead of asking the derivation
-    — and the scrape gains a module this set does not hold."""
+    red under: name `AskedEvent` (or `"asked"`) in a fifth module under
+    `cardlang/` — say, a policy scanning its own log for the kind instead of
+    asking the derivation — and the scrape gains a module this set does not
+    hold."""
     readers = {
         path.relative_to(CARDLANG).as_posix()
         for path in sorted(CARDLANG.rglob("*.py"))
-        if '"asked"' in path.read_text() or "'asked'" in path.read_text()
+        if any(
+            needle in path.read_text() for needle in ("AskedEvent", '"asked"', "'asked'")
+        )
     }
     assert readers <= {
         "runtime/observe.py",  # declares the kind
@@ -444,16 +455,45 @@ def test_a_decision_site_the_table_does_not_hold_is_refused() -> None:
         decide(_bare_ctx(Phase()), 0, [1, 2], 1, "execute._invented_site")
 
 
-def test_an_ask_carrying_an_undeclared_construct_is_refused_where_it_is_read() -> None:
-    """Emission is unfenced by design, so a wrong word is refused at every
-    consumer that has to read it rather than where it was made."""
-    from cardlang.play.events import event_line
-    from cardlang.runtime.observe import payload_refusal
-
-    bad = ("asked", "play", "shuffle", 1, None)
-    assert payload_refusal(bad) is not None
+def test_an_ask_carrying_an_undeclared_construct_is_refused_when_it_is_made() -> None:
+    """A wrong construct word never reaches a log: the event refuses it."""
     with pytest.raises(AssertionError, match="construct"):
-        event_line(bad)
+        AskedEvent("play", "shuffle", 1, None)
+
+
+def _constructions(kind: str) -> set[str]:
+    """Every call constructing `kind` under `cardlang/`, as
+    "module.enclosing_function"."""
+    sites: set[str] = set()
+    for path in sorted(CARDLANG.rglob("*.py")):
+        tree = ast.parse(path.read_text())
+        spans = [
+            (node.lineno, node.end_lineno or node.lineno, node.name)
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        ]
+        for node in ast.walk(tree):
+            func = node.func if isinstance(node, ast.Call) else None
+            name = (
+                func.id if isinstance(func, ast.Name)
+                else func.attr if isinstance(func, ast.Attribute)
+                else None
+            )
+            if name == kind:
+                assert isinstance(node, ast.Call)
+                enclosing = [n for lo, hi, n in spans if lo <= node.lineno <= hi]
+                sites.add(f"{path.stem}.{enclosing[-1] if enclosing else '<module>'}")
+    return sites
+
+
+def test_only_the_route_makes_an_ask_or_a_pick() -> None:
+    """The decider is told what it is asked, and recalls each pick, from the
+    one route every decision takes.
+
+    red under: construct an `AskedEvent` or a `ChoseEvent` in a second function
+    under `cardlang/` -- the scrape gains that site."""
+    assert _constructions("AskedEvent") == {"chooser.decide"}
+    assert _constructions("ChoseEvent") == {"chooser.record"}
 
 
 def test_a_decision_that_asks_for_no_picks_is_refused() -> None:
@@ -490,9 +530,9 @@ def test_a_climb_turn_names_no_zone_because_it_may_pass() -> None:
     red under: set `ClimbForm.play_label` to the round's `play_zone` — a seat
     that passes is then told its picks land in the pile."""
     _decisions, logs = _play_collecting("cardlang_big_two")
-    climbs = [ask for log in logs.values() for ask in _asks(log) if ask[2] == "climb"]
+    climbs = [ask for log in logs.values() for ask in _asks(log) if ask.construct == "climb"]
     assert climbs, "big two reached no climb decision at this seed"
-    assert all(ask[4] is None for ask in climbs), (
+    assert all(ask.destination is None for ask in climbs), (
         "a climb ask names a zone, but a passing seat's picks land nowhere"
     )
 

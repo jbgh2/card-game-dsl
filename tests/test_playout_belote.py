@@ -106,6 +106,7 @@ from typing import Any
 from cardlang.pipeline import check_source
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AnnounceEvent, MovementEvent, ObservationEvent, RevealEvent
 from cardlang.runtime.values import SUITS, Card, Player
 
 BELOTE = Path(__file__).parent.parent / "docs" / "games" / "belote.cardlang"
@@ -290,7 +291,7 @@ class _Table:
 
     # --- the observation half ---------------------------------------------
 
-    def observe(self, player: Player, event: tuple[Any, ...]) -> None:
+    def observe(self, player: Player, event: ObservationEvent) -> None:
         # Observer 0's stream only, and only its PUBLIC events: the turn-up,
         # the trick pile and the capture piles all project identity to every
         # observer, an announcement is heard by every seat, and a reveal is
@@ -299,12 +300,12 @@ class _Table:
         # here; the offered sets come through the chooser hook instead.)
         if player != 0:
             return
-        if event[0] == "announce":
-            self._announced(Player(int(event[1])), str(event[2]))
-        elif event[0] == "move":
+        if isinstance(event, AnnounceEvent):
+            self._announced(Player(event.seat), str(event.value))
+        elif isinstance(event, MovementEvent):
             self._moved(event)
-        elif event[0] == "reveal":
-            self._hand.reveals.append((str(event[1]), _parse(str(event[2]))))
+        elif isinstance(event, RevealEvent):
+            self._hand.reveals.append((event.zone, _parse(event.card)))
 
     def _announced(self, who: Player, said: str) -> None:
         hand = self._hand
@@ -331,21 +332,25 @@ class _Table:
             f"vocabulary {sorted(_VOCABULARY)} has fallen behind belote.cardlang"
         )
 
-    def _moved(self, event: tuple[Any, ...]) -> None:
-        _, src, _src_view, dst, dst_view = event
+    def _moved(self, event: MovementEvent) -> None:
+        src, _src_view = event.source, event.source_view
+        dst, dst_view = event.destination, event.destination_view
         src, dst = str(src), str(dst)
         if src == "deck" and dst == "turnup":
             # One turn-up per hand, and the only movement into that zone: it
             # is where a hand begins, and its identity is what a bare `take`
             # names.
+            assert isinstance(dst_view, tuple)
             self.hands.append(_Hand(turnup=_parse(str(dst_view[0]))))
             self._pending.clear()
         elif src.startswith("hand[") and dst == "trick_pile":
+            assert isinstance(dst_view, tuple)
             (card_str,) = dst_view  # one card per play
             play = (Player(int(src[src.index("[") + 1 : -1])), _parse(str(card_str)))
             self._hand.plays.append(play)
             self._pending.append(play)
         elif src == "trick_pile" and dst.startswith("captured["):
+            assert isinstance(_src_view, tuple)
             self._hand.tricks.append(
                 (int(dst[len("captured[") : -1]), tuple(str(c) for c in _src_view))
             )

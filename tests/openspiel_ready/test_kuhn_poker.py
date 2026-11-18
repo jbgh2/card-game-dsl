@@ -47,6 +47,7 @@ import pytest
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, ReplayChooser, load, run
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs, action_strings
 
@@ -192,36 +193,36 @@ def test_a_fold_never_reveals_the_folded_card_but_a_showdown_does() -> None:
     fold_events = _events_for_line(seed, ["bet", "fold"])
     muck_moves = [
         e for e in fold_events[0]
-        if e[0] == "move" and e[1] == "hand[1]" and e[3] == "muck"
+        if isinstance(e, MovementEvent) and e.source == "hand[1]" and e.destination == "muck"
     ]
     assert muck_moves, "P0 never observed the folded card leave P1's hand"
     for e in muck_moves:
-        assert e[4] is None, f"P0 saw the folded card's identity leak to the muck: {e}"
+        assert e.destination_view is None, f"P0 saw the folded card's identity leak to the muck: {e}"
 
     # Showdown route: check, check. Both cards land in PublicHands by name.
     show_events = _events_for_line(seed, ["check", "check"])
     for observer, owner in ((0, 1), (1, 0)):
         reveals = [
             e for e in show_events[observer]
-            if e[0] == "move" and e[3] == f"shown[{owner}]"
+            if isinstance(e, MovementEvent) and e.destination == f"shown[{owner}]"
         ]
         assert reveals, f"P{observer} never observed P{owner}'s showdown reveal"
         assert any(
-            isinstance(e[4], tuple) and len(e[4]) == 1 and isinstance(e[4][0], str)
+            isinstance(e.destination_view, tuple) and len(e.destination_view) == 1 and isinstance(e.destination_view[0], str)
             for e in reveals
         ), f"P{observer} did not learn P{owner}'s card at the showdown: {reveals}"
 
 
-def _events_for_line(seed: int, names: list[str]) -> dict[int, list[tuple[Any, ...]]]:
+def _events_for_line(seed: int, names: list[str]) -> dict[int, list[ObservationEvent]]:
     """Every observer's full event log for a COMPLETED hand, the line given by
     move-type name. `replay.run` discards the logs when it returns TerminalNode,
     so this drives the game directly with the same `ReplayChooser` the
     adapter uses."""
     game_ast, space = load(PATH)
     by_name = {space.to_string(a): a for a in range(space.num_distinct_actions)}
-    logs: dict[int, list[tuple[Any, ...]]] = {0: [], 1: []}
+    logs: dict[int, list[ObservationEvent]] = {0: [], 1: []}
 
-    def observe(player: int, event: tuple[Any, ...]) -> None:
+    def observe(player: int, event: ObservationEvent) -> None:
         logs[player].append(event)
 
     chooser = ReplayChooser(space, tuple(by_name[n] for n in names))

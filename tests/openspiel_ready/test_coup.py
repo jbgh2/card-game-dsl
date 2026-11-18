@@ -7,6 +7,7 @@ from typing import Any
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import AnnounceEvent, MovementEvent, ObservationEvent, RevealEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -47,39 +48,41 @@ def test_influence_flips_derive_hidden_observations() -> None:
         assert isinstance(nxt, DecisionNode), "line ended before any influence flip"
         r = nxt
         if any(
-            e[0] == "move" and str(e[3]).startswith("revealed[")
+            isinstance(e, MovementEvent) and e.destination.startswith("revealed[")
             for e in r.obs_logs[0]
         ):
             break
 
-    def flips(log: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
-        return [e for e in log if e[0] == "move" and str(e[3]).startswith("revealed[")]
+    def flips(log: list[ObservationEvent]) -> list[MovementEvent]:
+        return [
+            e for e in log if isinstance(e, MovementEvent) and e.destination.startswith("revealed[")
+        ]
 
     first = flips(r.obs_logs[0])[0]
-    loser = int(str(first[1]).split("[")[1].rstrip("]"))
+    loser = int(first.source.split("[")[1].rstrip("]"))
     # Every observer sees the flipped card's identity land in revealed[loser]...
     for q in range(4):
         seen = flips(r.obs_logs[q])[0]
-        assert isinstance(seen[4], tuple) and len(seen[4]) == 1, (
+        assert isinstance(seen.destination_view, tuple) and len(seen.destination_view) == 1, (
             f"P{q} did not see the flip identity"
         )
         # ...but only the loser sees which card left their influence hand.
         if q == loser:
-            assert isinstance(seen[2], tuple)
+            assert isinstance(seen.source_view, tuple)
         else:
-            assert seen[2] == 1, f"P{q} saw inside influence[{loser}]"
+            assert seen.source_view == 1, f"P{q} saw inside influence[{loser}]"
 
     # The initial deals: identity to the owner, counts to everyone else.
     own_deal = next(
         e for e in r.obs_logs[1]
-        if e[0] == "move" and e[1] == "court_deck" and e[3] == "influence[1]"
+        if isinstance(e, MovementEvent) and e.source == "court_deck" and e.destination == "influence[1]"
     )
-    assert isinstance(own_deal[4], tuple) and len(own_deal[4]) == 2
+    assert isinstance(own_deal.destination_view, tuple) and len(own_deal.destination_view) == 2
     other_deal = next(
         e for e in r.obs_logs[2]
-        if e[0] == "move" and e[1] == "court_deck" and e[3] == "influence[1]"
+        if isinstance(e, MovementEvent) and e.source == "court_deck" and e.destination == "influence[1]"
     )
-    assert other_deal[4] == 2, "a bystander saw a dealt influence identity"
+    assert other_deal.destination_view == 2, "a bystander saw a dealt influence identity"
 
     # Returns into the deck (influence -> court_deck) stay counts to others,
     # whichever kind: an exchange's two returned cards, or a proven
@@ -87,11 +90,15 @@ def test_influence_flips_derive_hidden_observations() -> None:
     # only through the separate public `reveal` event, never the movement).
     returns = [
         e for e in r.obs_logs[2]
-        if e[0] == "move" and str(e[1]).startswith("influence[")
-        and e[3] == "court_deck" and e[1] != "influence[2]"
+        if isinstance(e, MovementEvent) and e.source.startswith("influence[")
+        and e.destination == "court_deck" and e.source != "influence[2]"
     ]
     for e in returns:
-        assert isinstance(e[2], int) and isinstance(e[4], int) and e[2] == e[4] in (1, 2), (
+        assert (
+            isinstance(e.source_view, int)
+            and isinstance(e.destination_view, int)
+            and e.source_view == e.destination_view in (1, 2)
+        ), (
             "a deck return leaked identities to a bystander"
         )
 
@@ -129,15 +136,15 @@ def test_challenge_decision_is_public() -> None:
     partition, not rng invisible to it."""
     r = _challenge_seeking_walk(seed=0, steps=8)
     challenges = [
-        e for e in r.obs_logs[0] if e[0] == "announce" and e[2] == "challenge"
+        e for e in r.obs_logs[0] if isinstance(e, AnnounceEvent) and e.value == "challenge"
     ]
     assert challenges, "no challenge was announced on the challenge-seeking line"
     first = challenges[0]
     for q in range(4):
         assert first in r.obs_logs[q], f"P{q} did not observe the public challenge"
-    watcher = next(q for q in range(4) if q != int(first[1]))
+    watcher = next(q for q in range(4) if q != first.seat)
     info = information_state(watcher, r.rs, r.obs_logs[watcher])
-    assert repr(first) in info, "the challenge is absent from a bystander's info state"
+    assert repr(first.spelled()) in info, "the challenge is absent from a bystander's info state"
 
 
 def test_reveal_reaches_every_information_state() -> None:
@@ -145,14 +152,14 @@ def test_reveal_reaches_every_information_state() -> None:
     appears verbatim in every player's log and derived information state
     (seed 0's challenge-seeking line proves a claim within 8 steps)."""
     r = _challenge_seeking_walk(seed=0, steps=8)
-    reveals = [e for e in r.obs_logs[0] if e[0] == "reveal"]
+    reveals = [e for e in r.obs_logs[0] if isinstance(e, RevealEvent)]
     assert reveals, "no proven challenge occurred on this line"
     first = reveals[0]
-    assert str(first[1]).startswith("influence[")
+    assert first.zone.startswith("influence[")
     for q in range(4):
         assert first in r.obs_logs[q], f"P{q} did not observe the reveal"
         info = information_state(q, r.rs, r.obs_logs[q])
-        assert repr(first) in info, f"P{q}'s information state omits the reveal"
+        assert repr(first.spelled()) in info, f"P{q}'s information state omits the reveal"
 
 
 def test_blocked_foreign_aid_moves_no_coins() -> None:

@@ -143,6 +143,7 @@ def test_a_reference_without_facts_compares_nothing() -> None:
 
 def test_a_seat_knows_the_cards_its_log_names_as_well_as_those_it_sees() -> None:
     from cardlang.openspiel.infostate import SeatView
+    from cardlang.runtime.observe import AnnounceEvent, MovementEvent
     from cardlang.runtime.values import Card
 
     view = SeatView(
@@ -150,9 +151,9 @@ def test_a_seat_knows_the_cards_its_log_names_as_well_as_those_it_sees() -> None
         zones=(("hand[0]", (Card("A", "spades"), Card("2", "hearts"))), ("hand[1]", 2), ("deck", None)),
         state=(),
         obs_log=(
-            ("move", "hand[1]", 1, "trick", ("5♣",)),
-            ("move", "hand[0]", 1, "trick", ("A♠",)),
-            ("announce", 1, "pass"),
+            MovementEvent("hand[1]", 1, "trick", ("5♣",)),
+            MovementEvent("hand[0]", 1, "trick", ("A♠",)),
+            AnnounceEvent(1, "pass"),
         ),
     )
     names = frozenset({"A♠", "2♥", "5♣", "9♦"})

@@ -13,8 +13,10 @@ property:        Every fact a Seat View carries shows in the text
                  whole log is rendered, in order, with every copy of a repeated
                  event. The pieces the text is built from are total over their
                  own domains: a line for every declared event kind, spelling
-                 every field and refusing an event the payload table does not
-                 describe; a spelling for each shape a projection answers,
+                 every field, matched exhaustively over the event union (a
+                 value outside it is the type checker's, and a field outside
+                 its shape is refused when the event is made,
+                 tests/test_observation_payloads.py); a spelling for each shape a projection answers,
                  refusing any other; a card order defined for every card a
                  component set holds and for one no set holds.
 domain:          Kinds and fields: `EVENT_PAYLOADS`; the members of each
@@ -29,7 +31,7 @@ domain:          Kinds and fields: `EVENT_PAYLOADS`; the members of each
                  reaches, for every seat, from inside the Chooser, where every
                  phase frame stands. The pin must meet every event kind and
                  every projection level, or the coverage cell reddens.
-registry:        event lines: `cardlang.play.events.EVENT_LINES`; kinds, fields
+registry:        event lines: `cardlang.play.events.event_line`; kinds, fields
                  and shapes: `cardlang.runtime.observe.EVENT_PAYLOADS` and
                  `PAYLOAD_SHAPES`; the matrix and its probe tables:
                  `tests.openspiel_ready.partition` (`check_visible_facts`,
@@ -71,13 +73,19 @@ from cardlang.ast import nodes as n
 from cardlang.openspiel.infostate import SeatView, derive
 from cardlang.openspiel.registry import GAMES
 from cardlang.openspiel.replay import load
-from cardlang.play import events
-from cardlang.play.events import EVENT_LINES, event_line
+from cardlang.play import view as view_module
+from cardlang.play.events import event_line
 from cardlang.play.view import card_order, render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import GameDescriptionError
-from cardlang.runtime.observe import EVENT_PAYLOADS
+from cardlang.runtime.observe import (
+    EVENT_KINDS,
+    EVENT_PAYLOADS,
+    ChoseEvent,
+    MovementEvent,
+    ObservationEvent,
+)
 from cardlang.runtime.state import IllegalMove, RuntimeState
 from cardlang.runtime.values import COMPONENT_SETS, Card, build_deck
 from tests.openspiel_ready.partition import (
@@ -103,18 +111,11 @@ def _game(file_name: str) -> n.Game:
 # ---------------------------------------------------------------------------
 
 
-def test_every_declared_kind_has_a_line() -> None:
-    """A kind the payload table gains arrives here as a kind with no line,
-    rather than as an event the text shows nothing of."""
-    assert set(EVENT_LINES) == set(EVENT_PAYLOADS)
-
-
-def _event(kind: str, position: int, member: Any) -> tuple[Any, ...]:
+def _event(kind: str, position: int, member: Any) -> ObservationEvent:
     """A well-formed `kind` event holding `member` at field `position` and the
     first member of its shape at every other field."""
     row = EVENT_PAYLOADS[kind]
-    return (
-        kind,
+    return EVENT_KINDS[kind](
         *(
             member if index == position else SHAPE_MEMBERS[shape][0]
             for index, shape in enumerate(row, start=1)
@@ -136,7 +137,7 @@ def test_a_line_spells_every_field(kind: str, position: int, member: int) -> Non
     changes the line: a line that leaves a field out, or spells two members
     of one shape alike, reddens the cell that names them.
 
-    red under: leave any one field out of its kind's line in `EVENT_LINES`.
+    red under: leave any one field out of its kind's line in `event_line`.
     """
     shape = EVENT_PAYLOADS[kind][position - 1]
     held = SHAPE_MEMBERS[shape][member]
@@ -182,26 +183,12 @@ def test_distinct_events_of_a_kind_have_distinct_lines(kind: str) -> None:
     fields = [
         SHAPE_MEMBERS[shape] + _NEAR_ALIKE[shape] for shape in EVENT_PAYLOADS[kind]
     ]
-    built = {repr(event): event for event in ((kind, *held) for held in product(*fields))}
+    built = {
+        repr(event.spelled()): event
+        for event in (EVENT_KINDS[kind](*held) for held in product(*fields))
+    }
     lines = {event_line(event) for event in built.values()}
     assert len(lines) == len(built)
-
-
-@pytest.mark.parametrize(
-    ("event", "words"),
-    [
-        (("nonesuch", 1), "is not declared"),
-        (("chose",), "carries 1 field"),
-        (("reveal", "Q♠", "hand[0]"), "field 1 of a 'reveal' event is a label"),
-        (["chose", "pass"], "is not an observation event"),
-    ],
-    ids=["an undeclared kind", "a field short", "two fields swapped", "a list"],
-)
-def test_an_event_the_table_does_not_describe_has_no_line(event: Any, words: str) -> None:
-    """Refused in the payload table's own words, before any line reads a
-    field it has no reading for."""
-    with pytest.raises(AssertionError, match=words):
-        event_line(event)
 
 
 # ---------------------------------------------------------------------------
@@ -324,7 +311,7 @@ def test_the_view_needs_no_world() -> None:
         player=1,
         zones=(("hand[1]", (Card("5", "clubs"),)), ("hand[0]", 3), ("muck", None)),
         state=(("score", {0: 10, 1: 20}),),
-        obs_log=(("chose", "5♣"),),
+        obs_log=(ChoseEvent("5♣"),),
     )
     text = render_view(_game("hearts.cardlang"), view)
     assert "P1" in text and "5♣" in text and "3 cards" in text and "unseen" in text
@@ -349,7 +336,7 @@ class _Enough(Exception):
 
 
 def _text(game: n.Game) -> InfoFn:
-    def info(player: int, rs: RuntimeState, log: list[tuple[Any, ...]]) -> str:
+    def info(player: int, rs: RuntimeState, log: list[ObservationEvent]) -> str:
         return render_view(game, derive(player, rs, log))
 
     return info
@@ -357,7 +344,7 @@ def _text(game: n.Game) -> InfoFn:
 
 def _walk(
     file_name: str,
-    at: Callable[[int, RuntimeState, dict[int, list[tuple[Any, ...]]]], None],
+    at: Callable[[int, RuntimeState, dict[int, list[ObservationEvent]]], None],
     last: int,
 ) -> None:
     """Play one seeded line of `file_name` the way `demo` plays it, calling `at`
@@ -366,11 +353,11 @@ def _walk(
     game = _game(file_name)
     rng = random.Random(_SEED)
     uniform = random_chooser(rng)
-    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.count)}
+    logs: dict[int, list[ObservationEvent]] = {p: [] for p in range(game.players.count)}
     world: list[RuntimeState] = []
     made = [0]
 
-    def observe(player: int, event: tuple[Any, ...]) -> None:
+    def observe(player: int, event: ObservationEvent) -> None:
         logs[player].append(event)
 
     def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
@@ -412,7 +399,7 @@ def _pinned(file_name: str) -> tuple[tuple[str, ...], tuple[tuple[str, int], ...
     totals: dict[str, int] = {}
     kinds: set[str] = set()
 
-    def at(index: int, rs: RuntimeState, logs: dict[int, list[tuple[Any, ...]]]) -> None:
+    def at(index: int, rs: RuntimeState, logs: dict[int, list[ObservationEvent]]) -> None:
         if index not in _POSITIONS:
             return
         for seat, log in logs.items():
@@ -420,7 +407,7 @@ def _pinned(file_name: str) -> tuple[tuple[str, ...], tuple[tuple[str, int], ...
             failures.extend(_described(index, seat, f) for f in found)
             for key, count in counts.items():
                 totals[key] = totals.get(key, 0) + count
-            kinds.update(event[0] for event in log)
+            kinds.update(event.KIND for event in log)
 
     _walk(file_name, at, max(_POSITIONS))
     return tuple(failures), tuple(sorted(totals.items())), frozenset(kinds)
@@ -457,7 +444,7 @@ def test_the_pin_meets_every_event_kind_and_every_projection_level() -> None:
 def _failures_at(file_name: str, index: int, seat: int, info: InfoFn) -> list[FactFailure]:
     found: list[FactFailure] = []
 
-    def at(at_index: int, rs: RuntimeState, logs: dict[int, list[tuple[Any, ...]]]) -> None:
+    def at(at_index: int, rs: RuntimeState, logs: dict[int, list[ObservationEvent]]) -> None:
         if at_index == index:
             found.extend(check_visible_facts(rs, logs[seat], seat, info_fn=info)[0])
 
@@ -468,7 +455,7 @@ def _failures_at(file_name: str, index: int, seat: int, info: InfoFn) -> list[Fa
 def test_the_pin_catches_a_text_that_drops_a_zone_the_seat_sees() -> None:
     game = _game(GAMES["cardlang_kuhn_poker"])
 
-    def without_own_hand(player: int, rs: RuntimeState, log: list[tuple[Any, ...]]) -> str:
+    def without_own_hand(player: int, rs: RuntimeState, log: list[ObservationEvent]) -> str:
         view = derive(player, rs, log)
         kept = tuple((label, zone) for label, zone in view.zones if label != "hand[0]")
         return render_view(game, replace(view, zones=kept))
@@ -480,12 +467,12 @@ def test_the_pin_catches_a_text_that_drops_a_zone_the_seat_sees() -> None:
 def test_the_pin_catches_an_event_line_that_drops_a_field(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    line = EVENT_LINES["move"]
-    monkeypatch.setitem(
-        events.EVENT_LINES,
-        "move",
-        lambda src, src_view, dst, dst_view, noun: line(src, src_view, dst, None, noun),
-    )
+    def drops_the_destination_view(event: ObservationEvent, noun: Any = "card") -> str:
+        if isinstance(event, MovementEvent):
+            event = replace(event, destination_view=None)
+        return event_line(event, noun)
+
+    monkeypatch.setattr(view_module, "event_line", drops_the_destination_view)
     info = _text(_game(GAMES["cardlang_kuhn_poker"]))
     failures = _failures_at(GAMES["cardlang_kuhn_poker"], 0, 0, info)
     assert failures and all("field 4 (view)" in f.fact for f in failures)
@@ -494,7 +481,7 @@ def test_the_pin_catches_an_event_line_that_drops_a_field(
 def test_the_pin_catches_a_text_that_shows_only_the_latest_events() -> None:
     game = _game(GAMES["cardlang_kuhn_poker"])
 
-    def latest_only(player: int, rs: RuntimeState, log: list[tuple[Any, ...]]) -> str:
+    def latest_only(player: int, rs: RuntimeState, log: list[ObservationEvent]) -> str:
         view = derive(player, rs, log)
         return render_view(game, replace(view, obs_log=view.obs_log[-1:]))
 

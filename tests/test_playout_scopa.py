@@ -40,6 +40,7 @@ import pytest
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 from cardlang.runtime.scopa import DECK_CAPTURE_VALUES
 from cardlang.runtime.values import Player
 
@@ -119,10 +120,11 @@ class ScopaPlay:
             self.sweeps = []
         self.plays_this_deal = 0
 
-    def observer(self, player: Player, event: tuple[Any, ...]) -> None:
-        if player != 0 or event[0] != "move":
+    def observer(self, player: Player, event: ObservationEvent) -> None:
+        if player != 0 or not isinstance(event, MovementEvent):
             return
-        _, src, _src_view, dst, dst_view = event
+        src, _src_view = event.source, event.source_view
+        dst, dst_view = event.destination, event.destination_view
         if dst == "deck":
             # Every gather: the one that opens a deal (closing the one before
             # it) and the three-kings misdeal's. The deck is count-only to

@@ -42,6 +42,7 @@ from typing import Any
 from cardlang.pipeline import check_source
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 from cardlang.runtime.values import Card, Player
 
 DOKO = Path(__file__).parent.parent / "docs" / "games" / "doppelkopf.cardlang"
@@ -224,13 +225,14 @@ def _run_and_verify(
 
     pending: list[tuple[Player, Card]] = []
 
-    def observer(player: Player, event: tuple[Any, ...]) -> None:
+    def observer(player: Player, event: ObservationEvent) -> None:
         # Observer 0's stream only: every fact below rides an identity-to-all
         # zone, so seat 0 sees the same cards every other seat does.
-        if player != 0 or event[0] != "move":
+        if player != 0 or not isinstance(event, MovementEvent):
             return
-        _, src, _src_view, dst, dst_view = event
+        src, dst, dst_view = event.source, event.destination, event.destination_view
         if dst == "trick_pile" and isinstance(src, str) and src.startswith("hand["):
+            assert isinstance(dst_view, tuple)
             (card_str,) = dst_view  # one card per play
             seat = int(src[len("hand[") : -1])
             card = _parse(card_str)

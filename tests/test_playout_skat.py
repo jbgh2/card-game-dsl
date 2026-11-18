@@ -44,6 +44,7 @@ from typing import Any
 from cardlang.pipeline import check_source
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AnnounceEvent, MovementEvent, ObservationEvent
 from cardlang.runtime.values import Card, Player
 
 SKAT = Path(__file__).parent.parent / "docs" / "games" / "skat.cardlang"
@@ -114,15 +115,15 @@ class _Table:
         self._gt = "suit"
         self._trump: str | None = None
 
-    def observe(self, player: Player, event: tuple[Any, ...]) -> None:
+    def observe(self, player: Player, event: ObservationEvent) -> None:
         # Observer 0's stream only: the trick pile and the capture piles project
         # identity to every observer and an announcement is heard by every seat,
         # so seat 0 sees exactly what every other seat does.
         if player != 0:
             return
-        if event[0] == "announce":
-            self._announced(Player(int(event[1])), str(event[2]))
-        elif event[0] == "move":
+        if isinstance(event, AnnounceEvent):
+            self._announced(Player(event.seat), str(event.value))
+        elif isinstance(event, MovementEvent):
             self._moved(event)
 
     def _announced(self, actor: Player, said: str) -> None:
@@ -140,11 +141,13 @@ class _Table:
             self._gt = "suit"
             self._trump = said[len("declare_suit(") : -1]
 
-    def _moved(self, event: tuple[Any, ...]) -> None:
-        _, src, _src_view, dst, dst_view = event
+    def _moved(self, event: MovementEvent) -> None:
+        src, _src_view = event.source, event.source_view
+        dst, dst_view = event.destination, event.destination_view
         # A seat plays from its hand; an open (ouvert) declarer from its
         # exposed cards.
         if dst == "trick_pile" and isinstance(src, str) and src.startswith(("hand[", "open_hand[")):
+            assert isinstance(dst_view, tuple)
             (card_str,) = dst_view  # one card per play
             play = (Player(int(src[src.index("[") + 1 : -1])), _parse(card_str))
             self.plays.append(play)
