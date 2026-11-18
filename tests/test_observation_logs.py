@@ -12,7 +12,10 @@ property:        a snapshot of a seat's log is the events delivered to the
                  delivered after it is ever part of it; a snapshot offers no
                  write; under `cardlang/` the aggregate is made only by
                  `driver.play_game`, written only by `Ctx.observe`, and read
-                 off the world only through `observe.logs_of`; a run is
+                 off the world only through `observe.logs_of`, which only the
+                 table's readers call and never the interpreter; a frozen log
+                 is made only as a snapshot; no text names the string an
+                 Observation Log; a run is
                  observed exactly when it is asked to be, and the listener
                  hears every delivery in the order made across seats.
 domain:          `ObservationLog`'s read surface (length, iteration, an index
@@ -24,13 +27,15 @@ domain:          `ObservationLog`'s read surface (length, iteration, an index
 registry:        `ObservationLog`, `ObservationLogs`, `observe.logs_of`
                  (cardlang/runtime/observe.py); `RuntimeState.observations`
                  (cardlang/runtime/state.py).
-held by:         Unrepresentable for a snapshot's immutability to its reader
-                 -- `ObservationLog` is a `Sequence` with slots and no write,
-                 and the snapshot's Mapping is a `MappingProxyType`; Derived
-                 and Pinned for append-only and for who touches the aggregate
-                 -- the scrapes below. Why not higher: `append` is a public
-                 method of a Python object, and which code calls it is a fact
-                 about the text.
+held by:         Unrepresentable to its reader for a snapshot's
+                 immutability -- `ObservationLog` is a `Sequence` with slots
+                 and no write, and the snapshot's Mapping is a
+                 `MappingProxyType` -- resting on the record behind it only
+                 growing, which is Derived and Pinned with who touches the
+                 aggregate, by the scrapes below. Why not higher: `append` is
+                 a public method of a Python object, and which code calls it
+                 is a fact about the text. The string-naming pin is a
+                 Born-Green Pin over two spellings, not every paraphrase.
 does not prove:  that the events delivered are the right ones -- the
                  per-observer proofs under tests/openspiel_ready/ and the
                  spelling capture in tests/test_observation_spelling.py hold
@@ -43,6 +48,7 @@ from __future__ import annotations
 
 import ast
 import random
+import re
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +63,7 @@ from cardlang.runtime.observe import (
     ObservationLog,
     ObservationLogs,
     RevealEvent,
+    logs_of,
 )
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card, Player
@@ -238,15 +245,56 @@ def test_an_unobserved_world_has_no_logs_to_read() -> None:
     game = check_source(HEARTS)
     world: list[RuntimeState] = []
     play_game(game, random.Random(0), on_first_decision=world.append)
-    from cardlang.runtime.observe import logs_of
-
     with pytest.raises(AssertionError):
         logs_of(world[0])
 
 
-def test_a_log_is_the_sequence_type_derive_reads() -> None:
-    """The one type every reader is handed (`DecisionNode.obs_logs`, `derive`'s
-    argument): a snapshot is a `Sequence` of events, so a reader cannot be
-    handed a live list by one route and a frozen log by another."""
-    log = _logs().snapshot()[0]
-    assert isinstance(log, ObservationLog)
+def _calls(name: str) -> set[str]:
+    def calls(node: ast.AST) -> bool:
+        return (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, (ast.Name, ast.Attribute))
+            and (node.func.id if isinstance(node.func, ast.Name) else node.func.attr) == name
+        )
+
+    return _sites(calls)
+
+
+def test_a_seat_s_log_is_read_off_the_world_only_by_the_table_s_readers() -> None:
+    """red under: a call of `logs_of` from interpreter code -- for instance
+    `execute._reveal` reading a seat's log -- the scrape gains that site. The
+    readers are the replay, the paused run and the terminal command, each
+    deriving a Seat View; the interpreter that plays the game never reads what
+    a seat was told."""
+    assert _calls("logs_of") == {
+        "cli.show",  # the terminal command's views
+        "paused.hand_off",  # the paused run's node
+        "replay.run",  # the replay's node and each recorded pick's view
+        "replay.ask",  # a live line's Seat Policy
+        "replay.trace",  # a live line's terminal views
+    }
+
+
+def test_a_frozen_log_is_made_only_as_a_snapshot() -> None:
+    """red under: a reader wrapping a list of its own in an `ObservationLog` --
+    for instance `replay.run` handing out a log it built -- the scrape gains
+    that site. A frozen log is always a prefix of the one the run kept."""
+    assert _calls("ObservationLog") == {"observe.snapshot"}
+
+
+def test_no_text_names_the_string_an_observation_log() -> None:
+    """The glossary split (ADR-0026): Observation Log is one seat's events,
+    and the string OpenSpiel keys on is the Information State. red under:
+    `[[observation-log]] string` restored in docs/glossary/decision-episode.md
+    (executed). Catches the two spellings that named the string, not every
+    paraphrase."""
+    pattern = re.compile(r"(\[\[observation-log\]\]|observation[ -]log) string", re.IGNORECASE)
+    found = [
+        f"{path.relative_to(REPO)}:{number}"
+        for root in ("cardlang", "docs", "tests", "tools")
+        for path in sorted((REPO / root).rglob("*"))
+        if path.suffix in {".py", ".md", ".cardlang"} and path != Path(__file__)
+        for number, line in enumerate(path.read_text().splitlines(), 1)
+        if pattern.search(line)
+    ]
+    assert not found, f"the string is the [[information-state]]: {found}"

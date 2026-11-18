@@ -60,10 +60,11 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
   observed, appended to by `Ctx.observe` alone, and read as a frozen
   snapshot through `logs_of` alone, so every reader of a seat's knowledge
   reads the one log the run kept. An unobserved run keeps none and its
-  emitters build no event (`Ctx.observing`). Held by: Unrepresentable for a
-  snapshot's immutability -- `ObservationLog` is a bounded, read-only
-  prefix of an append-only record; Derived and Pinned for who makes,
-  writes and reads the aggregate -- the scrapes of
+  emitters build no event (`Ctx.observing`). Held by: Unrepresentable to
+  the reader for a snapshot's immutability -- `ObservationLog` is a
+  bounded, read-only prefix -- resting on the record behind it only
+  growing; Derived and Pinned for that, and for who makes, writes and reads
+  the aggregate and who calls `logs_of` -- the scrapes of
   tests/test_observation_logs.py, each red under its planted second site.
   Why not higher: `append` is a public method, and which code calls it is
   a fact about the text.
@@ -141,8 +142,9 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
   door, and
   tests/openspiel_ready/test_ismcts.py::test_a_constructed_world_keeps_the_public_state_a_seat_was_shown,
   red under dropping `state_delta(ctx)` from `chooser.decide`.
-- Illegal after: a caller keeping a seat's log of its own; interpreter code
-  reading a seat's log off the world; an event that is not a member of
+- Illegal after: a caller keeping a seat's log of its own, or wrapping one
+  in an `ObservationLog`; interpreter code reading a seat's log off the
+  world; an event that is not a member of
   `ObservationEvent`, or a field outside its kind's shape; an event spelled other than by
   `spelled()`; a projection spelled beside `view_of`; a card, rather than
   its rendering, in a payload (`_rendered`; issue #666).
