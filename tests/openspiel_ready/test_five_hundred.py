@@ -57,6 +57,8 @@ surface here.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
@@ -292,7 +294,7 @@ _NOMINATE = "nominate_joker_suit("
 _SUBMIT = "submit_bid("
 
 
-def _contract_from_log(log: list[ObservationEvent]) -> tuple[str | None, str | None]:
+def _contract_from_log(log: Sequence[ObservationEvent]) -> tuple[str | None, str | None]:
     """(trump_suit, joker_suit) as a seat at the table would write them down
     from what it HEARD: a hand begins at the first of its three kitty deals,
     the standing contract is the last bid announced in it, and the nomination

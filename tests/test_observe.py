@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import random
 from cardlang.ast import nodes as n
-from cardlang.runtime.observe import AnnounceEvent, ChoseEvent, MovementEvent, ObservationEvent
+from cardlang.runtime.observe import (
+    AnnounceEvent,
+    ChoseEvent,
+    MovementEvent,
+    ObservationEvent,
+    ObservationLogs,
+)
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Seating
 
@@ -31,22 +37,21 @@ def test_locate_finds_singles_and_family_instances() -> None:
     assert zs.locate(zs.instance("captured", 1)) == ("captured", 1)
 
 
-def test_ctx_observer_defaults_to_none_and_observe_is_noop() -> None:
+def test_an_unobserved_world_keeps_no_log_and_observe_is_noop() -> None:
     rs = RuntimeState(Seating(4), _store(), random.Random(0))
     ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c)[:k])
+    assert rs.observations is None and not ctx.observing
     ctx.observe(0, AnnounceEvent(1, "pass"))  # must not raise
 
 
-def test_ctx_observe_delivers_to_installed_observer() -> None:
+def test_ctx_observe_appends_to_the_seat_log_and_tells_the_listener() -> None:
     rs = RuntimeState(Seating(4), _store(), random.Random(0))
     seen: list[tuple[int, ObservationEvent]] = []
-    ctx = Ctx(
-        rs=rs,
-        chooser=lambda p, c, k: list(c)[:k],
-        observer=lambda pl, ev: seen.append((pl, ev)),
-    )
+    rs.observations = ObservationLogs(range(4), lambda pl, ev: seen.append((pl, ev)))
+    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c)[:k])
     ctx.observe(2, ChoseEvent("Q spades"))
     assert seen == [(2, ChoseEvent("Q spades"))]
+    assert rs.observations.snapshot()[2] == (ChoseEvent("Q spades"),)
 
 
 # Task 3: Observation emitter tests
@@ -61,11 +66,8 @@ def _ctx_with_log() -> tuple[Ctx, dict[int, list[ObservationEvent]]]:
     rs.team_of = TeamOf({0: 0, 1: 1, 2: 0, 3: 1})
     rs.max_length = 10  # a bound the picks below do not reach
     logs: dict[int, list[ObservationEvent]] = {p: [] for p in range(4)}
-    ctx = Ctx(
-        rs=rs,
-        chooser=lambda p, c, k: list(c)[:k],
-        observer=lambda pl, ev: logs[pl].append(ev),
-    )
+    rs.observations = ObservationLogs(range(4), lambda pl, ev: logs[pl].append(ev))
+    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c)[:k])
     return ctx, logs
 
 

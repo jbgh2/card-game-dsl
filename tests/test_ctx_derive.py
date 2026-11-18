@@ -43,9 +43,6 @@ def _full_ctx() -> Ctx:
     def tracer(event: str, data: Any) -> None:
         return None
 
-    def observer(p: int, event: ObservationEvent) -> None:
-        return None
-
     return Ctx(
         rs=rs,
         chooser=chooser,
@@ -56,7 +53,6 @@ def _full_ctx() -> Ctx:
         winner=2,
         action=Move(Card("A", "spades"), 3),
         active_rules=(cast(n.RuleDef, object()),),
-        observer=observer,
         round_source=("hand", cast(state_mod.Zone, object())),
     )
 

@@ -48,7 +48,7 @@ fails loudly rather than corrupting the comparison. Playout runs through the
 existing seams:
 `runtime/driver.play_game` with a fixed seed and the deterministic
 greedy-first chooser the readiness harness already uses, captured through the
-one `Ctx.observer`/tracer choke point. Comparison is trace-level — the
+`play_game`'s `observer` and tracer seams. Comparison is trace-level — the
 sequence of decisions, movements, and the final `GameResult` — with a
 per-transform `rename: dict[str, str]` hook applied to one side before
 comparing (identity for transforms that rename nothing). A new

@@ -21,7 +21,7 @@ from typing import Any
 from cardlang.ast import nodes as n
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.execute import execute
-from cardlang.runtime.observe import MovementEvent, ObservationEvent
+from cardlang.runtime.observe import MovementEvent, ObservationEvent, ObservationLogs
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
 
@@ -64,11 +64,8 @@ def _gather_events(zones: str, fill: dict[str, list[Card]]) -> tuple[list[Event]
         raise AssertionError("a gather never consults the chooser")
 
     log: list[Event] = []
-    ctx = Ctx(
-        rs=rs,
-        chooser=no_chooser,
-        observer=lambda pl, ev: log.append(ev) if pl == 0 else None,
-    ).acting_as(0)
+    rs.observations = ObservationLogs((0,), lambda pl, ev: log.append(ev) if pl == 0 else None)
+    ctx = Ctx(rs=rs, chooser=no_chooser).acting_as(0)
     execute(stmt, ctx)
     return log, list(rs.zones.single("deck").cards)
 

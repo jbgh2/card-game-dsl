@@ -20,6 +20,8 @@ one-card count for bystanders.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
@@ -37,7 +39,7 @@ class TestReadiness(ReadinessProofs):
     )
 
 
-def _hand_to_hand(log: list[ObservationEvent]) -> list[MovementEvent]:
+def _hand_to_hand(log: Sequence[ObservationEvent]) -> list[MovementEvent]:
     """The exchange transfers: the only hand->hand movements in the game."""
     return [
         e

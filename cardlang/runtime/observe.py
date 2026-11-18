@@ -54,9 +54,19 @@ its observers.
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 - Assumes: `ZONE_PROJECTIONS` (`stdlib/zones.py`) is the one statement of
-  what each zone type shows its owner and every other seat; a caller that
-  keeps a seat's log installs `Ctx.observer` and appends every event
-  delivered to that seat, in delivery order.
+  what each zone type shows its owner and every other seat.
+- Establishes: each seat's [[observation-log]] is kept by the run, on the
+  world (`RuntimeState.observations`): made by `play_game` when the run is
+  observed, appended to by `Ctx.observe` alone, and read as a frozen
+  snapshot through `logs_of` alone, so every reader of a seat's knowledge
+  reads the one log the run kept. An unobserved run keeps none and its
+  emitters build no event (`Ctx.observing`). Held by: Unrepresentable for a
+  snapshot's immutability -- `ObservationLog` is a bounded, read-only
+  prefix of an append-only record; Derived and Pinned for who makes,
+  writes and reads the aggregate -- the scrapes of
+  tests/test_observation_logs.py, each red under its planted second site.
+  Why not higher: `append` is a public method, and which code calls it is
+  a fact about the text.
 - Establishes: every [[observation-event]] is a member of
   `ObservationEvent`, with its kind's fields; each field holds a value its
   `PAYLOAD_SHAPES` row admits, refused in words when the event is made; and
@@ -131,8 +141,9 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
   door, and
   tests/openspiel_ready/test_ismcts.py::test_a_constructed_world_keeps_the_public_state_a_seat_was_shown,
   red under dropping `state_delta(ctx)` from `chooser.decide`.
-- Illegal after: an event that is not a member of `ObservationEvent`, or a
-  field outside its kind's shape; an event spelled other than by
+- Illegal after: a caller keeping a seat's log of its own; interpreter code
+  reading a seat's log off the world; an event that is not a member of
+  `ObservationEvent`, or a field outside its kind's shape; an event spelled other than by
   `spelled()`; a projection spelled beside `view_of`; a card, rather than
   its rendering, in a payload (`_rendered`; issue #666).
 """
@@ -140,9 +151,11 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, fields
-from typing import Any, ClassVar, Literal, TypeGuard, get_args
+from itertools import islice
+from types import MappingProxyType
+from typing import Any, ClassVar, Literal, TypeGuard, get_args, overload
 
 from cardlang.domains import zone_observer_key
 from cardlang.runtime.delegation import CONSTRUCTS
@@ -362,6 +375,89 @@ EVENT_PAYLOADS: dict[str, tuple[str, ...]] = {
 }
 
 
+class ObservationLog(Sequence[ObservationEvent]):
+    """One seat's [[observation-log]] as it stood when it was taken: the events
+    delivered to the seat, in delivery order. A bounded prefix of the seat's
+    record in `ObservationLogs`, which is only ever appended to, so taking one
+    copies nothing and no later delivery is part of it."""
+
+    __slots__ = ("_events", "_length")
+
+    def __init__(self, events: list[ObservationEvent], length: int) -> None:
+        self._events = events
+        self._length = length
+
+    def __len__(self) -> int:
+        return self._length
+
+    @overload
+    def __getitem__(self, index: int) -> ObservationEvent: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> tuple[ObservationEvent, ...]: ...
+
+    def __getitem__(self, index: int | slice) -> ObservationEvent | tuple[ObservationEvent, ...]:
+        if isinstance(index, slice):
+            return tuple(self._events[: self._length][index])
+        position = index + self._length if index < 0 else index
+        if not 0 <= position < self._length:
+            raise IndexError(f"event {index} of a log of {self._length}")
+        return self._events[position]
+
+    def __iter__(self) -> Iterator[ObservationEvent]:
+        return islice(self._events, self._length)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, (ObservationLog, tuple)):
+            return NotImplemented
+        return len(other) == self._length and all(a == b for a, b in zip(self, other))
+
+    def __hash__(self) -> int:
+        return hash(tuple(self))
+
+    def __repr__(self) -> str:
+        return f"ObservationLog({tuple(self)!r})"
+
+
+class ObservationLogs:
+    """The table's [[observation-log]]s, one per seat: what `Ctx.observe`
+    delivers, appended in delivery order, read as frozen `snapshot`s.
+
+    `play_game` makes it when the run is observed and keeps it on the
+    [[world]] (`RuntimeState.observations`); `listener`, when given, hears each
+    event as it is appended, which is the one record of the order across
+    seats."""
+
+    __slots__ = ("_events", "_listener")
+
+    def __init__(
+        self,
+        seats: Iterable[Player],
+        listener: Callable[[Player, ObservationEvent], None] | None = None,
+    ) -> None:
+        self._events: dict[Player, list[ObservationEvent]] = {seat: [] for seat in seats}
+        self._listener = listener
+
+    def append(self, player: Player, event: ObservationEvent) -> None:
+        self._events[player].append(event)
+        if self._listener is not None:
+            self._listener(player, event)
+
+    def snapshot(self) -> Mapping[Player, ObservationLog]:
+        """Every seat's log as it stands now."""
+        return MappingProxyType(
+            {seat: ObservationLog(events, len(events)) for seat, events in self._events.items()}
+        )
+
+
+def logs_of(rs: RuntimeState) -> Mapping[Player, ObservationLog]:
+    """Every seat's log as it stands, off the world of an observed run."""
+    # Shadow Guard behind `play_game`, which keeps the logs on the world of
+    # every run it is asked to observe: a reader here asked for them.
+    assert rs.observations is not None, "the logs of a run that was not observed"
+    return rs.observations.snapshot()
+
+
 # What the seats other than the deciding seat hear of a pick, by the construct
 # asking (`delegation.CONSTRUCTS`, the word an `asked` event carries):
 # "announced", every seat hears every pick (`announce`); "moved", no seat hears
@@ -432,7 +528,7 @@ def render(value: Any) -> Any:
 
 def announce(ctx: Ctx, actor: Player, value: Any) -> None:
     """A public decision: every player hears (actor, what)."""
-    if ctx.observer is None:
+    if not ctx.observing:
         return
     for p in ctx.rs.seating.players:
         ctx.observe(p, AnnounceEvent(actor, render(value)))
@@ -508,7 +604,7 @@ def state_delta(ctx: Ctx) -> None:
     Called by `chooser.decide` alone, before the `asked`; the snapshot it
     keeps (`RuntimeState.shown_slots`) is the previous node's.
     """
-    if ctx.observer is None:
+    if not ctx.observing:
         return
     rs = ctx.rs
     now = shown_slots(rs)
@@ -603,7 +699,7 @@ def movement(
     """Emit a card transfer to every observer through both sides' projections
     (decisions.md "Observation events"). Observers for whom both sides are
     trivial learn nothing and get no event."""
-    if ctx.observer is None or not cards:
+    if not ctx.observing or not cards:
         return
     for p in ctx.rs.seating.players:
         src_proj = projection_for(ctx.rs, src[0], src[1], p)

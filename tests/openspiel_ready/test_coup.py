@@ -3,6 +3,7 @@
 Hidden zone `influence`: Coup hides face-down influence cards, not a hand.
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
@@ -53,7 +54,7 @@ def test_influence_flips_derive_hidden_observations() -> None:
         ):
             break
 
-    def flips(log: list[ObservationEvent]) -> list[MovementEvent]:
+    def flips(log: Sequence[ObservationEvent]) -> list[MovementEvent]:
         return [
             e for e in log if isinstance(e, MovementEvent) and e.destination.startswith("revealed[")
         ]

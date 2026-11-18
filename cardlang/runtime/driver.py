@@ -67,7 +67,7 @@ from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.evaluate import answer_context, evaluate
 from cardlang.runtime.execute import REFUSALS, execute
 from cardlang.runtime.execute import run_body as run_stmts
-from cardlang.runtime.observe import ObservationEvent
+from cardlang.runtime.observe import ObservationEvent, ObservationLogs
 from cardlang.runtime.state import (
     HALTS,
     Chooser,
@@ -384,7 +384,14 @@ def play_game(
     chooser: Chooser | None = None,
     observer: Callable[[Player, ObservationEvent], None] | None = None,
     on_first_decision: Callable[[RuntimeState], None] | None = None,
+    observed: bool = False,
 ) -> GameResult:
+    """Play `game` to its end under `rng` and `chooser`.
+
+    A run is observed when `observed` is set or an `observer` listens: the
+    world then keeps the seats' logs (`RuntimeState.observations`), which a
+    caller reads off the world it is handed at the first decision or on a
+    `ChooserAbort`, and `observer` hears each event as it is delivered."""
     assert game.winner is not None or game.loser is not None, (
         "resolve() must reject a game with neither `winner:` nor `loser:`"
     )
@@ -396,6 +403,8 @@ def play_game(
     positions = dict(position_domains_of(game))
     zones = ZoneStore(game.zones, seating.players, teams, positions=positions)
     rs = RuntimeState(seating, zones, rng)
+    if observed or observer is not None:
+        rs.observations = ObservationLogs(seating.players, observer)
     rs.teams = teams
     rs.team_of = team_of
     rs.position_domains = positions
@@ -458,7 +467,7 @@ def play_game(
             return inner(player, candidates, n)
 
         base_chooser = hooked
-    ctx = Ctx(rs=rs, chooser=base_chooser, tracer=tracer, observer=observer)
+    ctx = Ctx(rs=rs, chooser=base_chooser, tracer=tracer)
 
     rs.push_frame()  # game-level state (cumulative_score, …)
     if game.state is not None:

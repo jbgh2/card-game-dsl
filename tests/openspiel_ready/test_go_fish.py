@@ -46,6 +46,7 @@ it's meant to probe — is documented in
 (Go Fish)").
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
@@ -84,7 +85,7 @@ def test_public_ask_derives_asker_holds_rank() -> None:
         if any(isinstance(e, AnnounceEvent) and str(e.value).startswith("ask(") for e in r.obs_logs[0]):
             break
 
-    def asks(log: list[ObservationEvent]) -> list[AnnounceEvent]:
+    def asks(log: Sequence[ObservationEvent]) -> list[AnnounceEvent]:
         return [e for e in log if isinstance(e, AnnounceEvent) and str(e.value).startswith("ask(")]
 
     assert asks(r.obs_logs[0]), "no ask was announced on the greedy line"
@@ -127,7 +128,7 @@ def test_public_ask_hit_transfer_is_a_public_count_not_identity() -> None:
         ):
             break
 
-    def hand_moves(log: list[ObservationEvent]) -> list[MovementEvent]:
+    def hand_moves(log: Sequence[ObservationEvent]) -> list[MovementEvent]:
         return [
             e for e in log
             if isinstance(e, MovementEvent) and e.source.startswith("hand[") and e.destination.startswith("hand[")

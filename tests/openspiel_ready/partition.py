@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -122,7 +122,7 @@ class InfoFn(Protocol):
     ) -> str: ...
 
 
-def _default_info(player: int, rs: RuntimeState, log: list[ObservationEvent]) -> str:
+def _default_info(player: int, rs: RuntimeState, log: Sequence[ObservationEvent]) -> str:
     return information_state(player, rs, log)
 
 
@@ -240,7 +240,7 @@ ZONE_PROBES: dict[str, dict[str, bool]] = {
 
 def check_visible_facts(
     rs: RuntimeState,
-    obs_log: list[ObservationEvent],
+    seat_log: Sequence[ObservationEvent],
     observer: int,
     info_fn: InfoFn = _default_info,
 ) -> tuple[list[FactFailure], dict[str, int]]:
@@ -248,7 +248,9 @@ def check_visible_facts(
     observer at a paused world — with the perturbations per zone drawn from
     the declared ZONE_PROBES table, never hand-chosen at the call site.
     Mutate -> recompute -> restore; the world is byte-identical afterwards.
-    Returns (failures, counts per category)."""
+    Returns (failures, counts per category). The log is probed as a copy,
+    since a seat's log is frozen."""
+    obs_log = list(seat_log)
     failures: list[FactFailure] = []
     counts = {f"zone_{p}": 0 for p in ZONE_PROBES}
     counts["state_vars"] = 0
@@ -398,7 +400,7 @@ def check_visible_facts(
 
 
 def derive_arrivals(
-    rs: RuntimeState, obs_log: list[ObservationEvent], zone_label: str
+    rs: RuntimeState, obs_log: Sequence[ObservationEvent], zone_label: str
 ) -> list[tuple[int | None, str]]:
     """The (deciding actor, card) sequence one observer can derive for a
     fully public zone from THEIR OWN observation stream — the soundness half

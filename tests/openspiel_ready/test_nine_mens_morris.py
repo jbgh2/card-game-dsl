@@ -69,6 +69,8 @@ Honest caveats
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import random
 from typing import Any
 
@@ -214,7 +216,7 @@ class TestReadiness(ReadinessProofs):
                 a.cards[0], b.cards[0] = b.cards[0], a.cards[0]
 
 
-def _board_moves(log: list[ObservationEvent]) -> list[MovementEvent]:
+def _board_moves(log: Sequence[ObservationEvent]) -> list[MovementEvent]:
     """The point- and captured-directed ``move`` events in an observation log —
     a man placed or moved onto a point, or removed into a captured pile — in
     game order."""

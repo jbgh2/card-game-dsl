@@ -247,7 +247,6 @@ def entitlement(
     moved: dict[int, frozenset[_Unit]] = {}  # pick index -> the cards it moves, in their epochs
     unheard: dict[int, list[int]] = {}  # seat -> its non-card picks not yet announced
     heard: set[int] = set()
-    log: list[ObservationEvent] = []
     for moment in moments:
         if isinstance(moment, Drawn):
             # Shadow guard behind `refusal_in_text`, which refuses every game
@@ -265,7 +264,6 @@ def entitlement(
             elif moment.decider != observer:
                 unheard.setdefault(moment.decider, []).append(moment.index)
         elif moment.player == observer:
-            log.append(moment.event)
             for card in _cards_named(moment.event.spelled(), by_render):
                 identified.add((epoch.get(card), card))
             if isinstance(moment.event, AnnounceEvent):
@@ -289,7 +287,7 @@ def entitlement(
         observer=observer,
         pause=pause,
         information_state=information_state(observer, pause.rs, pause.obs_logs[observer]),
-        log=tuple(log),
+        log=tuple(pause.obs_logs[observer]),
         draws=tuple(draws),
         known=tuple(
             frozenset(card for e, card in identified if e == draw.index) for draw in draws
