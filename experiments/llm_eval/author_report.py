@@ -1,5 +1,6 @@
-"""The authoring benchmark's report: the table, and every refusal a model
-could not act on, each ready to file as a part of epic #1043.
+"""The authoring benchmark's report: the table, the replies by kind, every
+reply the API declined, and every refusal a model could not act on, each
+ready to file as a part of epic #1043.
 
     python -m experiments.llm_eval.author_report RUN_DIR
 
@@ -24,6 +25,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO, assert_never
 
+from .author_prompt import ReplyKind, kind_of_stop
 from .author_run import (
     AttemptOutcome,
     Followup,
@@ -61,7 +63,24 @@ def outcome_words(outcome: AttemptOutcome) -> str:
         return "stopped (ceiling)"
     if outcome is AttemptOutcome.HARNESS_ERROR:
         return "HARNESS ERROR"
+    if outcome is AttemptOutcome.DECLINED:
+        return "declined"
     assert_never(outcome)
+
+
+def reply_kind_words(kind: ReplyKind) -> str:
+    """How the report names a kind of reply."""
+    if kind is ReplyKind.DRAFT:
+        return "draft"
+    if kind is ReplyKind.GAVE_UP:
+        return "gave up"
+    if kind is ReplyKind.NO_DRAFT:
+        return "no file"
+    if kind is ReplyKind.TRUNCATED:
+        return "cut off"
+    if kind is ReplyKind.DECLINED:
+        return "declined"
+    assert_never(kind)
 
 
 def real_game_words(verdict: RealGameVerdict) -> str:
@@ -107,6 +126,49 @@ def table(attempts: Sequence[Mapping[str, Any]]) -> list[str]:
         )
     widths = [max(len(r[i]) for r in rows) for i in range(len(header))]
     return ["  ".join(cell.ljust(w) for cell, w in zip(r, widths)).rstrip() for r in rows]
+
+
+def round_kind(round_: Mapping[str, Any]) -> ReplyKind:
+    """A recorded round's kind, its stop reason read first as `read_reply`
+    reads it (`kind_of_stop`), so a refusal round stored as `no_draft` is
+    declined."""
+    return kind_of_stop(round_.get("stop_reason")) or ReplyKind(round_["reply_kind"])
+
+
+def declines(attempts: Sequence[Mapping[str, Any]]) -> list[str]:
+    """Every declined reply, apart from the checker's refusals, because a
+    decline is the instrument's and no draft of the model's."""
+    met = [
+        (a, r)
+        for a in attempts
+        for r in a["rounds"]
+        if round_kind(r) is ReplyKind.DECLINED
+    ]
+    ended = sum(1 for a in attempts if a["outcome"] == AttemptOutcome.DECLINED.value)
+    lines = [
+        "",
+        f"Declined replies: {len(met)} in {len({id(a) for a, _ in met})} attempt(s), "
+        f"{ended} of them ending its attempt",
+    ]
+    categories: dict[str, int] = {}
+    for a, r in met:
+        if "stop_details" not in r:
+            category = "not recorded"
+        elif r["stop_details"] is None or r["stop_details"].get("category") is None:
+            category = "no category given"
+        else:
+            category = str(r["stop_details"]["category"])
+        categories[category] = categories.get(category, 0) + 1
+        request = r.get("request_id") or "not recorded"
+        shown = "category not recorded" if category == "not recorded" else category
+        explanation = (r.get("stop_details") or {}).get("explanation")
+        lines.append(
+            f"  {a['game']}/{a['model_ref']}/{a['attempt']} round {r['round']}: {shown} "
+            f"(request {request})" + (f": {explanation}" if explanation else "")
+        )
+    if categories:
+        lines.append("Decline categories: " + ", ".join(f"{k} {n}" for k, n in categories.items()))
+    return lines
 
 
 def _excerpt(draft: str, line: int | None, around: int = 2) -> str:
@@ -206,8 +268,22 @@ def report(run_dir: Path, out: TextIO) -> None:
           f"[{meta.get('checker', {}).get('form', '?')} form]")
     if meta.get("stopped"):
         write(f"RUN STOPPED: {meta['stopped']}")
+    planned = meta.get("planned_attempts")
+    if planned is None:
+        write(f"Attempts: {len(attempts)} recorded; the planned N is not recorded")
+    else:
+        partial = ", a partial N" if len(attempts) < planned else ""
+        write(f"Attempts: {len(attempts)} recorded of {planned} planned (games x models x attempts){partial}")
     write()
     for line in table(attempts):
+        write(line)
+    kinds = {kind: 0 for kind in ReplyKind}
+    for a in attempts:
+        for r in a["rounds"]:
+            kinds[round_kind(r)] += 1
+    write()
+    write("Replies by kind: " + ", ".join(f"{reply_kind_words(k)} {n}" for k, n in kinds.items()))
+    for line in declines(attempts):
         write(line)
     found = stands(attempts)
     write()

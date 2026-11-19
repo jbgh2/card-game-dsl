@@ -1,4 +1,4 @@
-# Pre-registration: the authoring benchmark, first run
+# Pre-registration: the authoring benchmark
 
 **Dated 2026-11-11, and committed before any model was called for this
 benchmark.** No model has been called by this rig at the time of writing:
@@ -30,15 +30,65 @@ is checkable the same way:
 git log --format='%h %aI %s' -- experiments/llm_eval/PREREGISTRATION_AUTHORING.md
 ```
 
+**Amended 2026-11-16, after the first run and before the second.** This
+amendment's dates are US Pacific; run ids are UTC. The first run
+(`2026-11-17T04-28-54Z`, checker at `ff92fffa`) recorded these protocol
+facts. 25 of 63 `claude-opus-5` replies came back HTTP 200 with
+`stop_reason: "refusal"` and no output tokens. Two of those requests, sent
+again outside the run on 2026-11-16 (not in the run's record), returned
+`stop_details.category` `reasoning_extraction`. The API reference defines
+that category as a request that pushes the model to reproduce its internal
+reasoning in the response text, and says a prompt that has the model write
+its reasoning into the reply in place of thinking may be declined. The
+request ran thinking disabled at effort `high`, and the replies show the
+models reasoning in the visible reply: 14 of 40 `claude-sonnet-5` replies
+carry more than 2,000 characters outside the file (the reply's length less
+the file's), and none of the 14 is a draft that was checked: six are
+give-ups, three hold no file, and five were cut off at the output limit.
+Six replies reach the 16,000-token output limit, five from
+`claude-sonnet-5` and one from `claude-opus-5`. The rig read a declined
+reply as a reply holding no file, counted it as one of the eight, and sent
+the next request; it recorded `stop_reason` and neither the category nor
+the request id. Four changes follow, and the sections below state the
+design with them:
+
+1. **Thinking on.** Both models run adaptive thinking at effort `high`,
+   with a 64,000-token output limit for the thinking and the file, sent as
+   a stream.
+2. **History as a conversation.** A later round is sent as turns: the
+   first user turn holds the references, the game and the request for file
+   1; each earlier reply goes back as an assistant turn exactly as the API
+   returned it, thinking blocks included, except a reply cut off at the
+   output limit, which is not replayed; and the rig's answer (the checker's
+   words for a draft, or why the reply held no file) is the next user turn,
+   ending with the request for the next file. Each round records the types
+   of its reply's content blocks and whether the reply was replayed, never
+   the blocks themselves.
+3. **The give-up line asks for the gap, not the process.** It asks for the
+   rule and the construct the language lacks for it, where it asked for the
+   rule and what the model tried. No other sentence of the task asks the
+   model to explain its reasoning.
+4. **A declined reply is its own outcome.** It ends its attempt at once,
+   as `declined`, with the decline's category; every round records the
+   decline's stop details and the request id; and the run stops once two
+   attempts (`decline_limit`) have ended declined.
+
+The first run's results stand as recorded and are reported with the
+declines called out: `author_report` reads a decline from a round's stop
+reason, so the first run's declined rounds, recorded as holding no file,
+are listed with their category not recorded.
+
 ## Design
 
 | | |
 |---|---|
 | models | `frontier` = `claude-opus-5`, `mid` = `claude-sonnet-5` (the newest ids the playing rigs' configs carry) |
-| request | `max_tokens: 16000`, `thinking: {type: disabled}`, `output_config: {effort: high}` |
+| request | `max_tokens: 64000`, `thinking: {type: adaptive}`, `output_config: {effort: high}`, streamed |
 | games | 3 corpus games withheld, 2 candidates (below) |
 | attempts | 2 per (game, model), each a fresh conversation |
 | round limit | 8 replies per attempt, the first included, a reply holding no file counted; the model is told the limit |
+| a declined reply | ends its attempt, as `declined`; no further request is sent in that attempt |
+| decline limit | the run stops once 2 attempts have ended declined (`decline_limit`); the limit counts across the run, and the run takes games, then models, then attempts in that order, so two declined attempts on the first model end the run before the second model is called |
 | checker | `python -m cardlang check game.cardlang`, text form, this checkout |
 | real-game check | 100 uniform-random playouts per file (`author_facts.py`) |
 | ceiling | `max_cost_usd: 40` over the results tree's spend log in a rolling 24 hours (`window: 24h`), with token backstops |
@@ -57,18 +107,23 @@ git log --format='%h %aI %s' -- experiments/llm_eval/PREREGISTRATION_AUTHORING.m
 Each corpus game's variant line in the config names the variant its corpus
 file plays, so the differential compares one game with itself.
 
-**What the model is shown.** One prompt, cache-shaped (`author_prompt.py`):
-the task text; `docs/authoring.md`; the three family libraries
+**What the model is shown.** One conversation, cache-shaped
+(`author_prompt.py`). Its first user turn: the task text;
+`docs/authoring.md`; the three family libraries
 (`docs/libraries/*.cardlang`); four corpus games as worked examples
 (`spades`, `gops`, `cheat`, `five-card-draw`), none of them a held-out game;
-the game's name, variant line, source URL and rules text; then each earlier
-round's file and the checker's words verbatim.
+the game's name, variant line, source URL and rules text; and the request
+for file 1. Then, for each earlier round, the model's reply as the API
+returned it, as an assistant turn (none for a reply cut off at the output
+limit), and the checker's words verbatim (or why the reply held no file)
+with the request for the next file, as a user turn.
 
 **What the model is never shown.** A held-out game's corpus file or its
 rulebook twin (`docs/games/<slug>.cardlang`, `docs/games/<slug>.md`). The
 runner refuses a config whose references name either, for any game in the
 run, before any model is called; the rules directory may not lie inside
-`docs/games/`; and the prompt builder takes strings only. Pinned by
+`docs/games/`; and the prompt builder takes strings and the model's own
+earlier replies only. Pinned by
 `tests/test_author_run.py`: `test_a_withheld_file_is_refused_as_a_reference`,
 and `test_no_shipped_prompt_shows_a_held_out_games_withheld_files`, which
 drives this config through the runner with a fake provider and finds no
@@ -77,8 +132,10 @@ also holds. Measured 2026-11-11 at this commit's parent, with the reference
 set above, of the three-line windows of each corpus file the references
 also hold (shared idioms, not leaks): `hearts` 4 of 121, `go-fish` 2 of 84,
 `oh-hell` 14 of 104, most of them shared with `spades`. The static part of
-the prompt is 93,913 characters before the game's rules text. The pin reads
-first-round prompts; a later round adds the model's own file and the
+the prompt is the first block of the first user turn,
+`len(author_prompt._references_block(task_text(8), references))` over the
+references above; measured 2026-11-16 at `5d618f2b`, 99,008 characters. The pin reads
+first-round prompts; a later round adds the model's own replies and the
 checker's words, unscrubbed, as a designer at a terminal gets them.
 
 **Rules sources.** The operator saves each game's rules text from its
@@ -95,12 +152,16 @@ Every figure is derived from the recorded rounds by `author_run` and
   model replied `CANNOT EXPRESS: ...`, naming the rule); `checker_failed` (the
   checker crashed, hung, or exited 1 with nothing readable: a crash is never
   read as a refusal); `provider_error`; `stopped_by_ceiling`;
-  `harness_error` (the checker exited 2, the rig's fault).
+  `harness_error` (the checker exited 2, the rig's fault); `declined` (the
+  API declined a request, `stop_reason: "refusal"`: the attempt ends at that
+  reply, its category recorded, and it is the instrument's outcome, neither
+  the checker's nor a refusal the model could not act on).
 - **First draft green**: the attempt's first draft checks green.
 - **Fix rounds to green**: the number of drafts after the first up to and
   including the green one; absent when no draft is green. A reply holding no
   draft (no fenced block, two of them, or cut off at the output limit) is a
-  round and is not a draft.
+  round and is not a draft; so is a declined reply, the last round of its
+  attempt.
 - **A refusal the model could not act on** (`stands`): an error the checker
   printed for draft *k* such that the next draft checked, draft *j*, is
   different from draft *k*, and draft *j*'s check prints an error with the
@@ -160,35 +221,44 @@ Every figure is derived from the recorded rounds by `author_run` and
 - A `diverges` confirmed by a rules read: recorded in the report; filed only
   if the divergence traces to something the checker accepted and should
   have refused.
+- A `declined` attempt is none of these: the report lists it with its
+  category and request id, apart from the checker's refusals, and nothing
+  is filed against #1043 for it.
 
 ## Stopping rule
 
 Two attempts per (game, model), fixed here before the first call. No
 re-run of an attempt for its result; no extension of the round limit on a
 near-miss. The ceiling stops the run between calls, records the attempt it
-stopped as `stopped_by_ceiling`, and the report states the partial N.
+stopped as `stopped_by_ceiling`, and the report states the partial N. The
+decline limit stops the run after the second attempt that ends `declined`,
+and the report states that partial N the same way.
 
 Cost, at list prices with the prompt cache (`providers.PRICES`):
 
-- **Estimate.** The prompt sizes measured above at about 4 characters per
-  token, a file of about 4,000 output tokens per reply, and all 8 replies
-  used: about $1.40 an attempt on `claude-opus-5` and $0.85 on
-  `claude-sonnet-5`, about $22 for the 20 attempts.
-- **Hard bound.** Every reply at the 16,000-token output limit, every
-  prompt written to the cache and none read from it, the history growing
-  by a full-limit file each round, and about 31,000 tokens before the first
-  round's history: about $7.60 an attempt on `claude-opus-5` and $4.60 on
-  `claude-sonnet-5`, about $122 for the 20.
+- **Estimate, 2026-11-11,** for a request with thinking disabled and a
+  16,000-token output limit: the prompt sizes measured that day at about 4
+  characters per token, a file of about 4,000 output tokens per reply, and
+  all 8 replies used: about $1.40 an attempt on `claude-opus-5` and $0.85
+  on `claude-sonnet-5`, about $22 for the 20 attempts. No estimate here
+  prices thinking tokens, which are billed as output and, replayed, as
+  input to every later round.
+- **Hard bound, 2026-11-16,** for the request above. Every reply at the 64,000-token output limit, every
+  prompt written to the cache and none read from it, the conversation
+  growing by a full-limit reply each round (an over-count, since a reply at
+  the limit is cut off and not replayed), and about 31,000 tokens before
+  the first round's history: about $25.60 an attempt on `claude-opus-5` and
+  $15.30 on `claude-sonnet-5`, about $410 for the 20.
 
-The $40 ceiling sits between the two: above the estimate, so the estimate
-being somewhat low still completes the run, and below the bound, so a run
-far from the estimate stops as a partial N rather than spending to the
-bound.
+The $40 ceiling sits far below the bound, so a run far from the estimate
+stops as a partial N rather than spending toward the bound.
 
 ## What would make the result unusable
 
 - More than a quarter of rounds holding no draft (no block, or truncated):
-  the run measures the reply format, not the language.
+  the run measures the reply format, not the language. Declined replies are
+  not in this share; they are reported apart, and the decline limit holds a
+  run to two.
 - Any `harness_error`, or a `checker_failed` the rig caused.
 - A corpus reference whose calibration above diverges from itself.
 - A provider error rate above 10% of calls.
@@ -198,8 +268,10 @@ bound.
 - **Two models, five games, two attempts.** A stand rate is a sample of the
   refusals these attempts reached; a refusal no attempt reached is not
   measured.
-- **No thinking.** The request disables extended thinking so the output
-  budget is the file; a thinking arm is a separate run.
+- **One thinking setting.** The request runs adaptive thinking at effort
+  `high`, and the API returns the thinking blocks with their text omitted,
+  so the rig neither shows nor measures what a model reasoned; another
+  effort, or thinking off, is a separate run.
 - **What the real-game check cannot see.** A rule uniform play rarely
   reaches (shooting the moon), a scoring magnitude (the winner set is
   compared, never the returns), and an information structure that differs

@@ -41,7 +41,7 @@ from ..author_run import (
     run,
     withheld_paths,
 )
-from ..prompts import Prompt
+from ..prompts import Conversation, Prompt
 from ..run_eval import budget_of
 from ..providers import FakeProvider, Provider, Reply, Usage
 from ..spend import Billed, Spend, SpendLog
@@ -84,6 +84,7 @@ def config(tmp_path: Path, **over: Any) -> dict[str, Any]:
         "results_dir": str(tmp_path / "results"),
         "round_limit": 4,
         "attempts": 1,
+        "decline_limit": 2,
         "references": ["docs/authoring.md"],
         "facts": {"playouts": 20},
         "games": [
@@ -172,7 +173,7 @@ def test_a_give_up_names_the_rule(tmp_path: Path, tree: Path, rules: Path) -> No
     assert attempt["detail"] == "a card that changes suit"
     assert [r["reply_kind"] for r in attempt["rounds"]] == ["no_draft", "gave_up"]
     assert isinstance(provider, FakeProvider)
-    assert "It held no file" in provider.prompts[1]
+    assert "That reply held no file: no ```cardlang block was found" in provider.prompts[1]
 
 
 @dataclass
@@ -184,6 +185,9 @@ class TruncatingProvider:
     params: dict[str, Any] = field(default_factory=dict)
 
     def complete(self, prompt: Prompt) -> Reply:
+        raise AssertionError("the authoring rig sends a conversation, never a one-message prompt")
+
+    def converse(self, conversation: Conversation) -> Reply:
         reply = Reply(text="```cardlang\ngame X {", input_tokens=10, output_tokens=16000, stop_reason="max_tokens")
         self.usage.add(reply)
         return reply
@@ -434,15 +438,22 @@ def test_the_prompt_is_pure_and_cache_shaped() -> None:
     refs = [Reference("docs/authoring.md", "guide")]
     first = build_prompt(task_text(3), refs, brief, [])
     assert first == build_prompt(task_text(3), refs, brief, [])
-    assert first.cache_at == 1
-    history = [RoundView(1, TWO_TYPOS, "game.cardlang:21:50: error: x", 1)]
+    assert [t.role for t in first.turns] == ["user"]
+    reply_1 = ({"type": "text", "text": block(TWO_TYPOS)},)
+    history = [RoundView(1, TWO_TYPOS, "game.cardlang:21:50: error: x", 1, reply_1)]
     second = build_prompt(task_text(3), refs, brief, history)
-    third = build_prompt(task_text(3), refs, brief, [*history, RoundView(2, ONE_TYPO, "y", 1)])
-    # Each round reproduces the previous round's prefix through its breakpoint.
-    assert second.blocks[: first.cache_at + 1] == first.blocks[: first.cache_at + 1]
-    assert second.cache_at is not None and third.cache_at is not None
-    assert third.blocks[: second.cache_at + 1] == second.blocks[: second.cache_at + 1]
-    assert third.cache_at == len(third.blocks) - 2
+    reply_2 = ({"type": "text", "text": block(ONE_TYPO)},)
+    third = build_prompt(
+        task_text(3), refs, brief, [*history, RoundView(2, ONE_TYPO, "y", 1, reply_2)]
+    )
+    # Each round's conversation is the previous round's, turn for turn, with
+    # the model's reply and the rig's answer appended: the previous request
+    # is a prefix of the next, so the breakpoint on the last block lets each
+    # round read what the round before it wrote.
+    assert second.turns[: len(first.turns)] == first.turns
+    assert third.turns[: len(second.turns)] == second.turns
+    assert [t.role for t in third.turns] == ["user", "assistant", "user", "assistant", "user"]
+    assert third.turns[1].content == reply_1 and third.turns[3].content == reply_2
 
 
 def test_the_shipped_config_reads(tmp_path: Path) -> None:

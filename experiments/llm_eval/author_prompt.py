@@ -1,24 +1,31 @@
 """The authoring benchmark's prompt, and the reading of a reply.
 
-`build_prompt` takes STRINGS: the task text, the reference documents (each a
-label and its text), the game's rules text, and the history of earlier
-rounds. It is handed no path and reads no file, so what reaches a model is
-exactly what its caller put in those strings, and the leak-freeness of a run
-is a property of which files the caller reads (`author_run.context_files`
-refuses the target's own corpus files) plus this function's purity.
+`build_prompt` takes the task text, the reference documents (each a label
+and its text), the game's rules text, and the history of earlier rounds: the
+rig's words for each as strings, and each reply's content blocks as the
+model returned them. It is handed no path and reads no file, so what reaches
+a model is exactly what its caller put in those arguments, and the
+leak-freeness of a run is a property of which files the caller reads
+(`author_run.context_files` refuses the target's own corpus files) plus this
+function's purity.
 
-The prompt is cache-shaped. The static part comes first, one block for the
-task and the reference documents and one for the game, and each earlier
-round is one block appended after them; the cache breakpoint sits on the
-last block the next round reproduces byte for byte, so round k+1 reads round
-k's prefix from the cache. A round's block holds the draft and the
-checker's words verbatim.
+The prompt is a `Conversation`, cache-shaped. The first user turn is the
+static part, one block for the task and the reference documents and one for
+the game, then the request for file 1. Each earlier round appends two
+turns: the model's reply as an assistant turn, replayed unchanged, and the
+rig's answer as a user turn, which is the checker's words verbatim for a
+draft, or why the reply held no file, then the request for the next file.
+A round whose view carries no reply content has no assistant turn: a reply
+that came back empty, and one cut off at the output limit, which
+`author_run` never replays. Each round's
+conversation extends the one before it turn for turn, so the breakpoint on
+its last block lets round k+1 read what round k wrote.
 
 Contract
 --------
-Assumes: every argument is the text it names; nothing here touches a file,
-the corpus or a game object.
-Establishes: a deterministic `Prompt` that is a pure function of its
+Assumes: every argument is the text or the reply content it names; nothing
+here touches a file, the corpus or a game object.
+Establishes: a deterministic `Conversation` that is a pure function of its
 arguments, and `read_reply` mapping a reply to exactly one `ReplyKind`.
 Illegal after: a prompt-side read of any file, or of anything but the
 arguments.
@@ -29,11 +36,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Final
+from typing import Any, Final
 
 from cardlang.extract import extract_blocks
 
-from .prompts import Prompt
+from .prompts import Conversation, Turn
 
 #: The line a model ends an attempt with when the language cannot say a
 #: rule. What follows it is recorded as the rule the model could not write.
@@ -69,7 +76,7 @@ to make the file check: a file that checks but describes a smaller game is a
 failure, not a success. If you conclude that the language cannot express a
 rule, stop and reply with a line that starts
 
-    {give_up} <the rule, and what you tried>
+    {give_up} <the rule, and the construct the language lacks for it>
 
 instead of a file.
 
@@ -114,13 +121,15 @@ class GameBrief:
 
 @dataclass(frozen=True)
 class RoundView:
-    """One earlier round as the next prompt shows it: the draft and what the
-    checker said, or why the reply held no draft."""
+    """One earlier round as the next prompt carries it: the reply's content
+    blocks, and the draft with what the checker said, or why the reply held
+    no draft."""
 
     number: int
     draft: str | None
     said: str
     exit_code: int | None = None
+    reply: tuple[Any, ...] = ()
 
 
 def _references_block(task: str, references: Sequence[Reference]) -> str:
@@ -140,16 +149,15 @@ def _game_block(game: GameBrief) -> str:
     )
 
 
-def _round_block(view: RoundView) -> str:
+def _answer(view: RoundView) -> str:
     if view.draft is None:
-        return f"===== YOUR REPLY {view.number} =====\n\nIt held no file: {view.said}\n\n"
+        return f"That reply held no file: {view.said}\n\n"
     said = view.said if view.said else "(nothing)"
-    return (
-        f"===== YOUR FILE {view.number} =====\n\n"
-        f"```cardlang\n{view.draft.rstrip()}\n```\n\n"
-        f"$ cardlang check game.cardlang   (exit {view.exit_code})\n"
-        f"{said}\n\n"
-    )
+    return f"$ cardlang check game.cardlang   (exit {view.exit_code})\n{said}\n\n"
+
+
+def _request(number: int) -> str:
+    return f"Write file {number}: the complete game, in one ```cardlang block.\n"
 
 
 def build_prompt(
@@ -157,18 +165,19 @@ def build_prompt(
     references: Sequence[Reference],
     game: GameBrief,
     history: Sequence[RoundView],
-) -> Prompt:
-    """The prompt for the next draft.
+) -> Conversation:
+    """The conversation that asks for the next draft.
 
-    Pure by signature: strings in, one `Prompt` out. Blocks: the task and
-    references, the game, one per earlier round, and the request; the
-    breakpoint sits on the last earlier round, or on the game before any.
+    Pure by signature: the rig's strings and the model's own earlier replies
+    in, one `Conversation` out.
     """
-    blocks = [_references_block(task, references), _game_block(game)]
-    blocks.extend(_round_block(view) for view in history)
-    next_number = len(history) + 1
-    blocks.append(f"Write file {next_number}: the complete game, in one ```cardlang block.\n")
-    return Prompt(blocks=tuple(blocks), cache_at=len(blocks) - 2)
+    first = (_references_block(task, references), _game_block(game), _request(1))
+    turns = [Turn("user", first)]
+    for view in history:
+        if view.reply:
+            turns.append(Turn("assistant", tuple(view.reply)))
+        turns.append(Turn("user", (_answer(view), _request(view.number + 1))))
+    return Conversation(turns=tuple(turns))
 
 
 class ReplyKind(Enum):
@@ -180,6 +189,9 @@ class ReplyKind(Enum):
     NO_DRAFT = "no_draft"
     #: The reply was cut off at the output limit; never read as a draft.
     TRUNCATED = "truncated"
+    #: The API declined the request (`stop_reason` "refusal"); whatever
+    #: text came back is never read.
+    DECLINED = "declined"
 
 
 @dataclass(frozen=True)
@@ -189,9 +201,22 @@ class ReadReply:
     reason: str = ""
 
 
+def kind_of_stop(stop_reason: str | None) -> ReplyKind | None:
+    """The kind a stop reason alone fixes, read before the reply's text: a
+    decline, then a cut-off; None when the text decides."""
+    if stop_reason == "refusal":
+        return ReplyKind.DECLINED
+    if stop_reason == "max_tokens":
+        return ReplyKind.TRUNCATED
+    return None
+
+
 def read_reply(text: str, stop_reason: str | None) -> ReadReply:
     """What a reply holds: a draft, a give-up, or the reason it is neither."""
-    if stop_reason == "max_tokens":
+    stopped = kind_of_stop(stop_reason)
+    if stopped is ReplyKind.DECLINED:
+        return ReadReply(ReplyKind.DECLINED, reason="the API declined the request")
+    if stopped is ReplyKind.TRUNCATED:
         return ReadReply(
             ReplyKind.TRUNCATED,
             reason="the reply was cut off at the output limit before it ended",

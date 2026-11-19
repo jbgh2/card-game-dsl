@@ -1,16 +1,20 @@
-"""Model-API abstraction: one method, plus usage accounting.
+"""Model-API abstraction: a request in, a `Reply` out, plus usage accounting.
 
-Two implementations. `AnthropicProvider` is the real one; `FakeProvider` serves
-canned replies and is the only provider the unit tests use — there is no
-network in tests.
+`complete` sends a `Prompt` as one user message, the form every playing rig
+uses; `converse` sends a `Conversation`, earlier replies as assistant turns
+(`ConversingProvider`, which the authoring rig needs). Two implementations.
+`AnthropicProvider` is the real one; `FakeProvider` serves canned replies and
+is the only provider the unit tests use: there is no network in tests.
 
 Contract
 --------
 Assumes: `ANTHROPIC_API_KEY` (or an `ant auth login` profile) is present before
-`AnthropicProvider.complete` is called; nothing is read from the environment at
+`AnthropicProvider` sends a request; nothing is read from the environment at
 import time.
-Establishes: a `Reply` carrying the text and the exact token counts billed, and
-a running `Usage` total per provider instance.
+Establishes: a `Reply` carrying the text, the exact token counts billed, the
+reply's content blocks for replay, and a decline's stop details and request
+id; a running `Usage` total per provider instance; and one wire form for a
+conversation (`conversation_messages`) that both implementations send.
 Illegal after: reading token counts from anywhere but `Usage` — the dollar
 figures in the summary are derived from it and nothing else.
 """
@@ -20,9 +24,12 @@ from __future__ import annotations
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from .prompts import Prompt
+from .prompts import Conversation, Prompt
+
+if TYPE_CHECKING:
+    from anthropic.types import Message
 
 # List prices in dollars per million tokens, as published for the Claude API.
 # Sonnet 5 carries a lower introductory input/output rate through 2026-08-31;
@@ -110,11 +117,27 @@ class Usage:
 
 
 @dataclass(frozen=True)
+class StopDetails:
+    """Why the API declined a request (`stop_reason == "refusal"`): its
+    policy category and explanation, either of which the API may leave
+    null."""
+
+    category: str | None
+    explanation: str | None
+
+    def as_dict(self) -> dict[str, str | None]:
+        return {"category": self.category, "explanation": self.explanation}
+
+
+@dataclass(frozen=True)
 class Reply:
     """One completion, with the tokens it was billed for.
 
     `input_tokens` is the whole prompt; the cache fields are the part of it
     served from and written to the prompt cache, so they never exceed it.
+    `content` is the reply's content blocks as the API returned them, for a
+    later request to replay unchanged; `text` is its text blocks joined.
+    `stop_details` is read only from a declined reply.
     """
 
     text: str
@@ -123,6 +146,9 @@ class Reply:
     stop_reason: str | None = None
     cache_read_input_tokens: int = 0
     cache_creation_input_tokens: int = 0
+    stop_details: StopDetails | None = None
+    request_id: str | None = None
+    content: tuple[Any, ...] = ()
 
     def __post_init__(self) -> None:
         cached = self.cache_read_input_tokens + self.cache_creation_input_tokens
@@ -144,6 +170,42 @@ class Provider(Protocol):
     def complete(self, prompt: Prompt) -> Reply: ...
 
 
+@runtime_checkable
+class ConversingProvider(Provider, Protocol):
+    """A provider that can also send a `Conversation`."""
+
+    def converse(self, conversation: Conversation) -> Reply: ...
+
+
+def conversation_messages(conversation: Conversation) -> list[dict[str, Any]]:
+    """The `messages` list a conversation is sent as: each user block a
+    text block, each assistant turn its content as returned, and the cache
+    breakpoint on the last block of the last turn."""
+    messages: list[dict[str, Any]] = []
+    for turn in conversation.turns:
+        if turn.role == "user":
+            content: list[Any] = [{"type": "text", "text": block} for block in turn.content]
+        else:
+            content = list(turn.content)
+        messages.append({"role": turn.role, "content": content})
+    messages[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}
+    return messages
+
+
+def _stop_details(response: Any) -> StopDetails | None:
+    """A declined response's stop details; None for any other response, and
+    for a decline the API gave none for."""
+    if response.stop_reason != "refusal":
+        return None
+    details = getattr(response, "stop_details", None)
+    if details is None:
+        return None
+    return StopDetails(
+        category=getattr(details, "category", None),
+        explanation=getattr(details, "explanation", None),
+    )
+
+
 @dataclass
 class FakeProvider:
     """Canned replies, cycled in order. The only provider used in tests.
@@ -158,6 +220,8 @@ class FakeProvider:
     usage: Usage = field(default_factory=Usage)
     params: dict[str, Any] = field(default_factory=dict)
     prompts: list[str] = field(default_factory=list)
+    #: Each conversation's `messages` list, as `AnthropicProvider` sends it.
+    requests: list[list[dict[str, Any]]] = field(default_factory=list)
 
     def complete(self, prompt: Prompt) -> Reply:
         if not self.replies:
@@ -165,6 +229,24 @@ class FakeProvider:
         self.prompts.append(prompt.text)
         text = self.replies[(self.usage.calls) % len(self.replies)]
         reply = Reply(text=text, input_tokens=len(prompt.text) // 4, output_tokens=16)
+        self.usage.add(reply)
+        return reply
+
+    def converse(self, conversation: Conversation) -> Reply:
+        """The next canned reply, its content one text block, or no block
+        for an empty reply."""
+        if not self.replies:
+            raise ValueError("FakeProvider needs at least one canned reply")
+        self.prompts.append(conversation.text)
+        self.requests.append(conversation_messages(conversation))
+        text = self.replies[(self.usage.calls) % len(self.replies)]
+        reply = Reply(
+            text=text,
+            input_tokens=len(conversation.text) // 4,
+            output_tokens=16,
+            stop_reason="end_turn",
+            content=({"type": "text", "text": text},) if text else (),
+        )
         self.usage.add(reply)
         return reply
 
@@ -178,6 +260,12 @@ class AnthropicProvider:
     outright and runs adaptive thinking unless told otherwise, while Haiku 4.5
     has no `effort` at all. Whatever is sent is recorded verbatim in every
     transcript, so a run is reproducible from its own log.
+
+    Three keys of `params` are the provider's and never reach the request:
+    `max_tokens`, `max_retries`, and `streaming`, which sends the request
+    through `messages.stream` and reads its final message, as the SDK
+    requires of a request whose output limit it estimates would outlast a
+    non-streaming call.
     """
 
     def __init__(self, model: str, params: dict[str, Any] | None = None) -> None:
@@ -191,13 +279,14 @@ class AnthropicProvider:
 
         self.model = model
         # `params` is what the summary reports and is the whole reproduction
-        # recipe, so it keeps every knob — including the two consumed here.
+        # recipe, so it keeps every knob, including the ones consumed here.
         # Reporting the post-`pop` remainder would omit `max_tokens` from the
         # record of a run it materially shaped.
         self.params = dict(params or {})
         request = dict(self.params)
         self.usage = Usage()
         self._max_tokens = int(request.pop("max_tokens", 512))
+        self._streaming = bool(request.pop("streaming", False))
         self._request_params = request
         self._client = anthropic.Anthropic(
             max_retries=int(request.pop("max_retries", 5)),
@@ -212,12 +301,33 @@ class AnthropicProvider:
         ]
         if prompt.cache_at is not None:
             content[prompt.cache_at]["cache_control"] = {"type": "ephemeral"}
-        response = self._client.messages.create(
-            model=self.model,
-            max_tokens=self._max_tokens,
-            messages=[{"role": "user", "content": content}],
-            **self._request_params,
-        )
+        return self._send([{"role": "user", "content": content}])
+
+    def converse(self, conversation: Conversation) -> Reply:
+        return self._send(conversation_messages(conversation))
+
+    def _send(self, messages: list[dict[str, Any]]) -> Reply:
+        response: Message
+        request_id: str | None
+        if self._streaming:
+            with self._client.messages.stream(
+                model=self.model,
+                max_tokens=self._max_tokens,
+                messages=messages,  # type: ignore[arg-type]
+                **self._request_params,
+            ) as stream:
+                response = stream.get_final_message()
+                # The accumulated message carries no request id; the stream's
+                # response headers do.
+                request_id = stream.request_id
+        else:
+            response = self._client.messages.create(
+                model=self.model,
+                max_tokens=self._max_tokens,
+                messages=messages,  # type: ignore[arg-type]
+                **self._request_params,
+            )
+            request_id = getattr(response, "_request_id", None)
         # A safety classifier can decline with HTTP 200 and an empty `content`;
         # indexing blindly would raise here instead of being counted as the
         # fallback it is.
@@ -236,6 +346,9 @@ class AnthropicProvider:
             stop_reason=response.stop_reason,
             cache_read_input_tokens=cache_read,
             cache_creation_input_tokens=cache_creation,
+            stop_details=_stop_details(response),
+            request_id=request_id,
+            content=tuple(response.content),
         )
         self.usage.add(reply)
         return reply
