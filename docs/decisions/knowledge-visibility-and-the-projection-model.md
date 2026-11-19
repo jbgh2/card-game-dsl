@@ -138,6 +138,13 @@ identity > identity_set > count_by_type > count_only > existence_only > trivial
 
 Each step down "forgets" some structure of the full contents.
 
+The engine builds three of these levels, `identity`, `count_only` and
+`trivial`, which are the ones the library zone types declare
+(`ProjectionLevel` in `cardlang/stdlib/zones.py`). The other three,
+`identity_set`, `count_by_type` and `existence_only`, are part of the model
+and are unbuilt: no zone type can declare one. Each arrives with the game
+that declares it and the probe that measures it (issue #1138).
+
 **Identity for resources** means "this zone holds N units of wood
 and M units of brick" — for a fungible Resource, the identity-level
 view is the count-by-type level. There is no per-unit identity
