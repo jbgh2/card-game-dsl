@@ -10,6 +10,16 @@ corpus-first as games require new aliases.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal, get_args
+
+# The levels of decisions.md's projection lattice ("Projections: what
+# visibility controls") the engine builds, least informative first: a level
+# reveals everything every level before it reveals. The lattice's other three
+# levels are the model, unbuilt here; one arrives with the game that declares
+# it and the probe that measures it (issue #1138).
+ProjectionLevel = Literal["trivial", "count_only", "identity"]
+
+PROJECTION_LEVELS: tuple[ProjectionLevel, ...] = get_args(ProjectionLevel)
 
 # zone type name -> whether it takes a single owner/role type argument
 LIBRARY_ZONE_TYPES: dict[str, bool] = {
@@ -42,13 +52,12 @@ class ZoneVisibility:
     zone's index names (the owning player, or a member of the owning team);
     `others` to everyone else. Unowned zones use the same projection for both."""
 
-    owner: str
-    others: str
+    owner: ProjectionLevel
+    others: ProjectionLevel
 
 
 # library type name -> per-observer composition, from library.md "Library zone
-# types". The corpus exercises identity / count_only / trivial; the remaining
-# lattice levels gain emission rules when a game first uses them.
+# types".
 ZONE_PROJECTIONS: dict[str, ZoneVisibility] = {
     "Deck": ZoneVisibility("count_only", "count_only"),
     "Hand": ZoneVisibility("identity", "count_only"),
@@ -69,7 +78,7 @@ ZONE_PROJECTIONS: dict[str, ZoneVisibility] = {
 }
 
 
-def zone_projection(zone_type: str, is_owner: bool) -> str:
+def zone_projection(zone_type: str, is_owner: bool) -> ProjectionLevel:
     """The projection an observer gets of a zone of this library type. Raises
     KeyError for an unknown type — a zone with no declared visibility cannot be
     projected, and silently guessing would leak information."""
@@ -89,30 +98,16 @@ def identity_to_all(zone_type: str) -> bool:
     return vis.owner == "identity" and vis.others == "identity"
 
 
-# decisions.md's projection lattice ("Projections: what visibility controls"),
-# least informative first: a level reveals everything every level before it
-# reveals. The domain `ZONE_PROJECTIONS` draws its values from.
-PROJECTION_LEVELS: tuple[str, ...] = (
-    "trivial",
-    "existence_only",
-    "count_only",
-    "count_by_type",
-    "identity_set",
-    "identity",
-)
-
 # What an expression needs to learn from a zone it reads: whether it is empty
 # (`is empty`), how many cards it holds (`number of cards in`), which cards it
 # holds (every other content read, membership included), and the order they
 # sit in (`top_of`, `bottom_of`, `suit_of` over a zone).
 READ_NEEDS: tuple[str, ...] = ("existence", "count", "identity", "order")
 
-# The least level that reveals each need but order. Membership is judged at
-# `identity` rather than `identity_set`: no zone type projects `identity_set`,
-# so the one level that could show membership without multiplicity is never
-# the one a zone declares.
-_NEED_LEVEL: dict[str, str] = {
-    "existence": "existence_only",
+# The least built level that reveals each need but order: emptiness is shown
+# by a count, and membership by identity.
+_NEED_LEVEL: dict[str, ProjectionLevel] = {
+    "existence": "count_only",
     "count": "count_only",
     "identity": "identity",
 }

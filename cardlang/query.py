@@ -73,7 +73,7 @@ from cardlang.runtime.delegation import CHOOSER_HELPER, HELPER_NAMES, ROUTED_FOR
 from cardlang.runtime.mechanics import ClimbForm, TrickForm
 from cardlang.runtime.observe import PICK_SHOWN, held, movement_seen
 from cardlang.runtime.values import content_noun
-from cardlang.stdlib.zones import zone_projection
+from cardlang.stdlib.zones import ProjectionLevel, zone_projection
 from cardlang.typecheck import type_name, typecheck
 from cardlang.types import TAny, Type
 
@@ -229,8 +229,8 @@ class Observer:
     who: str
     holds_source: bool | None
     holds_destination: bool | None
-    source: str | None
-    destination: str | None
+    source: ProjectionLevel | None
+    destination: ProjectionLevel | None
     learns: bool | None
 
 
@@ -497,12 +497,9 @@ def _typed(checked: Checked, node: object) -> Typed | None:
 # What a projection shows, by its level, of the game's content (`{items}`:
 # "cards", or "pieces"); one row per level of `PROJECTION_LEVELS`
 # (tests/test_query.py pins the two together).
-PROJECTION_WORDS: dict[str, str] = {
+PROJECTION_WORDS: dict[ProjectionLevel, str] = {
     "trivial": "nothing",
-    "existence_only": "whether any {items}",
     "count_only": "how many {items}",
-    "count_by_type": "how many {items} of each kind",
-    "identity_set": "which {items}, not how many of each",
     "identity": "which {items}",
 }
 

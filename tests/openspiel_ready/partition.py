@@ -29,7 +29,7 @@ from cardlang.openspiel.infostate import information_state
 from cardlang.runtime.observe import EVENT_KINDS, MovementEvent, ObservationEvent
 from cardlang.runtime.state import RuntimeState, Zone
 from cardlang.runtime.values import Card
-from cardlang.stdlib.zones import ZONE_PROJECTIONS, zone_projection
+from cardlang.stdlib.zones import ZONE_PROJECTIONS, ProjectionLevel, zone_projection
 
 # A card no deck contains — safe to add to any zone as a perturbation.
 SYNTHETIC = Card("‡", "synthetic")
@@ -171,7 +171,7 @@ def _is_owner(rs: RuntimeState, name: str, key: int | str | None, observer: int)
 
 def projection_for(
     rs: RuntimeState, name: str, key: int | str | None, observer: int
-) -> str:
+) -> ProjectionLevel:
     return zone_projection(rs.zones.zone_type[name], _is_owner(rs, name, key, observer))
 
 
@@ -230,8 +230,8 @@ def _probe(
 # declaration in the same change (fail-loud: an unprobed projection would
 # otherwise pass the matrix vacuously, the silent failure mode this module
 # exists to kill). test_every_declared_projection_has_a_probe_set pins the
-# table against cardlang.stdlib.zones.ZONE_PROJECTIONS statically.
-ZONE_PROBES: dict[str, dict[str, bool]] = {
+# table against cardlang.stdlib.zones.PROJECTION_LEVELS statically.
+ZONE_PROBES: dict[ProjectionLevel, dict[str, bool]] = {
     "identity": {"count": True, "content": True},
     "count_only": {"count": True, "content": False},
     "trivial": {"count": False, "content": False},
