@@ -59,6 +59,7 @@ from cardlang.runtime.chance import (
     is_chance_free,
 )
 from cardlang.runtime.errors import ShadowGuardError
+from cardlang.runtime.observe import ObservationEvent, ObservationLog, logs_of
 from cardlang.runtime.chooser import sequential_decisions
 from cardlang.runtime.driver import EndedBy, GameResult, ScoredBy, play_game
 from cardlang.runtime.state import ChooserAbort, RuntimeState
@@ -97,7 +98,7 @@ class DecisionNode:
     player: int
     legal: list[int]  # global action ids, sorted ascending
     rs: RuntimeState  # the live world at the decision
-    obs_logs: dict[int, list[tuple[Any, ...]]]  # per-player observation logs
+    obs_logs: Mapping[int, ObservationLog]  # each seat's Observation Log at the decision
 
 
 @dataclass
@@ -359,21 +360,19 @@ class LiveLine:
 
     def play(self, policies: Mapping[int, SeatPolicy]) -> LiveEnd:
         game, space = load(self.path)
-        logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.count)}
         world: list[RuntimeState] = []
         views: dict[int, SeatView] = {}
 
-        def observe(player: int, event: tuple[Any, ...]) -> None:
-            logs[player].append(event)
-
         def ask(decider: int, legal: list[int]) -> int:
-            return policies[decider](derive(decider, world[0], logs[decider]), legal)
+            return policies[decider](derive(decider, world[0], logs_of(world[0])[decider]), legal)
 
         def trace(event: str, _data: Any) -> None:
             # `play_game` emits `game_end` before it pops the game's own frame;
             # a view taken after it returns would hold no state variable.
             if event == "game_end" and world:
-                views.update({seat: derive(seat, world[0], log) for seat, log in logs.items()})
+                views.update(
+                    {seat: derive(seat, world[0], log) for seat, log in logs_of(world[0]).items()}
+                )
 
         # The chooser appends each live pick to this line's own history as the
         # pick is made, so a policy reading the line mid-run sees every pick
@@ -385,8 +384,8 @@ class LiveLine:
             generator_for(self.path, self.seed),
             trace,
             chooser=chooser,
-            observer=observe,
             on_first_decision=world.append,
+            observed=True,
         )
         if chooser.cursor < len(chooser.history):
             raise HistoryMismatch(
@@ -402,7 +401,7 @@ class Seen:
     the event."""
 
     player: int
-    event: tuple[Any, ...]
+    event: ObservationEvent
 
 
 @dataclass(frozen=True)
@@ -446,15 +445,6 @@ def run(
     given, is asked for each pick past the history instead of pausing there,
     and pauses the run itself by raising `ChooserAbort`."""
     game, space = load(path_str)
-    logs: dict[int, list[tuple[Any, ...]]] = {
-        p: [] for p in range(game.players.count)
-    }
-
-    def observe(player: int, event: tuple[Any, ...]) -> None:
-        logs[player].append(event)
-        if listen is not None:
-            listen(Seen(player, event))
-
     world: list[RuntimeState] = []
 
     def first_decision(rs: RuntimeState) -> None:
@@ -467,7 +457,7 @@ def run(
         history,
         beyond=beyond,
         picks=picks,
-        view=lambda seat: derive(seat, world[0], logs[seat]),
+        view=lambda seat: derive(seat, world[0], logs_of(world[0])[seat]),
         on_pick=None if listen is None else (lambda i, seat: listen(Picked(i, seat))),
     )
     try:
@@ -481,12 +471,15 @@ def run(
                 construct,
             ),
             chooser=chooser,
-            observer=observe,
+            observer=None if listen is None else (lambda seat, event: listen(Seen(seat, event))),
             on_first_decision=first_decision if picks is not None else on_first_decision,
+            observed=True,
         )
     except ChooserAbort as abort:
         assert abort.rs is not None
-        return DecisionNode(abort.player, list(cast("list[int]", abort.legal)), abort.rs, logs)
+        return DecisionNode(
+            abort.player, list(cast("list[int]", abort.legal)), abort.rs, logs_of(abort.rs)
+        )
     if chooser.cursor < len(history):
         raise HistoryMismatch(
             f"the game ended after {chooser.cursor} of the {len(history)} "

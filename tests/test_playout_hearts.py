@@ -15,6 +15,7 @@ from typing import Any
 from cardlang.ast import nodes as n
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AnnounceEvent, ObservationEvent
 
 HEARTS = Path(__file__).parent.parent / "docs" / "games" / "hearts.cardlang"
 
@@ -73,11 +74,16 @@ def test_a_moon_scores_the_way_its_shooter_chose() -> None:
             elif event == "hand_end":
                 hand_ends.append((len(tricks), dict(data)))  # noqa: B023
 
-        def observer(seat: int, event: tuple[Any, ...]) -> None:
+        def observer(seat: int, event: ObservationEvent) -> None:
             # The announcement every seat sees, read once: a scoring choice is
             # public, which is the channel `cardlang demo` prints from.
-            if seat == 0 and event[0] == "announce" and event[2] in arm_names:  # noqa: B023
-                chosen.append((len(tricks), event[1], event[2]))  # noqa: B023
+            if (
+                seat == 0
+                and isinstance(event, AnnounceEvent)
+                and isinstance(event.value, str)
+                and event.value in arm_names  # noqa: B023
+            ):
+                chosen.append((len(tricks), event.seat, event.value))  # noqa: B023
 
         play_game(game, random.Random(seed), tracer, observer=observer)
 

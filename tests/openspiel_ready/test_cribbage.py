@@ -22,6 +22,7 @@ swap the imminent public starter.
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import ChoseEvent, MovementEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -74,20 +75,20 @@ def test_discard_and_pegging_derive_observations() -> None:
     # the dealer too), plus the two per-pick "chose" events in P0's log only.
     own_log = r.obs_logs[0]
     own_discard = next(
-        e for e in own_log if e[0] == "move" and e[1] == "hand[0]" and e[3] == "crib"
+        e for e in own_log if isinstance(e, MovementEvent) and e.source == "hand[0]" and e.destination == "crib"
     )
-    assert isinstance(own_discard[2], tuple) and len(own_discard[2]) == 2
-    assert own_discard[4] == 2
-    assert len([e for e in own_log if e[0] == "chose"]) == 2
+    assert isinstance(own_discard.source_view, tuple) and len(own_discard.source_view) == 2
+    assert own_discard.destination_view == 2
+    assert len([e for e in own_log if isinstance(e, ChoseEvent)]) == 2
 
     # P1's view of the same event: count-only on BOTH sides, no "chose"
     # leakage (P1 hasn't acted yet, so their log has none at all).
     opp_log = r.obs_logs[1]
     opp_view = next(
-        e for e in opp_log if e[0] == "move" and e[1] == "hand[0]" and e[3] == "crib"
+        e for e in opp_log if isinstance(e, MovementEvent) and e.source == "hand[0]" and e.destination == "crib"
     )
-    assert opp_view[2] == 2 and opp_view[4] == 2
-    assert not any(e[0] == "chose" for e in opp_log)
+    assert opp_view.source_view == 2 and opp_view.destination_view == 2
+    assert not any(isinstance(e, ChoseEvent) for e in opp_log)
 
     # Player 1's two discard picks.
     for _ in range(2):
@@ -100,9 +101,9 @@ def test_discard_and_pegging_derive_observations() -> None:
     # The starter cut: identity to all (a genuinely public reveal).
     for log in r.obs_logs.values():
         starter_cut = next(
-            e for e in log if e[0] == "move" and e[1] == "deck" and e[3] == "starter"
+            e for e in log if isinstance(e, MovementEvent) and e.source == "deck" and e.destination == "starter"
         )
-        assert isinstance(starter_cut[4], tuple) and len(starter_cut[4]) == 1
+        assert isinstance(starter_cut.destination_view, tuple) and len(starter_cut.destination_view) == 1
 
     # Player 0's first pegging play.
     history.append(r.legal[0])
@@ -113,17 +114,17 @@ def test_discard_and_pegging_derive_observations() -> None:
     # The non-actor (P1) sees the play count-only on the source, identity on
     # the public play_pile destination — WHAT was led, never what remains.
     non_actor_play = next(
-        e for e in r2.obs_logs[1] if e[0] == "move" and e[1] == "hand[0]" and e[3] == "play_pile"
+        e for e in r2.obs_logs[1] if isinstance(e, MovementEvent) and e.source == "hand[0]" and e.destination == "play_pile"
     )
-    assert non_actor_play[2] == 1
-    assert isinstance(non_actor_play[4], tuple) and len(non_actor_play[4]) == 1
+    assert non_actor_play.source_view == 1
+    assert isinstance(non_actor_play.destination_view, tuple) and len(non_actor_play.destination_view) == 1
 
     # The actor (P0) sees identity on both sides of their own play.
     actor_play = next(
-        e for e in r2.obs_logs[0] if e[0] == "move" and e[1] == "hand[0]" and e[3] == "play_pile"
+        e for e in r2.obs_logs[0] if isinstance(e, MovementEvent) and e.source == "hand[0]" and e.destination == "play_pile"
     )
-    assert isinstance(actor_play[2], tuple) and len(actor_play[2]) == 1
-    assert actor_play[2] == actor_play[4]
+    assert isinstance(actor_play.source_view, tuple) and len(actor_play.source_view) == 1
+    assert actor_play.source_view == actor_play.destination_view
 
     # Belt-and-braces: P1's rendered info state shows P0's hand and the crib
     # as bare counts, never identity; P0's own hand renders as identity.

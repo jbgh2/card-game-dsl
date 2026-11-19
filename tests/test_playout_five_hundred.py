@@ -94,6 +94,7 @@ from typing import Any
 from cardlang.pipeline import check_source
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AnnounceEvent, MovementEvent, ObservationEvent
 from cardlang.runtime.values import Card, Player
 
 FIVE_HUNDRED = Path(__file__).parent.parent / "docs" / "games" / "five-hundred.cardlang"
@@ -228,15 +229,15 @@ class _Table:
         assert self.hands, "a table event arrived before any hand was dealt"
         return self.hands[-1]
 
-    def observe(self, player: Player, event: tuple[Any, ...]) -> None:
+    def observe(self, player: Player, event: ObservationEvent) -> None:
         # Observer 0's stream only: the trick pile and the capture piles
         # project identity to every observer and an announcement is heard by
         # every seat, so seat 0 sees exactly what every other seat does.
         if player != 0:
             return
-        if event[0] == "announce":
-            self._announced(Player(int(event[1])), str(event[2]))
-        elif event[0] == "move":
+        if isinstance(event, AnnounceEvent):
+            self._announced(Player(event.seat), str(event.value))
+        elif isinstance(event, MovementEvent):
             self._moved(event)
 
     def _announced(self, who: Player, said: str) -> None:
@@ -254,8 +255,9 @@ class _Table:
         # no-trump strain, which the announcement renders with no argument.
         hand.trump = said[len(_SUBMIT) : -1] if said.startswith(_SUBMIT) else None
 
-    def _moved(self, event: tuple[Any, ...]) -> None:
-        _, src, _src_view, dst, dst_view = event
+    def _moved(self, event: MovementEvent) -> None:
+        src, _src_view = event.source, event.source_view
+        dst, dst_view = event.destination, event.destination_view
         src, dst = str(src), str(dst)
         if src == "deck" and dst == "kitty":
             # Three kitty deals per hand, and the only ones: the first of each
@@ -265,11 +267,13 @@ class _Table:
                 self._pending.clear()
             self._kitty_deals += 1
         elif dst == "trick_pile" and src.startswith(("hand[", "exposed[")):
+            assert isinstance(dst_view, tuple)
             (card_str,) = dst_view  # one card per play
             play = (Player(int(src[src.index("[") + 1 : -1])), _parse(card_str))
             self._hand.plays.append(play)
             self._pending.append(play)
         elif src == "trick_pile" and dst.startswith("captured["):
+            assert isinstance(_src_view, tuple)
             self._hand.tricks.append(
                 (int(dst[len("captured[") : -1]), tuple(str(c) for c in _src_view))
             )

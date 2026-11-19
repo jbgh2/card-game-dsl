@@ -233,6 +233,13 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
         "neither reachable from a .cardlang file."),
     ),
     # --- deliberate signals, caught by type ----------------------------------
+    ("cardlang/runtime/observe.py", "IndexError"): (
+        1,
+        ("`ObservationLog.__getitem__` refusing a position past the snapshot. "
+        "It is the `Sequence` protocol's own signal: iteration, `in` and "
+        "`index` stop on it, and the Author is the reader that indexed past a "
+        "seat's log, never a game description."),
+    ),
     ("cardlang/runtime/state.py", "KeyError"): (
         2,
         ("_frame_of's miss is a SIGNAL: the `state` accessor in runtime/reads.py "

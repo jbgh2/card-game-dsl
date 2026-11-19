@@ -20,10 +20,13 @@ one-card count for bystanders.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, run
+from cardlang.runtime.observe import ChoseEvent, MovementEvent, ObservationEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -36,12 +39,12 @@ class TestReadiness(ReadinessProofs):
     )
 
 
-def _hand_to_hand(log: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
+def _hand_to_hand(log: Sequence[ObservationEvent]) -> list[MovementEvent]:
     """The exchange transfers: the only hand->hand movements in the game."""
     return [
         e
         for e in log
-        if e[0] == "move" and e[1].startswith("hand[") and e[3].startswith("hand[")
+        if isinstance(e, MovementEvent) and e.source.startswith("hand[") and e.destination.startswith("hand[")
     ]
 
 
@@ -72,8 +75,8 @@ def test_exchange_derives_private_observations() -> None:
     # The give's public shape: exactly one hand->hand transfer so far, from
     # the Scum's hand to the President's, one card.
     (give,) = _hand_to_hand(r.obs_logs[0])
-    scum = int(give[1].removeprefix("hand[").removesuffix("]"))
-    president = int(give[3].removeprefix("hand[").removesuffix("]"))
+    scum = int(give.source.removeprefix("hand[").removesuffix("]"))
+    president = int(give.destination.removeprefix("hand[").removesuffix("]"))
     assert scum != president
 
     # The pause is the President's return decision (the give itself was
@@ -84,13 +87,13 @@ def test_exchange_derives_private_observations() -> None:
     for q in range(5):
         (e,) = _hand_to_hand(r.obs_logs[q])
         if q == scum:
-            assert isinstance(e[2], tuple) and len(e[2]) == 1, "the giver sees their card"
-            assert e[4] == 1
+            assert isinstance(e.source_view, tuple) and len(e.source_view) == 1, "the giver sees their card"
+            assert e.destination_view == 1
         elif q == president:
-            assert e[2] == 1
-            assert isinstance(e[4], tuple) and len(e[4]) == 1, "the receiver sees the card"
+            assert e.source_view == 1
+            assert isinstance(e.destination_view, tuple) and len(e.destination_view) == 1, "the receiver sees the card"
         else:
-            assert e[2] == 1 and e[4] == 1, f"bystander P{q} saw the give's identity"
+            assert e.source_view == 1 and e.destination_view == 1, f"bystander P{q} saw the give's identity"
 
     # Step the President's return: the reverse transfer projects the same
     # way, and the President's own log gains the chooser draw.
@@ -99,15 +102,15 @@ def test_exchange_derives_private_observations() -> None:
     assert isinstance(nxt, DecisionNode)
     r = nxt
     for q in range(5):
-        back = [e for e in _hand_to_hand(r.obs_logs[q]) if e[1] == f"hand[{president}]"]
+        back = [e for e in _hand_to_hand(r.obs_logs[q]) if e.source == f"hand[{president}]"]
         (e,) = back
         if q == president:
-            assert isinstance(e[2], tuple) and len(e[2]) == 1
+            assert isinstance(e.source_view, tuple) and len(e.source_view) == 1
         elif q == scum:
-            assert isinstance(e[4], tuple) and len(e[4]) == 1
+            assert isinstance(e.destination_view, tuple) and len(e.destination_view) == 1
         else:
-            assert e[2] == 1 and e[4] == 1, f"bystander P{q} saw the return's identity"
-    assert any(e[0] == "chose" for e in r.obs_logs[president]), (
+            assert e.source_view == 1 and e.destination_view == 1, f"bystander P{q} saw the return's identity"
+    assert any(isinstance(e, ChoseEvent) for e in r.obs_logs[president]), (
         "the return must be the President's own recorded decision"
     )
 

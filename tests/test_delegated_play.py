@@ -49,6 +49,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.runtime.delegation import DECISION_POINTS, HELPER_NAMES
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.observe import ChoseEvent, MovementEvent, ObservationEvent
 
 CARDLANG = pathlib.Path(__file__).resolve().parent.parent / "cardlang"
 
@@ -249,7 +250,7 @@ def test_the_delegated_seats_winning_card_crowns_the_delegated_seat() -> None:
         ),
         after_deal="    for each player p: move all cards from hand[p] to exposed[p]",
     )
-    logs: list[tuple[Any, ...]] = []
+    logs: list[ObservationEvent] = []
     play_game(
         game,
         random.Random(0),
@@ -264,12 +265,12 @@ def test_the_delegated_seats_winning_card_crowns_the_delegated_seat() -> None:
     plays: list[tuple[int, str]] = []  # (attributed seat, card) in play order
     checked = 0
     for event in logs:
-        if event[0] != "move":
+        if not isinstance(event, MovementEvent):
             continue
-        src, dst = str(event[1]), str(event[3])
+        src, dst = event.source, event.destination
         if dst == "trick_pile" and src.startswith("exposed["):
             seat = int(src[len("exposed[") : -1])
-            cards = event[2]
+            cards = event.source_view
             assert isinstance(cards, tuple) and len(cards) == 1
             plays.append((seat, cards[0]))
         elif src == "trick_pile" and dst.startswith("captured["):
@@ -298,7 +299,7 @@ def test_chose_event_lands_in_the_deciders_log() -> None:
         after_deal="    for each player p: move all cards from hand[p] to exposed[p]",
         source="exposed",
     )
-    logs: dict[Any, list[tuple[Any, ...]]] = {0: [], 1: []}
+    logs: dict[Any, list[ObservationEvent]] = {0: [], 1: []}
     rec = _Recording()
     play_game(
         game,
@@ -306,7 +307,7 @@ def test_chose_event_lands_in_the_deciders_log() -> None:
         chooser=rec,
         observer=lambda p, e: logs[p].append(e),
     )
-    chose = {p: [e for e in logs[p] if e[0] == "chose"] for p in logs}
+    chose = {p: [e for e in logs[p] if isinstance(e, ChoseEvent)] for p in logs}
     assert chose[0] and not chose[1], (
         f"chose events: seat0={len(chose[0])} seat1={len(chose[1])} — every "
         f"round draw is boss's (seat 0's) decision, so every chose event is "

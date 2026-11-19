@@ -28,6 +28,7 @@ import pytest
 
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import EndedBy, play_game
+from cardlang.runtime.observe import AnnounceEvent, AskedEvent, ChoseEvent, ObservationEvent
 
 PINOCHLE = (
     Path(__file__).parent.parent / "docs" / "games" / "pinochle.cardlang"
@@ -162,9 +163,9 @@ def _capture_contracts(game: Any, chooser: Any) -> list[dict[str, Any]]:
     the game ends; what these tests assert is the FIRST contract, which is
     settled long before the bound is anywhere near. Every refusal propagates.
     """
-    seen: list[tuple[int, tuple[Any, ...]]] = []
+    seen: list[tuple[int, ObservationEvent]] = []
 
-    def observer(player: int, event: tuple[Any, ...]) -> None:
+    def observer(player: int, event: ObservationEvent) -> None:
         seen.append((player, event))
 
     result = play_game(game, random.Random(0), chooser=chooser, observer=observer)
@@ -184,28 +185,32 @@ def _capture_contracts(game: Any, chooser: Any) -> list[dict[str, Any]]:
             )
 
     for player, event in seen:
-        kind = event[0]
-        if kind == "asked":
-            if event[1] == "auction":
+        if isinstance(event, AskedEvent):
+            if event.phase == "auction":
                 if not in_auction:
                     in_auction, asked, last_bid = True, set(), None
                 asked.add(player)
             elif in_auction:
                 close()
                 in_auction = False
-        elif in_auction and kind == "announce" and event[2] == "submit_bid":
-            last_bid = (int(event[1]), None)
+        elif in_auction and isinstance(event, AnnounceEvent) and event.value == "submit_bid":
+            last_bid = (event.seat, None)
         elif (
-            kind == "announce"
-            and str(event[2]).startswith("declare_trump_suit")
+            isinstance(event, AnnounceEvent)
+            and str(event.value).startswith("declare_trump_suit")
             and contracts
             and contracts[-1]["trump_namer"] is None
         ):
-            contracts[-1]["trump_namer"] = int(event[1])
-        elif in_auction and kind == "chose" and last_bid is not None and last_bid[1] is None:
-            if player == last_bid[0] and isinstance(event[1], int):
+            contracts[-1]["trump_namer"] = event.seat
+        elif (
+            in_auction
+            and isinstance(event, ChoseEvent)
+            and last_bid is not None
+            and last_bid[1] is None
+        ):
+            if player == last_bid[0] and isinstance(event.value, int):
                 # The number is chosen in tens, the ladder's own unit.
-                last_bid = (last_bid[0], event[1] * 10)
+                last_bid = (last_bid[0], event.value * 10)
     # An auction still open when the game reached its bound was cut short
     # there, and settles no contract.
     if in_auction and result.ended_by is EndedBy.RULES:

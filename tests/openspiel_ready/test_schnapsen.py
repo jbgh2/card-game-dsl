@@ -13,6 +13,7 @@ the deck itself is empty at every pause.
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import AnnounceEvent, MovementEvent
 from cardlang.runtime.values import Card
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
@@ -61,15 +62,15 @@ def test_lead_actions_derive_hidden_observations() -> None:
     # The deal: each player sees their own five cards, the other's as counts,
     # and the turned trump indicator at identity (it is face up on the table).
     for p, log in r.obs_logs.items():
-        own = [e for e in log if e[0] == "move" and e[3] == f"hand[{p}]"]
-        assert own and all(isinstance(e[4], tuple) for e in own)
-        other = [e for e in log if e[0] == "move" and e[3] == f"hand[{1 - p}]"]
-        assert other and all(isinstance(e[4], int) for e in other)
-        indicator = next(e for e in log if e[0] == "move" and e[3] == "trump_indicator")
-        assert isinstance(indicator[4], tuple) and len(indicator[4]) == 1
+        own = [e for e in log if isinstance(e, MovementEvent) and e.destination == f"hand[{p}]"]
+        assert own and all(isinstance(e.destination_view, tuple) for e in own)
+        other = [e for e in log if isinstance(e, MovementEvent) and e.destination == f"hand[{1 - p}]"]
+        assert other and all(isinstance(e.destination_view, int) for e in other)
+        indicator = next(e for e in log if isinstance(e, MovementEvent) and e.destination == "trump_indicator")
+        assert isinstance(indicator.destination_view, tuple) and len(indicator.destination_view) == 1
         # The stock: nine cards into the talon, a count to everyone.
-        talon = next(e for e in log if e[0] == "move" and e[3] == "talon")
-        assert talon[4] == 9
+        talon = next(e for e in log if isinstance(e, MovementEvent) and e.destination == "talon")
+        assert talon.destination_view == 9
 
     turned = r.rs.zones.single("trump_indicator").cards[0]
 
@@ -80,19 +81,19 @@ def test_lead_actions_derive_hidden_observations() -> None:
     assert exchange_aid not in r.legal, "the jack is in the indicator now"
     assert marriage_aid in r.legal, "the marriage is untouched by the exchange"
     for p, log in r.obs_logs.items():
-        assert ("announce", leader, "exchange_trump_jack") in log
+        assert AnnounceEvent(leader, "exchange_trump_jack") in log
         # The turned card leaves the indicator at identity (everyone knows
         # which card the leader took)...
-        out = next(e for e in log if e[0] == "move" and e[1] == "trump_indicator")
-        assert out[2] == (str(turned),)
+        out = next(e for e in log if isinstance(e, MovementEvent) and e.source == "trump_indicator")
+        assert out.source_view == (str(turned),)
         # ...and the jack arrives face up at identity (the deal's turn-up is
         # also a dst=trump_indicator event, hence the src filter).
         into = next(
             e
             for e in log
-            if e[0] == "move" and e[1] == f"hand[{leader}]" and e[3] == "trump_indicator"
+            if isinstance(e, MovementEvent) and e.source == f"hand[{leader}]" and e.destination == "trump_indicator"
         )
-        assert isinstance(into[4], tuple) and into[4][0].startswith("J")
+        assert isinstance(into.destination_view, tuple) and into.destination_view[0].startswith("J")
 
     # Declare the hearts marriage: a public announcement; the queen leads at
     # identity; the king is never revealed.
@@ -101,11 +102,11 @@ def test_lead_actions_derive_hidden_observations() -> None:
     assert r.player == opp, "the marriage leads its queen, ending the leader round"
 
     for p, log in r.obs_logs.items():
-        assert ("announce", leader, "declare_marriage(hearts)") in log
-        queen = next(e for e in log if e[0] == "move" and e[3] == "trick_pile")
-        assert queen[4] == (str(Card("Q", "hearts")),)
+        assert AnnounceEvent(leader, "declare_marriage(hearts)") in log
+        queen = next(e for e in log if isinstance(e, MovementEvent) and e.destination == "trick_pile")
+        assert queen.destination_view == (str(Card("Q", "hearts")),)
     assert not any(
-        str(Card("K", "hearts")) in str(e) for e in r.obs_logs[opp]
+        str(Card("K", "hearts")) in str(e.spelled()) for e in r.obs_logs[opp]
     ), "the marriage revealed the king; only the suit is public"
 
     # The follower answers (greedy lowest card id), the trick resolves, and
@@ -118,17 +119,17 @@ def test_lead_actions_derive_hidden_observations() -> None:
         draw_seen = next(
             e
             for e in other_log
-            if e[0] == "move" and e[1] == "talon" and e[3] == f"hand[{drawer}]"
+            if isinstance(e, MovementEvent) and e.source == "talon" and e.destination == f"hand[{drawer}]"
         )
-        assert draw_seen[2] == 1 and draw_seen[4] == 1, (
+        assert draw_seen.source_view == 1 and draw_seen.destination_view == 1, (
             f"P{1 - drawer} saw more than a count of P{drawer}'s talon draw"
         )
         own_draw = next(
             e
             for e in r2.obs_logs[drawer]
-            if e[0] == "move" and e[1] == "talon" and e[3] == f"hand[{drawer}]"
+            if isinstance(e, MovementEvent) and e.source == "talon" and e.destination == f"hand[{drawer}]"
         )
-        assert isinstance(own_draw[4], tuple) and len(own_draw[4]) == 1
+        assert isinstance(own_draw.destination_view, tuple) and len(own_draw.destination_view) == 1
 
     # Belt-and-braces: the opponent's rendered info state shows the leader's
     # hand and the talon as bare counts, never identity.

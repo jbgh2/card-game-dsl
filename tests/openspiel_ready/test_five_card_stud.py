@@ -50,11 +50,12 @@ for every observer, and a folder's mucking count-only.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypeGuard
 
 import pytest
 
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs, _advance, manifest
 
@@ -140,18 +141,18 @@ def test_the_conformance_proof_plays_to_the_terminal_state() -> None:
     )
 
 
-def _is_reveal_event(e: tuple[Any, ...]) -> bool:
+def _is_reveal_event(e: ObservationEvent) -> TypeGuard[MovementEvent]:
     """A showdown reveal (the `hole[p] -> upcards[p]` movement in the game's
     showdown block) as any NON-owner sees it: `hole[p]` is a `Hand`, so the
     source collapses to a count, while `upcards[p]` is a `PublicHand` and stays
     identity for every observer. One card moves, which is the whole of a
     Five-Card Stud hole."""
     return bool(
-        e[0] == "move"
-        and isinstance(e[1], str) and e[1].startswith("hole[")
-        and isinstance(e[2], int)
-        and isinstance(e[3], str) and e[3].startswith("upcards[")
-        and isinstance(e[4], tuple) and len(e[4]) == 1
+        isinstance(e, MovementEvent)
+        and e.source.startswith("hole[")
+        and isinstance(e.source_view, int)
+        and e.destination.startswith("upcards[")
+        and isinstance(e.destination_view, tuple) and len(e.destination_view) == 1
     )
 
 
@@ -176,7 +177,7 @@ def test_showdown_reveals_contenders_holes_and_leaks_no_folded_one() -> None:
     r = run(path, seed, ())
     assert isinstance(r, DecisionNode)
     folded_player: int | None = None
-    reveal: dict[int, tuple[Any, ...]] = {}
+    reveal: dict[int, MovementEvent] = {}
     for _ in range(40):
         names = [space.to_string(a) for a in r.legal]
         if folded_player is None and "fold" in names:
@@ -191,7 +192,7 @@ def test_showdown_reveals_contenders_holes_and_leaks_no_folded_one() -> None:
         for log in r.obs_logs.values():
             for e in log:
                 if _is_reveal_event(e):
-                    reveal[int(e[3][len("upcards["):-1])] = e
+                    reveal[int(e.destination[len("upcards["):-1])] = e
         if reveal:
             break
     else:
@@ -209,11 +210,13 @@ def test_showdown_reveals_contenders_holes_and_leaks_no_folded_one() -> None:
         matches = [
             e
             for e in folded_log
-            if _is_reveal_event(e) and e[1] == f"hole[{p}]" and e[3] == f"upcards[{p}]"
+            if _is_reveal_event(e) and e.source == f"hole[{p}]" and e.destination == f"upcards[{p}]"
         ]
         assert matches, f"P{folded_player} never observed contender {p}'s reveal"
-        assert matches[0][2] == 1
-        assert len(matches[0][4]) == 1 and isinstance(matches[0][4][0], str)
+        assert matches[0].source_view == 1
+        shown = matches[0].destination_view
+        assert isinstance(shown, tuple)
+        assert len(shown) == 1 and isinstance(shown[0], str)
 
     # The converse: the folded entrant's own hole card is never revealed. Its
     # hole -> muck movement must stay count-only in every OTHER player's log.
@@ -222,10 +225,10 @@ def test_showdown_reveals_contenders_holes_and_leaks_no_folded_one() -> None:
         if q == folded_player:
             continue
         for e in log:
-            if e[0] == "move" and e[1] == f"hole[{folded_player}]" and e[3] == "muck":
+            if isinstance(e, MovementEvent) and e.source == f"hole[{folded_player}]" and e.destination == "muck":
                 saw_fold_muck = True
-                assert isinstance(e[2], int), (
+                assert isinstance(e.source_view, int), (
                     f"P{q} saw the folded entrant's hole card leak into the muck"
                 )
-                assert e[4] is None
+                assert e.destination_view is None
     assert saw_fold_muck, "the folded entrant's hole card was never observed mucking"

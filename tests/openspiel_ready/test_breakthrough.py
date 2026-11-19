@@ -91,12 +91,15 @@ Honest caveats
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from typing import Any
 
 import pytest
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 
 from .harness import ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _advance
 from .partition import (
@@ -241,14 +244,14 @@ class TestReadiness(ReadinessProofs):
                 a.cards[0], b.cards[0] = b.cards[0], a.cards[0]
 
 
-def _board_moves(log: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
+def _board_moves(log: Sequence[ObservationEvent]) -> list[MovementEvent]:
     """The board-directed ``move`` events in an observation log — a man landing
     on a square (setup placements and steps) or being taken into a captured
     pile — in game order."""
     return [
         e
         for e in log
-        if e[0] == "move" and str(e[3]).startswith(("square[", "captured["))
+        if isinstance(e, MovementEvent) and str(e.destination).startswith(("square[", "captured["))
     ]
 
 
@@ -266,14 +269,14 @@ def test_moves_and_captures_are_public_identity_events() -> None:
     """
     _, pause = _advance(PATH, 5, DEPTH)
     assert isinstance(pause, DecisionNode)
-    boards: dict[int, list[tuple[Any, ...]]] = {}
+    boards: dict[int, list[MovementEvent]] = {}
     for p in range(len(pause.obs_logs)):
         moves = _board_moves(pause.obs_logs[p])
         assert moves, f"P{p} logged no board-directed events"
-        takes = [e for e in moves if str(e[3]).startswith("captured[")]
+        takes = [e for e in moves if str(e.destination).startswith("captured[")]
         assert takes, f"P{p} logged no capture events — the capture claim is vacuous here"
         for e in moves:
-            src_view, dst_view = e[2], e[4]
+            src_view, dst_view = e.source_view, e.destination_view
             assert isinstance(dst_view, tuple) and dst_view and all(
                 isinstance(c, str) for c in dst_view
             ), f"event {e!r}: destination is not a full-identity view"
@@ -291,6 +294,6 @@ def test_moves_and_captures_are_public_identity_events() -> None:
         "cardlang_breakthrough",
         "movements",
         events=len(boards[0]),
-        captures=len([e for e in boards[0] if str(e[3]).startswith("captured[")]),
+        captures=len([e for e in boards[0] if str(e.destination).startswith("captured[")]),
         common_knowledge=True,
     )

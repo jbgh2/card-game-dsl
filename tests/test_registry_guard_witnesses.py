@@ -617,6 +617,14 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # (tests/test_asked_event.py): drop the refusal and a zero, a flag or a
     # float reaches the ask.
     "runtime/chooser.py": ["not PAYLOAD_SHAPES['count'](n)"],
+    # Every Observation Event's constructor asking the payload table whether
+    # each field holds a value its shape admits: a registry entry consulted as
+    # a predicate, the same shape as the choke point above, so widening a
+    # shape widens the guard and there is no row to go stale. Its reddening
+    # mutation is executed in the `test_a_field_outside_its_shape_is_refused`
+    # cells (tests/test_observation_payloads.py): delete the check and every
+    # one of them reddens.
+    "runtime/observe.py": ["not PAYLOAD_SHAPES[shape](value)"],
     # `runtime/reads.py`'s shape, one module over: it reconciles two registries
     # against each other rather than pinning one against a literal, so there is
     # no collection to widen and no witness of this module's shape. What it

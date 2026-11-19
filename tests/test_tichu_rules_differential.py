@@ -86,6 +86,7 @@ import pytest
 from cardlang.ast import nodes as n
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.tichu_combinations import Play
 from cardlang.runtime.values import Card, Player, build_deck
@@ -464,11 +465,10 @@ class Referee:
 
     # -- the observer: tricks taken, and the tailender's hand -------------------
 
-    def observer(self, player: Player, event: tuple[Any, ...]) -> None:
-        if player != 0 or event[0] != "move":
+    def observer(self, player: Player, event: ObservationEvent) -> None:
+        if player != 0 or not isinstance(event, MovementEvent):
             return
-        _, src, _, dst, _ = event
-        source, target = str(src), str(dst)
+        source, target = event.source, event.destination
         if (
             target == "deck"
             and not self.hand_over

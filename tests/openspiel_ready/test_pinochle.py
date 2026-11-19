@@ -3,6 +3,7 @@ confirmation of the declaration's and opening lead's observation shapes."""
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import AnnounceEvent, MovementEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs, greedy_pick
 
@@ -72,7 +73,7 @@ def test_declaration_and_lead_derive_observations() -> None:
     # The declaration is a public announcement: every player's log hears it
     # (state variables are public — `trump_suit` is no exception).
     for p, log in r.obs_logs.items():
-        assert ("announce", declarer, declared) in log, (
+        assert AnnounceEvent(declarer, declared) in log, (
             f"P{p} never observed the trump declaration"
         )
 
@@ -106,21 +107,21 @@ def test_declaration_and_lead_derive_observations() -> None:
     plays = [
         e
         for e in r2.obs_logs[non_owner]
-        if e[0] == "move" and e[1] == f"hand[{declarer}]" and e[3] == "trick_pile"
+        if isinstance(e, MovementEvent) and e.source == f"hand[{declarer}]" and e.destination == "trick_pile"
     ]
     assert plays, f"P{non_owner} never observed P{declarer}'s card leaving their hand"
     event = plays[0]
-    assert isinstance(event[2], int), "a non-owner must see the source hand count-only"
-    assert event[3] == "trick_pile"
-    assert isinstance(event[4], tuple) and len(event[4]) == 1
+    assert isinstance(event.source_view, int), "a non-owner must see the source hand count-only"
+    assert event.destination == "trick_pile"
+    assert isinstance(event.destination_view, tuple) and len(event.destination_view) == 1
 
     # The converse: the owner's own log shows identity leaving their own hand.
     own_plays = [
         e
         for e in r2.obs_logs[declarer]
-        if e[0] == "move" and e[1] == f"hand[{declarer}]" and e[3] == "trick_pile"
+        if isinstance(e, MovementEvent) and e.source == f"hand[{declarer}]" and e.destination == "trick_pile"
     ]
-    assert own_plays and isinstance(own_plays[0][2], tuple), (
+    assert own_plays and isinstance(own_plays[0].source_view, tuple), (
         f"P{declarer} should see their own card's identity leaving their hand"
     )
 
@@ -179,7 +180,7 @@ def test_the_exchange_is_in_both_partners_information_sets() -> None:
 
     src, dst = f"hand[{passer}]", f"hand[{declarer}]"
     seen = {
-        q: [e for e in log if e[0] == "move" and e[1] == src and e[3] == dst]
+        q: [e for e in log if isinstance(e, MovementEvent) and e.source == src and e.destination == dst]
         for q, log in r.obs_logs.items()
     }
     for q, events in seen.items():
@@ -187,11 +188,12 @@ def test_the_exchange_is_in_both_partners_information_sets() -> None:
 
     # The passer names what left; the declarer names what arrived; each sees
     # the other end as a bare count.
-    assert isinstance(seen[passer][0][2], tuple) and len(seen[passer][0][2]) == 4
-    assert seen[passer][0][4] == 4
-    assert isinstance(seen[declarer][0][4], tuple) and len(seen[declarer][0][4]) == 4
-    assert seen[declarer][0][2] == 4
-    assert set(seen[passer][0][2]) == set(seen[declarer][0][4]), (
+    passed, received = seen[passer][0], seen[declarer][0]
+    assert isinstance(passed.source_view, tuple) and len(passed.source_view) == 4
+    assert passed.destination_view == 4
+    assert isinstance(received.destination_view, tuple) and len(received.destination_view) == 4
+    assert received.source_view == 4
+    assert set(passed.source_view) == set(received.destination_view), (
         "the cards the partner passed are not the ones the declarer received"
     )
 
@@ -203,6 +205,6 @@ def test_the_exchange_is_in_both_partners_information_sets() -> None:
     for q in seen:
         if q in (passer, declarer):
             continue
-        assert seen[q][0][2] == 4 and seen[q][0][4] == 4, (
+        assert seen[q][0].source_view == 4 and seen[q][0].destination_view == 4, (
             f"P{q} sees an identity in an exchange between the other two seats"
         )

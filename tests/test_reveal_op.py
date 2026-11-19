@@ -18,6 +18,7 @@ from cardlang.openspiel.infostate import information_state
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.execute import execute
+from cardlang.runtime.observe import ObservationEvent, ObservationLogs, RevealEvent
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
 
@@ -96,7 +97,7 @@ def test_reveal_without_a_where_clause_parses_with_no_filter() -> None:
 
 def _setup(
     hand0_cards: list[Card], src: str = SRC
-) -> tuple[Ctx, dict[int, list[tuple[Any, ...]]], n.EpistemicOp]:
+) -> tuple[Ctx, dict[int, list[ObservationEvent]], n.EpistemicOp]:
     game = check_dsl(src, "mini.cardlang")
     stmt = _reveal_stmt(game)
     players = (0, 1)
@@ -105,12 +106,9 @@ def _setup(
     if src == SRC_STATE_FILTER:
         rs.push_frame()
         rs.declare("claim", False, "Q")
-    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in players}
-    ctx = Ctx(
-        rs=rs,
-        chooser=lambda p, c, k: list(c[:k]),
-        observer=lambda pl, ev: logs[pl].append(ev),
-    )
+    logs: dict[int, list[ObservationEvent]] = {p: [] for p in players}
+    rs.observations = ObservationLogs(players, lambda pl, ev: logs[pl].append(ev))
+    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
     return ctx, logs, stmt
 
 
@@ -118,7 +116,7 @@ def test_reveal_emits_to_every_player_and_leaves_the_card_in_place() -> None:
     ctx, logs, stmt = _setup([KING_CLUBS, QUEEN_SPADES])
     execute(stmt, ctx)
 
-    expected = ("reveal", "hand[0]", "Q♠")
+    expected = RevealEvent("hand[0]", "Q♠")
     for player in (0, 1):
         assert expected in logs[player], f"player {player} did not observe the reveal"
     # The revealed card is untouched — a reveal is not a movement.
@@ -126,7 +124,7 @@ def test_reveal_emits_to_every_player_and_leaves_the_card_in_place() -> None:
     # Player 1 owns no stake in hand[0] (Hand<player> normally shows non-owners
     # only a count through the movement projection); reveal bypasses that
     # projection entirely and gives every player the identity.
-    assert logs[1] == [("reveal", "hand[0]", "Q♠")]
+    assert logs[1] == [RevealEvent("hand[0]", "Q♠")]
 
 
 def test_reveal_reaches_the_derived_information_state() -> None:
@@ -155,7 +153,7 @@ def test_reveal_without_a_filter_takes_the_first_card_and_leaves_the_zone_alone(
     ctx, logs, stmt = _setup([KING_CLUBS, QUEEN_SPADES], src=SRC_NO_FILTER)
     execute(stmt, ctx)
 
-    expected = ("reveal", "hand[0]", "K♣")  # every card eligible: the first in the zone
+    expected = RevealEvent("hand[0]", "K♣")  # every card eligible: the first in the zone
     for player in (0, 1):
         assert expected in logs[player]
     assert ctx.rs.zones.instance("hand", 0).cards == [KING_CLUBS, QUEEN_SPADES]
@@ -171,7 +169,7 @@ def test_reveal_filter_can_reference_state() -> None:
     ctx, logs, stmt = _setup([KING_CLUBS, QUEEN_SPADES], src=SRC_STATE_FILTER)
     execute(stmt, ctx)
 
-    expected = ("reveal", "hand[0]", "Q♠")
+    expected = RevealEvent("hand[0]", "Q♠")
     for player in (0, 1):
         assert expected in logs[player]
 

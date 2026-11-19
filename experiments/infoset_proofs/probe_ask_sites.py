@@ -25,6 +25,7 @@ from typing import Any
 from cardlang.ast import nodes as n
 from cardlang.openspiel.registry import GAMES
 from cardlang.openspiel.replay import run
+from cardlang.runtime.observe import AskedEvent, ObservationEvent
 from cardlang.runtime.state import Ctx
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -50,11 +51,11 @@ def _site() -> Site | None:
     return None
 
 
-def _observe(self: Ctx, player: int, event: tuple[Any, ...]) -> None:
-    if event and event[0] == "asked":
+def _observe(self: Ctx, player: int, event: ObservationEvent) -> None:
+    if isinstance(event, AskedEvent):
         site = _site()
         if site is not None:
-            seen[event[1:]].add(site)
+            seen[event.spelled()[1:]].add(site)
     _original(self, player, event)
 
 

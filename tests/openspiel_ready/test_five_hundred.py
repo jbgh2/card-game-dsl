@@ -57,10 +57,13 @@ surface here.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import AnnounceEvent, MovementEvent, ObservationEvent
 from cardlang.runtime.values import Card
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
@@ -193,11 +196,15 @@ def test_open_misere_reveal_reaches_every_observer_and_only_then() -> None:
     for q in range(4):
         ev = next(
             e for e in r.obs_logs[q]
-            if e[0] == "move" and e[1] == f"hand[{declarer}]" and e[3] == f"exposed[{declarer}]"
+            if isinstance(e, MovementEvent)
+            and e.source == f"hand[{declarer}]"
+            and e.destination == f"exposed[{declarer}]"
         )
         # (move, src, src_payload, dst, dst_payload): the PublicHand side
         # carries identities to EVERY observer.
-        assert isinstance(ev[4], tuple) and len(ev[4]) == 9, f"P{q} saw only counts of the reveal"
+        assert isinstance(ev.destination_view, tuple) and len(ev.destination_view) == 9, (
+            f"P{q} saw only counts of the reveal"
+        )
         info = information_state(q, r.rs, r.obs_logs[q])
         assert f"exposed[{declarer}]=[" in info and f"exposed[{declarer}]=#" not in info
         for card in exposed:
@@ -208,8 +215,8 @@ def test_open_misere_reveal_reaches_every_observer_and_only_then() -> None:
         assert expect in info
 
     # The sat-out partner took no part: no play ever left his hand.
-    plays = [e for e in r.obs_logs[1] if e[0] == "move" and e[3] == "trick_pile"]
-    assert plays and all(e[1] != f"hand[{partner}]" for e in plays)
+    plays = [e for e in r.obs_logs[1] if isinstance(e, MovementEvent) and e.destination == "trick_pile"]
+    assert plays and all(e.source != f"hand[{partner}]" for e in plays)
 
 
 def test_plain_misere_never_exposes_the_declarer() -> None:
@@ -248,7 +255,9 @@ def test_plain_misere_never_exposes_the_declarer() -> None:
         assert f"exposed[{declarer}]=[]" in info
     # No movement into any exposed zone ever happened.
     assert not any(
-        e[0] == "move" and "exposed" in str(e[3]) for log in r.obs_logs.values() for e in log
+        isinstance(e, MovementEvent) and "exposed" in e.destination
+        for log in r.obs_logs.values()
+        for e in log
     )
 
 
@@ -285,7 +294,7 @@ _NOMINATE = "nominate_joker_suit("
 _SUBMIT = "submit_bid("
 
 
-def _contract_from_log(log: list[tuple[Any, ...]]) -> tuple[str | None, str | None]:
+def _contract_from_log(log: Sequence[ObservationEvent]) -> tuple[str | None, str | None]:
     """(trump_suit, joker_suit) as a seat at the table would write them down
     from what it HEARD: a hand begins at the first of its three kitty deals,
     the standing contract is the last bid announced in it, and the nomination
@@ -295,12 +304,12 @@ def _contract_from_log(log: list[tuple[Any, ...]]) -> tuple[str | None, str | No
     joker: str | None = None
     kitty = 0
     for e in log:
-        if e[0] == "move" and str(e[1]) == "deck" and str(e[3]) == "kitty":
+        if isinstance(e, MovementEvent) and e.source == "deck" and e.destination == "kitty":
             if kitty % 3 == 0:
                 trump, joker = None, None
             kitty += 1
-        elif e[0] == "announce":
-            said = str(e[2])
+        elif isinstance(e, AnnounceEvent):
+            said = str(e.value)
             if said in _NOT_A_BID:
                 continue
             if said.startswith(_NOMINATE):

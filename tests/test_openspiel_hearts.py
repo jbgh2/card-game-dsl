@@ -24,6 +24,7 @@ pyspiel = pytest.importorskip("pyspiel")
 import cardlang.openspiel.game  # noqa: F401  (importing it registers every game in `openspiel.registry.GAMES`)
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, run
+from cardlang.runtime.observe import ChoseEvent
 
 HEARTS = str(Path(__file__).resolve().parent.parent / "docs" / "games" / "hearts.cardlang")
 
@@ -84,7 +85,7 @@ def test_infostate_hides_other_players_pass_mid_simultaneous_pass() -> None:
         assert str(card) not in info_p2
     # And p2 must have received zero "chose" events during the pass beyond
     # their own single selection ("chose" is actor-only by construction).
-    assert sum(1 for e in r.obs_logs[p2] if e[0] == "chose") == 1
+    assert sum(1 for e in r.obs_logs[p2] if isinstance(e, ChoseEvent)) == 1
 
 
 def test_perfect_recall_no_duplicate_infostates_in_a_game() -> None:

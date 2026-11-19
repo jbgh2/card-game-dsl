@@ -12,9 +12,9 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:        under `cardlang/`, a zone gains a card only through
                  `Zone.add_all`, called by `execute.deposit` and by the
-                 driver's deck seeding alone; a `move` event is handed to
-                 `Ctx.observe` only in `observe.movement`, called by
-                 `execute.deposit` alone; no
+                 driver's deck seeding alone; a `MovementEvent` is constructed
+                 only in `observe.movement`, called by `execute.deposit`
+                 alone; no
                  code outside `Zone` writes a zone's cards or Arrival Record
                  directly.
 domain:          every `.py` file under `cardlang/`, every call and every
@@ -88,27 +88,20 @@ def test_a_zone_gains_a_card_only_through_the_door() -> None:
 
 
 def test_a_movement_is_delivered_only_by_the_door() -> None:
-    """red under: call `observe.movement` from a second site, or hand
-    `Ctx.observe` a `("move", ...)` tuple outside it -- the scrape gains that
-    site."""
+    """red under: call `observe.movement` from a second site, or construct a
+    `MovementEvent` outside it -- the scrape gains that site."""
     assert _calls_attr("movement") == {"execute.deposit"}, (
         "a movement is delivered from the site that writes the destination "
         "(`execute.deposit`), so it cannot be delivered for a write that did "
         "not happen or missed for one that did"
     )
-    def delivers_a_move(c: ast.Call) -> bool:
-        event = c.args[1] if len(c.args) > 1 else None
-        return (
-            isinstance(c.func, ast.Attribute)
-            and c.func.attr == "observe"
-            and isinstance(event, ast.Tuple)
-            and bool(event.elts)
-            and isinstance(event.elts[0], ast.Constant)
-            and event.elts[0].value == "move"
+    def builds_a_move(c: ast.Call) -> bool:
+        return (isinstance(c.func, ast.Name) and c.func.id == "MovementEvent") or (
+            isinstance(c.func, ast.Attribute) and c.func.attr == "MovementEvent"
         )
 
-    assert _sites(ast.Call, delivers_a_move) == {"observe.movement"}, (
-        "a `move` event is delivered from one place, `observe.movement`"
+    assert _sites(ast.Call, builds_a_move) == {"observe.movement"}, (
+        "a `move` event is made in one place, `observe.movement`"
     )
 
 

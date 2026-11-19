@@ -46,10 +46,12 @@ it's meant to probe — is documented in
 (Go Fish)").
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, run
+from cardlang.runtime.observe import AnnounceEvent, MovementEvent, ObservationEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -80,22 +82,22 @@ def test_public_ask_derives_asker_holds_rank() -> None:
         nxt = run(path, 5, tuple(history))
         assert isinstance(nxt, DecisionNode), "greedy line ended before any ask"
         r = nxt
-        if any(e[0] == "announce" and str(e[2]).startswith("ask(") for e in r.obs_logs[0]):
+        if any(isinstance(e, AnnounceEvent) and str(e.value).startswith("ask(") for e in r.obs_logs[0]):
             break
 
-    def asks(log: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
-        return [e for e in log if e[0] == "announce" and str(e[2]).startswith("ask(")]
+    def asks(log: Sequence[ObservationEvent]) -> list[AnnounceEvent]:
+        return [e for e in log if isinstance(e, AnnounceEvent) and str(e.value).startswith("ask(")]
 
     assert asks(r.obs_logs[0]), "no ask was announced on the greedy line"
     first = asks(r.obs_logs[0])[0]
-    rendered = str(first[2])              # e.g. "ask(1,6)"
+    rendered = str(first.value)              # e.g. "ask(1,6)"
 
     # The ask is public: identical announce in every player's log.
     for q in range(4):
         assert first in asks(r.obs_logs[q]), f"P{q} did not observe the public ask"
 
     # And it reaches a bystander's derived information state verbatim.
-    asker = int(first[1])
+    asker = first.seat
     watcher = next(q for q in range(4) if q != asker)
     info = information_state(watcher, r.rs, r.obs_logs[watcher])
     assert rendered in info, "the public ask is absent from a bystander's info state"
@@ -121,26 +123,26 @@ def test_public_ask_hit_transfer_is_a_public_count_not_identity() -> None:
         assert isinstance(nxt, DecisionNode), "greedy line ended before any hit transfer"
         r = nxt
         if any(
-            e[0] == "move" and str(e[1]).startswith("hand[") and str(e[3]).startswith("hand[")
+            isinstance(e, MovementEvent) and e.source.startswith("hand[") and e.destination.startswith("hand[")
             for e in r.obs_logs[0]
         ):
             break
 
-    def hand_moves(log: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
+    def hand_moves(log: Sequence[ObservationEvent]) -> list[MovementEvent]:
         return [
             e for e in log
-            if e[0] == "move" and str(e[1]).startswith("hand[") and str(e[3]).startswith("hand[")
+            if isinstance(e, MovementEvent) and e.source.startswith("hand[") and e.destination.startswith("hand[")
         ]
 
     assert hand_moves(r.obs_logs[0]), "no hand-to-hand transfer (hit) occurred on the greedy line"
     first = hand_moves(r.obs_logs[0])[0]
-    target = int(str(first[1]).split("[")[1].rstrip("]"))
-    asker = int(str(first[3]).split("[")[1].rstrip("]"))
+    target = int(first.source.split("[")[1].rstrip("]"))
+    asker = int(first.destination.split("[")[1].rstrip("]"))
     assert asker != target
 
     # Ground truth for how many cards actually transferred: the asker's own
     # log shows the received cards' identities (they own the destination side).
-    identity = hand_moves(r.obs_logs[asker])[0][4]
+    identity = hand_moves(r.obs_logs[asker])[0].destination_view
     assert isinstance(identity, tuple) and len(identity) >= 1, (
         "the asker did not see the identity of the cards they received"
     )
@@ -150,14 +152,14 @@ def test_public_ask_hit_transfer_is_a_public_count_not_identity() -> None:
     # sides of the move — and it reaches their derived information state too.
     for bystander in (q for q in range(4) if q not in (asker, target)):
         seen = hand_moves(r.obs_logs[bystander])[0]
-        assert seen[1] == first[1] and seen[3] == first[3]
-        assert isinstance(seen[2], int) and seen[2] == n_transferred, (
+        assert seen.source == first.source and seen.destination == first.destination
+        assert isinstance(seen.source_view, int) and seen.source_view == n_transferred, (
             f"P{bystander} saw hand[{target}]'s card identities, not a count"
         )
-        assert isinstance(seen[4], int) and seen[4] == n_transferred, (
+        assert isinstance(seen.destination_view, int) and seen.destination_view == n_transferred, (
             f"P{bystander} saw hand[{asker}]'s card identities, not a count"
         )
         info = information_state(bystander, r.rs, r.obs_logs[bystander])
-        assert repr(seen) in info, (
+        assert repr(seen.spelled()) in info, (
             f"P{bystander}'s derived information state omits the public transfer count"
         )

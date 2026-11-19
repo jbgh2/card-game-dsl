@@ -52,6 +52,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.resolve import _walk
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.observe import ObservationEvent
 
 
 def _as_blocks(game: n.Game) -> list[n.AsBlock]:
@@ -250,7 +251,7 @@ def _run_capturing(game: n.Game) -> tuple[list[Any], list[Any]]:
         calls.append((player, list(candidates), k))
         return list(candidates[:k])
 
-    def observer(player: int, event: tuple[Any, ...]) -> None:
+    def observer(player: int, event: ObservationEvent) -> None:
         obs.append((player, event))
 
     play_game(game, random.Random(7), chooser=chooser, observer=observer)

@@ -42,6 +42,7 @@ from typing import Any
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AnnounceEvent, MovementEvent, ObservationEvent
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card, Player
 
@@ -143,19 +144,19 @@ def _recompute(
         if event in ("trick", "hand_end"):
             events.append((event, data))
 
-    def observer(player: int, event: tuple[Any, ...]) -> None:
+    def observer(player: int, event: ObservationEvent) -> None:
         # Seat 0 hears every announcement; the auction's are the ones in
         # its vocabulary (a card play announces a card, never a bid word).
         if player != 0:
             return
-        if event[0] == "announce":
-            text = str(event[2])
+        if isinstance(event, AnnounceEvent):
+            text = str(event.value)
             if text.split("(")[0] in AUCTION_WORDS:
-                events.append(("bid", (int(event[1]), text)))
-        elif event[0] == "move" and str(event[3]).startswith("dummy_hand["):
+                events.append(("bid", (event.seat, text)))
+        elif isinstance(event, MovementEvent) and event.destination.startswith("dummy_hand["):
             # The dummy lays their hand down: the game's own statement of
             # who declares, since dummy is the declarer's partner.
-            laid = re.fullmatch(r"hand\[(\d)\]", str(event[1]))
+            laid = re.fullmatch(r"hand\[(\d)\]", event.source)
             assert laid is not None, event
             events.append(("dummy", int(laid.group(1))))
 

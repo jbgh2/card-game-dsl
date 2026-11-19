@@ -80,11 +80,14 @@ surface here.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import random
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import AnnounceEvent, ChoseEvent, MovementEvent, ObservationEvent, RevealEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs, greedy_pick
 
@@ -146,11 +149,11 @@ def _drive(
     )
 
 
-def _announces(log: list[tuple[Any, ...]], prefixes: tuple[str, ...]) -> list[tuple[Any, ...]]:
+def _announces(log: Sequence[ObservationEvent], prefixes: tuple[str, ...]) -> list[AnnounceEvent]:
     return [
         e
         for e in log
-        if e[0] == "announce" and isinstance(e[2], str) and e[2].startswith(prefixes)
+        if isinstance(e, AnnounceEvent) and isinstance(e.value, str) and e.value.startswith(prefixes)
     ]
 
 
@@ -190,24 +193,24 @@ def test_declaration_line_derives_announced_content_and_showing() -> None:
         (1, "declare_tierce(J)"),
         (0, "declare_tierce(K)"),
     ]
-    polls0 = [(e[1], e[2]) for e in _announces(r.obs_logs[0], poll_names)]
+    polls0 = [(e.seat, e.value) for e in _announces(r.obs_logs[0], poll_names)]
     assert polls0 == expected_polls, (
         f"the pinned seed-11 declaration line changed: {polls0} — re-pin"
     )
     expected_reveals = [
-        ("reveal", "hand[0]", "K♥"),
-        ("reveal", "hand[0]", "Q♥"),
-        ("reveal", "hand[0]", "J♥"),
+        RevealEvent("hand[0]", "K♥"),
+        RevealEvent("hand[0]", "Q♥"),
+        RevealEvent("hand[0]", "J♥"),
     ]
     for q, log in r.obs_logs.items():
         # Announced content: identical in every observer's log.
-        assert [(e[1], e[2]) for e in _announces(log, poll_names)] == expected_polls, (
+        assert [(e.seat, e.value) for e in _announces(log, poll_names)] == expected_polls, (
             f"player {q} heard different announcements"
         )
         # The showing: the entitled declarer's tierce, revealed to everyone,
         # matching the announced kind and height (a natural run to the king
         # in hearts, from hand[0]).
-        assert [e for e in log if e[0] == "reveal"] == expected_reveals, (
+        assert [e for e in log if isinstance(e, RevealEvent)] == expected_reveals, (
             f"player {q} saw different reveals"
         )
         # Nothing more: the losing declarer's (p1) and the silent players'
@@ -222,7 +225,7 @@ def test_declaration_line_derives_announced_content_and_showing() -> None:
             f"player {q} sees more of the losing declarer's hand than a count"
         )
     # ... while their own recall of their own decision is intact.
-    assert any(e[0] == "chose" for e in r.obs_logs[1])
+    assert any(isinstance(e, ChoseEvent) for e in r.obs_logs[1])
 
 
 def test_belote_rebelote_reveals_exactly_the_partner_card() -> None:
@@ -236,24 +239,26 @@ def test_belote_rebelote_reveals_exactly_the_partner_card() -> None:
     r = _drive(
         14,
         stop=lambda log: any(
-            e[0] == "announce" and e[2] == "say_belote" for e in log
+            isinstance(e, AnnounceEvent) and e.value == "say_belote" for e in log
         ),
         cap=60,
     )
     for q, log in r.obs_logs.items():
         idx = next(
             i for i, e in enumerate(log)
-            if e[0] == "announce" and e[2] == "say_belote"
+            if isinstance(e, AnnounceEvent) and e.value == "say_belote"
         )
-        sayer = log[idx][1]
+        said = log[idx]
+        assert isinstance(said, AnnounceEvent)
+        sayer = said.seat
         assert sayer == 3, "the pinned seed-14 belote line changed — re-pin"
         # No reveal from the sayer's hand before the announcement.
         assert not any(
-            e[0] == "reveal" and e[1] == "hand[3]" for e in log[:idx]
+            isinstance(e, RevealEvent) and e.zone == "hand[3]" for e in log[:idx]
         ), f"player {q}: a reveal preceded the announcement"
         # The reveal right after it names the partner royal, in hand.
-        reveal = next(e for e in log[idx:] if e[0] == "reveal")
-        assert reveal == ("reveal", "hand[3]", "Q♣"), (
+        reveal = next(e for e in log[idx:] if isinstance(e, RevealEvent))
+        assert reveal == RevealEvent("hand[3]", "Q♣"), (
             f"player {q}: expected the partner royal, got {reveal}"
         )
         # The played royal reached the public trick before the window: the
@@ -261,11 +266,11 @@ def test_belote_rebelote_reveals_exactly_the_partner_card() -> None:
         played_royals = [
             e
             for e in log[:idx]
-            if e[0] == "move"
-            and e[1] == "hand[3]"
-            and e[3] == "trick_pile"
-            and isinstance(e[4], tuple)
-            and "K♣" in e[4]
+            if isinstance(e, MovementEvent)
+            and e.source == "hand[3]"
+            and e.destination == "trick_pile"
+            and isinstance(e.destination_view, tuple)
+            and "K♣" in e.destination_view
         ]
         assert played_royals, f"player {q} never saw the K♣ played by the sayer"
 
@@ -292,9 +297,9 @@ def test_declined_window_reveals_nothing() -> None:
     assert isinstance(r, DecisionNode)
     for q, log in r.obs_logs.items():
         assert any(
-            e[0] == "announce" and e[2] == "no_belote" for e in log
+            isinstance(e, AnnounceEvent) and e.value == "no_belote" for e in log
         ), f"player {q} did not observe the declined window"
-        assert not any(e[0] == "reveal" for e in log), (
+        assert not any(isinstance(e, RevealEvent) for e in log), (
             f"player {q} saw a reveal on a fully-declined line"
         )
 
@@ -305,7 +310,7 @@ _TAKE_SUIT = "take_suit("
 _SUIT_GLYPH = {"♣": "clubs", "♦": "diamonds", "♥": "hearts", "♠": "spades"}
 
 
-def _trump_from_log(log: list[tuple[Any, ...]]) -> tuple[str | None, str, int]:
+def _trump_from_log(log: Sequence[ObservationEvent]) -> tuple[str | None, str, int]:
     """The made trump as a seat at the table would write it down from what it
     HEARD, which arm named it, and which hand is running. A hand begins at its
     turn-up (`deck -> turnup`, one per hand and the only movement into that
@@ -321,12 +326,13 @@ def _trump_from_log(log: list[tuple[Any, ...]]) -> tuple[str | None, str, int]:
     turnup: str | None = None
     hand = -1
     for e in log:
-        if e[0] == "move" and str(e[1]) == "deck" and str(e[3]) == "turnup":
-            turnup = _SUIT_GLYPH[str(e[4][0])[-1]]
+        if isinstance(e, MovementEvent) and e.source == "deck" and e.destination == "turnup":
+            assert isinstance(e.destination_view, tuple)
+            turnup = _SUIT_GLYPH[str(e.destination_view[0])[-1]]
             trump, arm = None, "none"
             hand += 1
-        elif e[0] == "announce":
-            said = str(e[2])
+        elif isinstance(e, AnnounceEvent):
+            said = str(e.value)
             if said == "take":
                 trump, arm = turnup, "take"
             elif said.startswith(_TAKE_SUIT):
@@ -385,11 +391,11 @@ def _check_line(
     return checked, arms, failures
 
 
-def _turnups(log: list[tuple[Any, ...]]) -> int:
+def _turnups(log: Sequence[ObservationEvent]) -> int:
     return sum(
         1
         for e in log
-        if e[0] == "move" and str(e[1]) == "deck" and str(e[3]) == "turnup"
+        if isinstance(e, MovementEvent) and e.source == "deck" and e.destination == "turnup"
     )
 
 

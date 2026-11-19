@@ -257,6 +257,7 @@ import pytest
 from cardlang.pipeline import check_source
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import RANK_DIR_TO_PICK, play_game
+from cardlang.runtime.observe import ObservationEvent
 from cardlang.runtime.values import Player
 
 GAMES = Path(__file__).parent.parent / "docs" / "games"
@@ -359,10 +360,10 @@ SEEDS: tuple[int, ...] = tuple(range(200))
 def _stream_digest(game_file: str, seed: int, excluded: frozenset[str]) -> str:
     game = check_source(GAMES / game_file)
     rng = random.Random(seed)
-    events: list[tuple[Player, tuple[Any, ...]]] = []
+    events: list[tuple[Player, ObservationEvent]] = []
     traces: list[tuple[str, Any]] = []
 
-    def observer(player: Player, event: tuple[Any, ...]) -> None:
+    def observer(player: Player, event: ObservationEvent) -> None:
         events.append((player, event))
 
     def tracer(name: str, data: Any) -> None:
@@ -379,7 +380,7 @@ def _stream_digest(game_file: str, seed: int, excluded: frozenset[str]) -> str:
     first_best = pick(result.scores, key=result.scores.__getitem__)
     rendering = "\n".join(
         [
-            *(f"{p} {event!r}" for p, event in events),
+            *(f"{p} {event.spelled()!r}" for p, event in events),
             *(f"trace {name} {data!r}" for name, data in traces),
             f"scores {sorted(result.scores.items())!r}",
             f"winner {first_best!r}",

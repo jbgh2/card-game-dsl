@@ -18,6 +18,7 @@ from typing import Any
 
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AnnounceEvent, MovementEvent, ObservationEvent
 
 TAROT = (
     Path(__file__).parent.parent / "docs" / "games" / "french-tarot.cardlang"
@@ -62,13 +63,13 @@ def _capture_contracts(game: Any, want_first_bid: str | None) -> list[dict[str, 
     # against the chooser's own inputs.
     heard: list[tuple[str, int | str, str]] = []
 
-    def observer(player: int, event: tuple[Any, ...]) -> None:
+    def observer(player: int, event: ObservationEvent) -> None:
         if player != 0:
             return
-        if event[0] == "announce":
-            heard.append(("announce", int(event[1]), str(event[2])))
-        elif event[0] == "move" and event[1] == "chien":
-            heard.append(("chien", str(event[3]), ""))
+        if isinstance(event, AnnounceEvent):
+            heard.append(("announce", event.seat, str(event.value)))
+        elif isinstance(event, MovementEvent) and event.source == "chien":
+            heard.append(("chien", event.destination, ""))
 
     play_game(game, random.Random(0), chooser=chooser, observer=observer)
     # Each auction is a run of bid-vocabulary announcements; its contract is

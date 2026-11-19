@@ -269,7 +269,7 @@ def test_seat_remembers_the_public_state_it_was_shown(cell: Cell, tmp_path: Path
     """Every forgetting cell ran red before the State Delta existed. The
     transient cell is the ruling's other half, born green: red under an
     assignment that delivers its value to every seat as it is written
-    (`execute._assign` observing `("was", name, None, str(new))`)."""
+    (`execute._assign` observing `WasEvent(name, None, str(new))`)."""
     path = tmp_path / "recall.cardlang"
     path.write_text(_game(cell))
     high, low = _deals(str(path))

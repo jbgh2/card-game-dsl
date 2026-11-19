@@ -14,11 +14,12 @@ whole-sim budget (`harness.py`, `conformance_steps`). A game runs until
 one player holds all 400 chips.
 """
 
-from typing import Any
+from typing import Any, TypeGuard
 
 import pytest
 
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -32,7 +33,7 @@ class TestReadiness(ReadinessProofs):
     )
 
 
-def _is_reveal_event(e: tuple[Any, ...]) -> bool:
+def _is_reveal_event(e: ObservationEvent) -> TypeGuard[MovementEvent]:
     """A Stud showdown reveal (the park-then-flip `hole[p] -> upcards[p]`
     movement in seven-card-stud.cardlang's showdown block) as any NON-owner
     sees it: `hole[p]` collapses to a count (the owner's own view of the same
@@ -40,11 +41,11 @@ def _is_reveal_event(e: tuple[Any, ...]) -> bool:
     a PublicHand — stays identity for every observer, all seven merged cards
     landing in the clear at once."""
     return bool(
-        e[0] == "move"
-        and isinstance(e[1], str) and e[1].startswith("hole[")
-        and isinstance(e[2], int)
-        and isinstance(e[3], str) and e[3].startswith("upcards[")
-        and isinstance(e[4], tuple) and len(e[4]) == 7
+        isinstance(e, MovementEvent)
+        and e.source.startswith("hole[")
+        and isinstance(e.source_view, int)
+        and e.destination.startswith("upcards[")
+        and isinstance(e.destination_view, tuple) and len(e.destination_view) == 7
     )
 
 
@@ -74,7 +75,7 @@ def test_showdown_reveals_contenders_holes_to_others() -> None:
     r = run(path, seed, ())
     assert isinstance(r, DecisionNode)
     folded_player: int | None = None
-    reveal: dict[int, tuple[Any, ...]] = {}  # contender -> a non-owner's view of their reveal
+    reveal: dict[int, MovementEvent] = {}  # contender -> a non-owner's view of their reveal
     for _ in range(40):
         names = [space.to_string(a) for a in r.legal]
         if folded_player is None and "fold" in names:
@@ -89,7 +90,7 @@ def test_showdown_reveals_contenders_holes_to_others() -> None:
         for log in r.obs_logs.values():
             for e in log:
                 if _is_reveal_event(e):
-                    reveal[int(e[3][len("upcards["):-1])] = e
+                    reveal[int(e.destination[len("upcards["):-1])] = e
         if reveal:
             break
     else:
@@ -107,12 +108,13 @@ def test_showdown_reveals_contenders_holes_to_others() -> None:
     for p in contenders:
         src, dst = f"hole[{p}]", f"upcards[{p}]"
         matches = [
-            e for e in folded_log if _is_reveal_event(e) and e[1] == src and e[3] == dst
+            e for e in folded_log if _is_reveal_event(e) and e.source == src and e.destination == dst
         ]
         assert matches, f"P{folded_player} never observed contender {p}'s reveal"
         event = matches[0]
-        assert event[2] == 7, "the source view must be count-only over all seven cards"
-        assert len(event[4]) == 7 and all(isinstance(c, str) for c in event[4])
+        assert event.source_view == 7, "the source view must be count-only over all seven cards"
+        assert isinstance(event.destination_view, tuple)
+        assert len(event.destination_view) == 7 and all(isinstance(c, str) for c in event.destination_view)
 
     # Converse guard: the folded entrant's own hole cards were never
     # revealed. Their eventual hole -> muck event must stay count-only
@@ -123,10 +125,10 @@ def test_showdown_reveals_contenders_holes_to_others() -> None:
         if q == folded_player:
             continue
         for e in log:
-            if e[0] == "move" and e[1] == f"hole[{folded_player}]" and e[3] == "muck":
+            if isinstance(e, MovementEvent) and e.source == f"hole[{folded_player}]" and e.destination == "muck":
                 saw_fold_muck = True
-                assert isinstance(e[2], int), (
+                assert isinstance(e.source_view, int), (
                     f"P{q} saw the folded entrant's hole-card identity leak into the muck"
                 )
-                assert e[4] is None
+                assert e.destination_view is None
     assert saw_fold_muck, "the folded entrant's hole cards were never observed mucking"

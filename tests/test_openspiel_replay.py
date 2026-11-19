@@ -13,6 +13,7 @@ import pytest
 
 from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, returns_for, run
 from cardlang.runtime.driver import EndedBy, play_game
+from cardlang.runtime.observe import MovementEvent
 from tests.playout_policy import reference_policy_for
 
 GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
@@ -82,7 +83,7 @@ def test_empty_history_pauses_with_encoded_legal_and_logs() -> None:
     assert len(r.legal) == 13 and r.legal == sorted(r.legal)
     assert all(0 <= a < 52 for a in r.legal)
     assert set(r.obs_logs) == {0, 1, 2, 3}
-    assert all(any(e[0] == "move" for e in log) for log in r.obs_logs.values())  # the deal
+    assert all(any(isinstance(e, MovementEvent) for e in log) for log in r.obs_logs.values())  # the deal
 
 
 def test_bigtwo_first_decision_offers_combos() -> None:

@@ -161,7 +161,7 @@ def _known_identities(view: Any, names: frozenset[str]) -> int:
             seen.add(str(value))
 
     for event in view.obs_log:
-        walk(event)
+        walk(event.spelled())
     return len(seen)
 
 
@@ -180,16 +180,17 @@ def _playout(game: Any, seed: int) -> PlayoutFacts:
     from cardlang.openspiel.infostate import derive
     from cardlang.runtime.chooser import random_chooser, sequential_decisions
     from cardlang.runtime.driver import EndedBy, play_game
+    from cardlang.runtime.observe import ObservationEvent
 
     seats = game.players.count
     rng = random.Random(seed)
     play_uniformly = random_chooser(rng)
-    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(seats)}
+    logs: dict[int, list[ObservationEvent]] = {p: [] for p in range(seats)}
     world: list[Any] = []
     names: list[frozenset[str]] = []
     counts = {"choices": 0, "known": 0}
 
-    def observe(player: int, event: tuple[Any, ...]) -> None:
+    def observe(player: int, event: ObservationEvent) -> None:
         logs[player].append(event)
 
     def hold(rs: Any) -> None:

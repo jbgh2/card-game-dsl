@@ -172,7 +172,7 @@ from cardlang.runtime.errors import (
     InstallationError,
     Located,
 )
-from cardlang.runtime.observe import render
+from cardlang.runtime.observe import logs_of, render
 from cardlang.runtime.reads import PrimitiveNameMissing
 from cardlang.runtime.state import IllegalMove, RuntimeState
 from cardlang.runtime.values import Player
@@ -1326,7 +1326,6 @@ def _demo(
         return
 
     drawn = random.randrange(2**31) if seed is None else seed
-    logs: dict[Player, list[tuple[Any, ...]]] = {p: [] for p in range(seats)}
     # What each seat flag prints, keyed by the flag, taken at one position.
     shown: dict[str, str] = {}
     world: list[RuntimeState] = []
@@ -1336,9 +1335,6 @@ def _demo(
     # the cards taken, and the one place `observe.render` can meet a shape no
     # playout hands it — so only a line that will be shown is rendered at all.
     decisions: list[str | None] = []
-
-    def observe(player: Player, event: tuple[Any, ...]) -> None:
-        logs[player].append(event)
 
     def hold(rs: RuntimeState) -> None:
         # `on_first_decision` is the only seam handing a caller the world at
@@ -1351,6 +1347,7 @@ def _demo(
     def show(rs: RuntimeState, deciding: Player | None) -> None:
         # One derivation per seat named, and every rendering reads it, so the
         # string and the text are of one position.
+        logs = logs_of(rs)
         views = {named: derive(named, rs, logs[named]) for named in named_seats}
         if seat is not None:
             shown["--info-state"] = render_information_state(views[seat])
@@ -1407,8 +1404,8 @@ def _demo(
         rng,
         trace,
         chooser=choose,
-        observer=observe,
         on_first_decision=hold,
+        observed=True,
     )
     # The driver's own count, not a second one taken off the list: the two are
     # the same unit and `tests/test_cli_surface.py` pins them equal.

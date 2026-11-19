@@ -427,16 +427,17 @@ mechanism is [design-notes/terminal-play.md](../design-notes/terminal-play.md).
   multiset alone. The order the cards sit in is never shown.
 - **An event's payload is a rendering.** Observation events carry zone labels
   and card renderings, not zones and cards, because the information state
-  spells the log as each event's `repr`. A rendering shows them as the event
+  spells the log by each event's own spelling, its tag followed by its fields.
+  A rendering shows them as the event
   spells them and derives no fact by parsing one (issue #666). It spells them
   so that no two distinct events read alike, since two logs shown as one would
   hide a difference the seat is entitled to.
 - **A rendering is certified fact by fact.** The per-visible-fact matrix runs
   with the rendering as its subject. Every zone the seat sees, every state
   variable and every field of every event must move the rendering, and a hidden
-  zone's content must not. The content probes come from the declared payload
-  table (`observe.EVENT_PAYLOADS`), never from how one rendering spells an
-  event, so one matrix certifies every rendering.
+  zone's content must not. The content probes come from each event kind's
+  declared field shapes (`observe.ObservationEvent`), never from how one
+  rendering spells an event, so one matrix certifies every rendering.
 - **The whole log is rendered.** A seat with perfect recall knows every event,
   so a certified rendering shows all of them. A window onto the most recent
   events is a presentation choice for a session in which the rest stays

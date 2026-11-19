@@ -268,14 +268,15 @@ def test_only_a_public_difference_tells_the_pause_seat_apart() -> None:
     red under: `told_apart` returning `a != b`; the zone and event cells below
     then read as public, and a leak through either is dropped as told."""
     from cardlang.openspiel.infostate import SeatView
+    from cardlang.runtime.observe import AskedEvent, RevealEvent, WasEvent
 
     from .harness import told_apart
 
-    base = SeatView(0, (("hand[1]", 1),), (("high", 0),), (("asked", "p", "choose", 1, None),))
+    base = SeatView(0, (("hand[1]", 1),), (("high", 0),), (AskedEvent("p", "choose", 1, None),))
     by_state = SeatView(0, base.zones, (("high", 1),), base.obs_log)
-    by_delta = SeatView(0, base.zones, base.state, (("was", "high", None, "1"), *base.obs_log))
+    by_delta = SeatView(0, base.zones, base.state, (WasEvent("high", None, "1"), *base.obs_log))
     by_zone = SeatView(0, (("hand[1]", 2),), base.state, base.obs_log)
-    by_event = SeatView(0, base.zones, base.state, (("reveal", "hand[1]", "Q♠"), *base.obs_log))
+    by_event = SeatView(0, base.zones, base.state, (RevealEvent("hand[1]", "Q♠"), *base.obs_log))
     assert not told_apart(base, base)
     assert told_apart(base, by_state)
     assert told_apart(base, by_delta)

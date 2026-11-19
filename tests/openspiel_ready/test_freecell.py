@@ -35,6 +35,7 @@ import pytest
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, run
+from cardlang.runtime.observe import MovementEvent, ObservationEvent
 
 from .harness import manifest, SWAP_SEEDS, ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _swap_fn
 from .partition import first_divergence, projection_for, record, zone_instances
@@ -124,14 +125,17 @@ def test_deal_events_carry_full_identity() -> None:
     deals = [
         e
         for e in r.obs_logs[0]
-        if e[0] == "move" and e[1] == "deck" and str(e[3]).startswith("cascade[")
+        if isinstance(e, MovementEvent) and e.source == "deck" and str(e.destination).startswith("cascade[")
     ]
     assert len(deals) == 8, f"expected eight column deals, got {len(deals)}"
-    dealt = [c for e in deals for c in e[4]]
+    dealt: list[str] = []
+    for e in deals:
+        assert isinstance(e.destination_view, tuple)
+        dealt.extend(e.destination_view)
     assert len(dealt) == 52 and len(set(dealt)) == 52, (
         "the eight deal events must carry all 52 distinct identities"
     )
     for e in deals[:4]:
-        assert len(e[4]) == 7
+        assert isinstance(e.destination_view, tuple) and len(e.destination_view) == 7
     for e in deals[4:]:
-        assert len(e[4]) == 6
+        assert isinstance(e.destination_view, tuple) and len(e.destination_view) == 6

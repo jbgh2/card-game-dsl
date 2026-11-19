@@ -18,14 +18,15 @@ This module must not import pyspiel: the root-level unit tests
 
 from __future__ import annotations
 
+import dataclasses
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from cardlang.domains import zone_observer_key
 from cardlang.openspiel.infostate import information_state
-from cardlang.runtime.observe import EVENT_PAYLOADS, payload_refusal
+from cardlang.runtime.observe import EVENT_KINDS, MovementEvent, ObservationEvent
 from cardlang.runtime.state import RuntimeState, Zone
 from cardlang.runtime.values import Card
 from cardlang.stdlib.zones import ZONE_PROJECTIONS, zone_projection
@@ -117,11 +118,11 @@ def _declared(table: dict[str, Any], shape: str, what: str) -> Any:
 
 class InfoFn(Protocol):
     def __call__(
-        self, player: int, rs: RuntimeState, log: list[tuple[Any, ...]], /
+        self, player: int, rs: RuntimeState, log: list[ObservationEvent], /
     ) -> str: ...
 
 
-def _default_info(player: int, rs: RuntimeState, log: list[tuple[Any, ...]]) -> str:
+def _default_info(player: int, rs: RuntimeState, log: Sequence[ObservationEvent]) -> str:
     return information_state(player, rs, log)
 
 
@@ -239,7 +240,7 @@ ZONE_PROBES: dict[str, dict[str, bool]] = {
 
 def check_visible_facts(
     rs: RuntimeState,
-    obs_log: list[tuple[Any, ...]],
+    seat_log: Sequence[ObservationEvent],
     observer: int,
     info_fn: InfoFn = _default_info,
 ) -> tuple[list[FactFailure], dict[str, int]]:
@@ -247,7 +248,9 @@ def check_visible_facts(
     observer at a paused world — with the perturbations per zone drawn from
     the declared ZONE_PROBES table, never hand-chosen at the call site.
     Mutate -> recompute -> restore; the world is byte-identical afterwards.
-    Returns (failures, counts per category)."""
+    Returns (failures, counts per category). The log is probed as a copy,
+    since a seat's log is frozen."""
+    obs_log = list(seat_log)
     failures: list[FactFailure] = []
     counts = {f"zone_{p}": 0 for p in ZONE_PROBES}
     counts["state_vars"] = 0
@@ -337,20 +340,14 @@ def check_visible_facts(
     # log, keeps every other dimension; MULTIPLICITY, one DELETION per index —
     # removing one copy of a duplicated event must still change the rendering;
     # ORDER, one adjacent SWAP per distinct neighbour pair; and EXTENSION, one
-    # appended event per declared kind. An event the vocabulary does not
-    # declare has no fields to probe, so it is refused before any probe runs.
-    for i, e in enumerate(obs_log):
-        refusal = payload_refusal(e)
-        if refusal is not None:
-            raise AssertionError(
-                f"P{observer}'s observation log, event #{i}: {refusal} — the "
-                f"matrix probes only events the vocabulary declares"
-            )
+    # appended event per declared kind. A perturbed or synthetic event is
+    # built through its kind's constructor, so it is one the vocabulary
+    # admits.
     for i, e in enumerate(obs_log):
         counts["obs_events"] += 1
-        for position, shape in enumerate(EVENT_PAYLOADS[e[0]], start=1):
+        for position, (name, shape) in enumerate(type(e).SHAPES, start=1):
             perturb = _declared(PAYLOAD_PROBES, shape, "probe")
-            obs_log[i] = (*e[:position], perturb(e[position]), *e[position + 1 :])
+            obs_log[i] = dataclasses.replace(e, **{name: perturb(getattr(e, name))})
             after = info_fn(observer, rs, obs_log)
             obs_log[i] = e
             counts["obs_fields"] += 1
@@ -384,10 +381,9 @@ def check_visible_facts(
                 after,
                 failures,
             )
-    for kind, row in sorted(EVENT_PAYLOADS.items()):
-        synthetic = (
-            kind,
-            *(_declared(SYNTHETIC_PAYLOAD, shape, "synthetic member") for shape in row),
+    for kind, cls in sorted(EVENT_KINDS.items()):
+        synthetic = cls(
+            *(_declared(SYNTHETIC_PAYLOAD, shape, "synthetic member") for _name, shape in cls.SHAPES)
         )
         obs_log.append(synthetic)
         after = info_fn(observer, rs, obs_log)
@@ -404,7 +400,7 @@ def check_visible_facts(
 
 
 def derive_arrivals(
-    rs: RuntimeState, obs_log: list[tuple[Any, ...]], zone_label: str
+    rs: RuntimeState, obs_log: Sequence[ObservationEvent], zone_label: str
 ) -> list[tuple[int | None, str]]:
     """The (deciding actor, card) sequence one observer can derive for a
     fully public zone from THEIR OWN observation stream — the soundness half
@@ -441,9 +437,10 @@ def derive_arrivals(
     )
     state: list[tuple[int | None, str]] = []
     for event in obs_log:
-        if event[0] != "move":
+        if not isinstance(event, MovementEvent):
             continue
-        _, src, src_view, dst, dst_view = event
+        src, src_view = event.source, event.source_view
+        dst, dst_view = event.destination, event.destination_view
         if dst == zone_label and isinstance(dst_view, tuple):
             actor: int | None = None
             if isinstance(src, str) and src.endswith("]"):

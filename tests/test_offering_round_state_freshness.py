@@ -8,7 +8,7 @@ that shrink the ring, the seat the ring opens from, the pass that ends the
 Reizen. Those variables are live only while the round runs and are read by
 nothing once it has closed, yet their frame is the phase, so they outlive
 the round many times over, and the
-[[observation-log]] string renders every frame merged with nothing marking
+[[information-state]] renders every frame merged with nothing marking
 which moment a value belongs to. Bookkeeping still holding the value that
 closed the last round therefore reads as a claim about the present at
 every decision between rounds: `quiet=4` at a seat asked to play a card

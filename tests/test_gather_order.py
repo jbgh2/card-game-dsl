@@ -21,10 +21,11 @@ from typing import Any
 from cardlang.ast import nodes as n
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.execute import execute
+from cardlang.runtime.observe import MovementEvent, ObservationEvent, ObservationLogs
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
 
-Event = tuple[Any, ...]
+Event = ObservationEvent
 
 
 def _mini(zones: str) -> tuple[n.Game, n.Transfer]:
@@ -63,11 +64,8 @@ def _gather_events(zones: str, fill: dict[str, list[Card]]) -> tuple[list[Event]
         raise AssertionError("a gather never consults the chooser")
 
     log: list[Event] = []
-    ctx = Ctx(
-        rs=rs,
-        chooser=no_chooser,
-        observer=lambda pl, ev: log.append(ev) if pl == 0 else None,
-    ).acting_as(0)
+    rs.observations = ObservationLogs((0,), lambda pl, ev: log.append(ev) if pl == 0 else None)
+    ctx = Ctx(rs=rs, chooser=no_chooser).acting_as(0)
     execute(stmt, ctx)
     return log, list(rs.zones.single("deck").cards)
 
@@ -86,8 +84,8 @@ def test_gather_processes_zones_in_name_order_not_declaration_order() -> None:
         "zpile : Discard  hand[player] : Hand<player>  apile : Discard  deck : Deck",
         {"zpile": [W1, W2], "hand[0]": [H1], "apile": [C1]},
     )
-    moves = [e for e in events if e[0] == "move"]
-    assert [e[1] for e in moves] == ["apile", "hand[0]", "zpile"]
+    moves = [e for e in events if isinstance(e, MovementEvent)]
+    assert [e.source for e in moves] == ["apile", "hand[0]", "zpile"]
     assert deck == [C1, H1, W1, W2]
 
 

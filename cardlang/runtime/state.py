@@ -27,6 +27,7 @@ from cardlang.runtime.values import Card, Combination, Player, Seating, TeamOf
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from cardlang.builtins.signatures import Sig
+    from cardlang.runtime.observe import ObservationEvent, ObservationLogs
     from cardlang.runtime.primitives import Declared
     from cardlang.runtime.trick_order import TrickOrderTable
     from cardlang.stdlib.boards import BoardEntry
@@ -385,6 +386,9 @@ class RuntimeState:
         self.zones = zones
         self.rng = rng
         self.frames: list[dict[str, Any]] = []
+        # The table's Observation Logs, made by `play_game` when the run is
+        # observed; None for a run no seat's log is kept of.
+        self.observations: ObservationLogs | None = None
         self.indexed: set[str] = set()  # variable names that are per-player
         self.mech_state: list[dict[str, Any]] = []  # active mechanic state (`state.`)
         # The most recently completed round's terminal state, so the surrounding
@@ -629,7 +633,6 @@ class Ctx:
     winner: Player | None = None
     action: Move | None = None
     active_rules: tuple[n.RuleDef, ...] = ()
-    observer: Callable[[Player, tuple[Any, ...]], None] | None = None
     # Delegated Play (decisions.md "Delegated play"): the acting seat's
     # effective trick source — (declared family name, the zone the seat
     # actually plays from) — bound by the trick form for the scope of one
@@ -659,11 +662,18 @@ class Ctx:
         if self.tracer is not None:
             self.tracer(event, data)
 
-    def observe(self, player: Player, event: tuple[Any, ...]) -> None:
-        """Deliver a per-observer observation event (the projection substrate).
-        No observer installed (normal playouts) means no cost and no effect."""
-        if self.observer is not None:
-            self.observer(player, event)
+    @property
+    def observing(self) -> bool:
+        """Whether this run keeps the seats' logs: the one predicate an
+        emitter reads before it builds an event, so an unobserved playout
+        builds none."""
+        return self.rs.observations is not None
+
+    def observe(self, player: Player, event: ObservationEvent) -> None:
+        """Deliver an [[observation-event]] to `player`'s log, the one write a
+        log takes. An unobserved run keeps no log and the event goes nowhere."""
+        if self.rs.observations is not None:
+            self.rs.observations.append(player, event)
 
     def with_local(self, name: str, value: Any) -> Ctx:
         return self.derive(locals={**self.locals, name: value})

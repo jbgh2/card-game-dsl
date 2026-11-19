@@ -44,6 +44,7 @@ import pytest
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, RecordedPick, load, run
+from cardlang.runtime.observe import MovementEvent
 
 from .harness import (
     SWAP_PAIRS_PER_SEED,
@@ -222,18 +223,18 @@ def test_the_flip_is_a_derived_observation_event() -> None:
     flips = [
         (i, e)
         for i, e in enumerate(log)
-        if e[0] == "move"
-        and str(e[1]).startswith("tableau_down[")
-        and str(e[3]).startswith("tableau_up[")
+        if isinstance(e, MovementEvent)
+        and str(e.source).startswith("tableau_down[")
+        and str(e.destination).startswith("tableau_up[")
     ]
     assert len(flips) == 7, f"expected the seven setup flips, got {len(flips)}"
     for i, e in flips:
-        assert e[2] == 1, f"flip source view must be the COUNT 1, got {e[2]!r}"
-        assert isinstance(e[4], tuple) and len(e[4]) == 1, (
-            f"flip destination view must be one card identity, got {e[4]!r}"
+        assert e.source_view == 1, f"flip source view must be the COUNT 1, got {e.source_view!r}"
+        assert isinstance(e.destination_view, tuple) and len(e.destination_view) == 1, (
+            f"flip destination view must be one card identity, got {e.destination_view!r}"
         )
-        card = e[4][0]
-        earlier = ";".join(repr(ev) for ev in log[:i])
+        card = e.destination_view[0]
+        earlier = ";".join(repr(ev.spelled()) for ev in log[:i])
         assert card not in earlier, (
             f"{card} was observable before its flip event"
         )
@@ -256,11 +257,11 @@ def test_stock_draws_reveal_identity_at_the_waste_only() -> None:
     draws = [
         e
         for e in r.obs_logs[0]
-        if e[0] == "move" and e[1] == "deck" and e[3] == "waste"
+        if isinstance(e, MovementEvent) and e.source == "deck" and e.destination == "waste"
     ]
     assert len(draws) == 3
     for e in draws:
-        assert e[2] == 1, "deck side must be a bare count"
-        assert isinstance(e[4], tuple) and len(e[4]) == 1, (
+        assert e.source_view == 1, "deck side must be a bare count"
+        assert isinstance(e.destination_view, tuple) and len(e.destination_view) == 1, (
             "waste side must be the drawn card's identity"
         )

@@ -34,7 +34,8 @@ Assumes: `replay.run` is the definition of what a query at ``(path, seed,
 script, history)`` answers; its ``beyond`` continuation is asked at each pick
 past the history while every phase frame stands.
 Establishes: a node handed out under a fresh `Lease` is the one `replay.run`
-returns for that history, up to identity of the world object; a lease goes
+returns for that history, up to identity of the world object, its seats'
+logs equal as snapshots of the one log the run kept; a lease goes
 stale the moment its run is advanced or closed; at most `POOL_CAP` runs are
 live per OS thread, and `clear` releases every one; a hand-off unanswered
 for `HAND_OFF_BOUND` seconds raises `PausedRunStalled`; a pick the paused
@@ -61,6 +62,7 @@ from typing import Any, Protocol
 from cardlang.openspiel import replay
 from cardlang.runtime.chance import Outcome
 from cardlang.runtime.state import ChooserAbort
+from cardlang.runtime.observe import logs_of
 
 Node = replay.DecisionNode | replay.TerminalNode
 # A line of play: the game file, the shuffle seed and the Draw Script.
@@ -159,16 +161,12 @@ class ThreadedRun:
 
     def start(self) -> Node:
         path, seed, script = self.line
-        game, _ = replay.load(path)
-        logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.count)}
         world: list[Any] = []
 
-        def listen(moment: replay.Moment) -> None:
-            if isinstance(moment, replay.Seen):
-                logs[moment.player].append(moment.event)
-
         def hand_off(decider: int, legal: list[int]) -> int:
-            self._to_caller.put(replay.DecisionNode(decider, list(legal), world[0], logs))
+            self._to_caller.put(
+                replay.DecisionNode(decider, list(legal), world[0], logs_of(world[0]))
+            )
             pick = self._to_run.get()
             if isinstance(pick, _Close):
                 # The pause `replay.run` already knows: the run unwinds as a
@@ -184,7 +182,6 @@ class ThreadedRun:
                     self.history,
                     on_first_decision=world.append,
                     script=script,
-                    listen=listen,
                     beyond=hand_off,
                 )
             except ChooserAbort:

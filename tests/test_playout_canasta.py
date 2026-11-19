@@ -36,6 +36,7 @@ from cardlang.runtime.canasta import (
     red3_bonus_for,
 )
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.observe import AnnounceEvent, ObservationEvent
 
 CANASTA = Path(__file__).parent.parent / "docs" / "games" / "canasta.cardlang"
 
@@ -196,9 +197,9 @@ def test_black_three_go_out_meld_fires() -> None:
     game = check_source(CANASTA)
     announced: list[str] = []
 
-    def obs(p: int, e: tuple[Any, ...]) -> None:
-        if p == 0 and e[0] == "announce" and str(e[2]) == "meld_black3":
-            announced.append(str(e[2]))
+    def obs(p: int, e: ObservationEvent) -> None:
+        if p == 0 and isinstance(e, AnnounceEvent) and str(e.value) == "meld_black3":
+            announced.append(str(e.value))
 
     play_game(game, random.Random(30), observer=obs)
     assert announced, "seed 30 no longer reaches the black-three go-out meld"
@@ -211,9 +212,9 @@ def test_no_stock_decline_ends_the_hand() -> None:
     game = check_source(CANASTA)
     announced: list[str] = []
 
-    def obs(p: int, e: tuple[Any, ...]) -> None:
-        if p == 0 and e[0] == "announce" and str(e[2]) == "decline_pile":
-            announced.append(str(e[2]))
+    def obs(p: int, e: ObservationEvent) -> None:
+        if p == 0 and isinstance(e, AnnounceEvent) and str(e.value) == "decline_pile":
+            announced.append(str(e.value))
 
     play_game(game, random.Random(19), observer=obs)
     assert announced, "seed 19 no longer reaches the no-stock decline"

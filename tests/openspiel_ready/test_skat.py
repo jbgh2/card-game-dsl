@@ -8,6 +8,7 @@ whole-sim budget (`harness.py`, `conformance_steps`).
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.observe import AnnounceEvent, ChoseEvent, MovementEvent
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -75,41 +76,41 @@ def test_pickup_and_discard_derive_hidden_observations() -> None:
     # The auction and declarations are public: every log heard both passes and
     # each of the declarer's choices.
     for p, log in r.obs_logs.items():
-        assert ("announce", 0, "pass") in log and ("announce", 1, "pass") in log
+        assert AnnounceEvent(0, "pass") in log and AnnounceEvent(1, "pass") in log
         for name in ("play_at_eighteen", "pick_up_skat", "declare_grand"):
-            assert ("announce", declarer, name) in log, f"P{p} missed {name}"
+            assert AnnounceEvent(declarer, name) in log, f"P{p} missed {name}"
 
     # The pickup (skat -> hand[declarer]): identity into the declarer's own
     # hand; the skat side is a count to everyone (FaceDownPile), and a
     # defender sees the hand side as a count too.
     own_pickup = next(
         e for e in r.obs_logs[declarer]
-        if e[0] == "move" and e[1] == "skat" and e[3] == f"hand[{declarer}]"
+        if isinstance(e, MovementEvent) and e.source == "skat" and e.destination == f"hand[{declarer}]"
     )
-    assert own_pickup[2] == 2 and isinstance(own_pickup[4], tuple) and len(own_pickup[4]) == 2
+    assert own_pickup.source_view == 2 and isinstance(own_pickup.destination_view, tuple) and len(own_pickup.destination_view) == 2
     for d in defenders:
         seen = next(
             e for e in r.obs_logs[d]
-            if e[0] == "move" and e[1] == "skat" and e[3] == f"hand[{declarer}]"
+            if isinstance(e, MovementEvent) and e.source == "skat" and e.destination == f"hand[{declarer}]"
         )
-        assert seen[2] == 2 and seen[4] == 2, f"P{d} saw more than counts of the pickup"
+        assert seen.source_view == 2 and seen.destination_view == 2, f"P{d} saw more than counts of the pickup"
 
     # The discard (hand[declarer] -> skat): the declarer sees the two cards
     # leave; a defender sees counts on both sides; the two "chose" picks are
     # the declarer's alone.
     own_discard = next(
         e for e in r.obs_logs[declarer]
-        if e[0] == "move" and e[1] == f"hand[{declarer}]" and e[3] == "skat"
+        if isinstance(e, MovementEvent) and e.source == f"hand[{declarer}]" and e.destination == "skat"
     )
-    assert isinstance(own_discard[2], tuple) and len(own_discard[2]) == 2
-    discarded = set(own_discard[2])
+    assert isinstance(own_discard.source_view, tuple) and len(own_discard.source_view) == 2
+    discarded = set(own_discard.source_view)
     for d in defenders:
         seen = next(
             e for e in r.obs_logs[d]
-            if e[0] == "move" and e[1] == f"hand[{declarer}]" and e[3] == "skat"
+            if isinstance(e, MovementEvent) and e.source == f"hand[{declarer}]" and e.destination == "skat"
         )
-        assert seen[2] == 2 and seen[4] == 2, f"P{d} saw the discard identities"
-        leaked = [e for e in r.obs_logs[d] if e[0] == "chose" and e[1] in discarded]
+        assert seen.source_view == 2 and seen.destination_view == 2, f"P{d} saw the discard identities"
+        leaked = [e for e in r.obs_logs[d] if isinstance(e, ChoseEvent) and e.value in discarded]
         assert not leaked, f"P{d} observed the declarer's discard picks: {leaked}"
 
     # A defender's rendered info state: the declarer's hand and the skat are

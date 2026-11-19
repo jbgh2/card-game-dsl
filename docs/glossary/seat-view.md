@@ -15,7 +15,7 @@ their declared [[projection]]s, the public [[state-variable]]s, and its own
 [[observation-log]] — as a value with no hidden fields.
 
 It is the thing derived. Each way of showing a seat's knowledge is a
-*rendering* of it: the [[observation-log]] string OpenSpiel keys on
+*rendering* of it: the [[information-state]] OpenSpiel keys on
 (`render_information_state`), and the text a person reads
 (`cardlang/play/view.py`, printed by `cardlang demo --view`). Each rendering
 consumes the same value instead of deriving a seat's knowledge again beside the
