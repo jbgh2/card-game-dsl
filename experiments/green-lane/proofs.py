@@ -176,7 +176,7 @@ def check_perfect_recall(path: str) -> int:
     checked = 0
     for _ in range(10):
         history = random_history(path, 0, rng)
-        prev: dict[int, list[ObservationEvent]] = {}
+        prev: dict[int, tuple[ObservationEvent, ...]] = {}
         for cut in range(len(history) + 1):
             r = replay.run(path, 0, tuple(history[:cut]))
             if not isinstance(r, replay.DecisionNode):
@@ -186,7 +186,7 @@ def check_perfect_recall(path: str) -> int:
                     assert log[: len(prev[p])] == prev[p], (
                         f"observation log for P{p} rewrote history at ply {cut}"
                     )
-                prev[p] = list(log)
+                prev[p] = tuple(log)
                 checked += 1
     return checked
 

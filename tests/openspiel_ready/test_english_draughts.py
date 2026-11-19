@@ -63,6 +63,8 @@ Honest caveats
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import random
 from typing import Any
 
@@ -282,7 +284,7 @@ class TestReadiness(ReadinessProofs):
                 rs.set(name, kept)
 
 
-def _board_moves(log: list[ObservationEvent]) -> list[MovementEvent]:
+def _board_moves(log: Sequence[ObservationEvent]) -> list[MovementEvent]:
     """The ``move`` events to or from a square, or into a captured pile --
     setup's placements, steps, captures and both halves of a crowning -- in
     game order."""

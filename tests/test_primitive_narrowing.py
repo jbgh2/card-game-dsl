@@ -443,7 +443,7 @@ def test_ctx_surface_is_derived_not_empty() -> None:
     surface = _ctx_surface()
     # The fields this grid was authored against; a NEW one is not an error
     # (the axis is derived) but losing one silently would shrink the domain.
-    for expected in ("rs", "chooser", "tracer", "locals", "observer", "acting_as"):
+    for expected in ("rs", "chooser", "tracer", "locals", "observe", "acting_as"):
         assert expected in surface, (
             f"Ctx no longer exposes {expected!r} — if it moved, the handle "
             f"axis must follow it; if it is gone, drop it from this pin"

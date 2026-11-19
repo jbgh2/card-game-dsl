@@ -183,7 +183,7 @@ def decide(
 
     admit()
     state_delta(ctx)
-    if ctx.observer is not None:
+    if ctx.observing:
         ctx.observe(decider, AskedEvent(ctx.current_phase.name, word, n, destination))
     recorded: list[Any] = []
 
@@ -194,7 +194,7 @@ def decide(
         # `sequential_decisions` has admitted the pick before asking it.
         admit()
         rendered = render(pick)
-        if ctx.observer is not None:
+        if ctx.observing:
             ctx.observe(decider, ChoseEvent(rendered))
         recorded.append(pick)
         rs.decisions_made += 1

@@ -12,7 +12,8 @@ property:        at every step of a walk through the pyspiel API — clones held
                  and returned to, so a run is consumed under a state that still
                  points at it — the seat to move, the legal actions, every
                  seat's information state and the terminal returns equal
-                 `replay.run`'s over the same `(seed, script, history)`; a node
+                 `replay.run`'s over the same `(seed, script, history)`, and so
+                 does every seat's Observation Log, compared as snapshots; a node
                  whose run has moved on is never read; the live Paused Runs
                  never exceed the cap and every one is released when the pool
                  is cleared; a hand-off that stalls past its bound raises; a
@@ -97,6 +98,9 @@ def _agree(state: Any, where: str) -> None:
     assert not state.is_terminal(), f"{where}: the state ended, the replay did not"
     assert state.current_player() == expected.player, f"{where}: seat to move"
     assert state.legal_actions() == expected.legal, f"{where}: legal actions"
+    node = state._run()
+    assert isinstance(node, replay.DecisionNode), f"{where}: the state ended"
+    assert dict(node.obs_logs) == dict(expected.obs_logs), f"{where}: the seats' logs"
     for p in players:
         assert state.information_state_string(p) == information_state(
             p, expected.rs, expected.obs_logs[p]
@@ -144,15 +148,21 @@ def test_cap_zero_is_the_replay(pool_of: Any) -> None:
 
 
 def _a_seen_pick(game: Any) -> tuple[Any, int]:
-    """A Hearts state whose next pick changes seat 0's information state,
-    and that pick."""
+    """A Hearts state whose next pick changes what seat 0 is shown of the
+    world, and that pick. The world, not the log: a node holds a snapshot of
+    each seat's log, so a node read past its run's next pick shows the moved
+    world beside the log it was handed."""
     state = game.new_initial_state()
     state.apply_action(_DEAL)
+
+    def shown(s: Any) -> str:
+        return str(s.information_state_string(0)).split("|obs:")[0]
+
     while True:
         a = state.legal_actions()[0]
         after = state.clone()
         after.apply_action(a)
-        if after.information_state_string(0) != state.information_state_string(0):
+        if shown(after) != shown(state):
             return state, a
         state = after
 

@@ -78,6 +78,8 @@ Honest caveats
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from typing import Any
 
 import pytest
@@ -205,7 +207,7 @@ class TestReadiness(ReadinessProofs):
             square.cards[0], other.cards[0] = placed, mate
 
 
-def _board_moves(log: list[ObservationEvent]) -> list[MovementEvent]:
+def _board_moves(log: Sequence[ObservationEvent]) -> list[MovementEvent]:
     """The board-directed ``move`` events in an observation log (destination a
     square) — the placements, in game order."""
     return [e for e in log if isinstance(e, MovementEvent) and str(e.destination).startswith("square[")]

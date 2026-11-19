@@ -619,7 +619,7 @@ def _reveal(stmt: n.EpistemicOp, zone: Zone, ctx: Ctx) -> None:
             "game-description bug"
         )
     card = matches[0]
-    if ctx.observer is not None:
+    if ctx.observing:
         for p in ctx.rs.seating.players:
             ctx.observe(p, observe.RevealEvent(label, str(card)))
 

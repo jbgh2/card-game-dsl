@@ -12,6 +12,7 @@ Run:  python analyze_undertow.py shape|tide|mccfr [iterations]
 Everything reads/writes results_undertow.json incrementally.
 """
 
+from collections.abc import Sequence
 from __future__ import annotations
 
 import json
@@ -61,7 +62,7 @@ _PLAY = re.compile(r"^hand\[(\d)\]$")
 _CAPT = re.compile(r"^captured\[(\d)\]$")
 
 
-def tricks_from_log(log: list[ObservationEvent]) -> list[dict[str, Any]]:
+def tricks_from_log(log: Sequence[ObservationEvent]) -> list[dict[str, Any]]:
     """Reconstruct tricks: plays (player, card), tide card + its player,
     winner — all from one observer's public move events."""
     tricks: list[dict[str, Any]] = []

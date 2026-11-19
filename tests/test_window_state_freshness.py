@@ -5,7 +5,7 @@ showdown, a meld attempt — needs [[state-variable]]s to carry the window's
 subject: whose play stands, what it claims, who called it, where the
 rotation cursor is. Those variables are declared in a phase (or at game
 level), so their frame outlives the window many times over, and the
-[[observation-log]] string renders every frame merged and sorted with
+[[information-state]] renders every frame merged and sorted with
 nothing marking which moment a value belongs to. A window variable still
 holding its last [[decision-episode]]'s value therefore reads as a claim
 about the present: `claimant=3;challenged=True` at Cheat's announce

@@ -39,6 +39,7 @@ stronger check rather than a budget with a coverage claim attached. No
 meaningful with a bound.
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
@@ -96,7 +97,7 @@ def test_the_draw_count_is_public_and_the_discards_are_not() -> None:
     assert len(r.rs.zones.instance("discards", owner).cards) == 3
     assert not r.rs.zones.instance("discards", opponent).cards
 
-    def moves(log: list[ObservationEvent], src: str, dst: str) -> list[MovementEvent]:
+    def moves(log: Sequence[ObservationEvent], src: str, dst: str) -> list[MovementEvent]:
         return [e for e in log if isinstance(e, MovementEvent) and e.source == src and e.destination == dst]
 
     tosses = moves(r.obs_logs[opponent], f"hole[{owner}]", f"discards[{owner}]")

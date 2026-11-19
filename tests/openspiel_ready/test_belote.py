@@ -80,6 +80,8 @@ surface here.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import random
 from typing import Any
 
@@ -147,7 +149,7 @@ def _drive(
     )
 
 
-def _announces(log: list[ObservationEvent], prefixes: tuple[str, ...]) -> list[AnnounceEvent]:
+def _announces(log: Sequence[ObservationEvent], prefixes: tuple[str, ...]) -> list[AnnounceEvent]:
     return [
         e
         for e in log
@@ -308,7 +310,7 @@ _TAKE_SUIT = "take_suit("
 _SUIT_GLYPH = {"♣": "clubs", "♦": "diamonds", "♥": "hearts", "♠": "spades"}
 
 
-def _trump_from_log(log: list[ObservationEvent]) -> tuple[str | None, str, int]:
+def _trump_from_log(log: Sequence[ObservationEvent]) -> tuple[str | None, str, int]:
     """The made trump as a seat at the table would write it down from what it
     HEARD, which arm named it, and which hand is running. A hand begins at its
     turn-up (`deck -> turnup`, one per hand and the only movement into that
@@ -389,7 +391,7 @@ def _check_line(
     return checked, arms, failures
 
 
-def _turnups(log: list[ObservationEvent]) -> int:
+def _turnups(log: Sequence[ObservationEvent]) -> int:
     return sum(
         1
         for e in log

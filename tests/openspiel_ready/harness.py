@@ -1437,7 +1437,7 @@ class ReadinessProofs:
         _game, space = load(path)
         history: list[int] = []
         r = run(path, seed, ())
-        prev: dict[int, list[ObservationEvent]] = {}
+        prev: dict[int, tuple[ObservationEvent, ...]] = {}
         steps = 0
         while isinstance(r, DecisionNode) and steps < 40:
             for q, log in r.obs_logs.items():
@@ -1445,7 +1445,7 @@ class ReadinessProofs:
                     assert log[: len(prev[q])] == prev[q], (
                         f"{spec.short_name}: P{q}'s observation log rewrote history"
                     )
-                prev[q] = list(log)
+                prev[q] = tuple(log)
             history.append(greedy_pick(space, list(r.legal), spec.greedy_prefers))
             r = run(path, seed, tuple(history))
             steps += 1

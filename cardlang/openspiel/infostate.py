@@ -21,9 +21,8 @@ to guarantee, kept equal by review.
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 - Assumes: the log a caller hands `derive` or `information_state` is the
-  seat's own, every event `observe` delivered to that seat in delivery
-  order (`observe`'s Contract). Each caller that installs an observer keeps
-  its own copy; one log the runtime owns and returns is issue #1002.
+  seat's own as the run kept it, a snapshot read off the world
+  (`observe.logs_of`; `observe`'s Contract).
 - Establishes: a [[seat-view]] holds one seat's zones through `view_of`,
   the public state through `public_state`, and that seat's log, and holds
   no route to the [[world]]. Held by: Unrepresentable for the route -- its
@@ -76,6 +75,7 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from collections.abc import Sequence
 from typing import Any
 
 from cardlang.runtime.observe import (
@@ -131,7 +131,7 @@ def _zone_facts(rs: RuntimeState, player: int) -> tuple[tuple[str, ZoneView], ..
 
 
 def _facts(
-    player: int, rs: RuntimeState, obs_log: list[ObservationEvent]
+    player: int, rs: RuntimeState, obs_log: Sequence[ObservationEvent]
 ) -> SeatView:
     """The derivation, over the live world.
 
@@ -156,7 +156,7 @@ def _facts(
 
 
 def derive(
-    player: int, rs: RuntimeState, obs_log: list[ObservationEvent]
+    player: int, rs: RuntimeState, obs_log: Sequence[ObservationEvent]
 ) -> SeatView:
     """What `player` knows at this position, as a value safe to keep.
 
@@ -239,7 +239,7 @@ def render_information_state(view: SeatView) -> str:
 
 
 def information_state(
-    player: int, rs: RuntimeState, obs_log: list[ObservationEvent]
+    player: int, rs: RuntimeState, obs_log: Sequence[ObservationEvent]
 ) -> str:
     """The seat's knowledge, derived and rendered in one step.
 

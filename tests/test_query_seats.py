@@ -120,7 +120,7 @@ def _play(path: Path, seed: int) -> _Line:
             stack.pop()
 
     def moved(ctx: Any, src: Any, dst: Any, cards: Any) -> None:
-        if ctx.observer is None or not cards:
+        if not ctx.observing or not cards:
             movement(ctx, src, dst, cards)
             return
         rs = ctx.rs

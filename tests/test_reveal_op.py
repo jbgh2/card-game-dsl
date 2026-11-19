@@ -18,7 +18,7 @@ from cardlang.openspiel.infostate import information_state
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.execute import execute
-from cardlang.runtime.observe import ObservationEvent, RevealEvent
+from cardlang.runtime.observe import ObservationEvent, ObservationLogs, RevealEvent
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
 
@@ -107,11 +107,8 @@ def _setup(
         rs.push_frame()
         rs.declare("claim", False, "Q")
     logs: dict[int, list[ObservationEvent]] = {p: [] for p in players}
-    ctx = Ctx(
-        rs=rs,
-        chooser=lambda p, c, k: list(c[:k]),
-        observer=lambda pl, ev: logs[pl].append(ev),
-    )
+    rs.observations = ObservationLogs(players, lambda pl, ev: logs[pl].append(ev))
+    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
     return ctx, logs, stmt
 
 

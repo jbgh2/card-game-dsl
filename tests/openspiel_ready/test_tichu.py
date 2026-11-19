@@ -6,6 +6,7 @@ draw never finishes one (`tests/playout_policy.py`, `REFERENCE_POLICIES`), so
 the full sim, which draws uniformly, cannot end.
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 import random
@@ -143,7 +144,7 @@ def test_push_derives_hidden_observations() -> None:
     ]
     assert len(chose0) == 3
 
-    def gift_moves(log: list[ObservationEvent], src: str, dst: str) -> list[MovementEvent]:
+    def gift_moves(log: Sequence[ObservationEvent], src: str, dst: str) -> list[MovementEvent]:
         return [
             e for e in log if isinstance(e, MovementEvent) and e.source == src and e.destination == dst
         ]

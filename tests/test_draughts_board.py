@@ -967,11 +967,11 @@ def test_both_seats_see_the_king_a_crowning_places(tmp_path: Any) -> None:
             history.append(next(a for a in node.legal if space.decode(a) == wanted))
     node = run(str(path), 0, tuple(history))
     assert isinstance(node, DecisionNode)
-    crowning = [
+    crowning = (
         MovementEvent("square[e7]", ("man:red",), "square[f8]", ("man:red",)),
         MovementEvent("square[f8]", ("man:red",), "reserve[0]", ("man:red",)),
         MovementEvent("kings[0]", ("king:red",), "square[f8]", ("king:red",)),
-    ]
+    )
     for seat in (0, 1):
         log = node.obs_logs[seat]
         at = log.index(crowning[0])

@@ -47,6 +47,8 @@ loudly rather than certifying a wrong world.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -80,7 +82,7 @@ class WorldPlan:
         return [c for cards in self.free.values() for c in cards]
 
 
-def _scan_log_pins(log: list[ObservationEvent], by_render: dict[str, Card]) -> set[Card]:
+def _scan_log_pins(log: Sequence[ObservationEvent], by_render: dict[str, Card]) -> set[Card]:
     """Card identities named anywhere in an observation log — exact string
     match against the deck's renderings, walked through nested tuples (never
     substring matching: '10♦' contains no other card's rendering, but exact
