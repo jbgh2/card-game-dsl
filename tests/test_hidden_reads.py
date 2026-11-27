@@ -190,11 +190,19 @@ def _sees(level: str, need: str, zone_type: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def test_projection_levels_are_the_decisions_lattice() -> None:
-    """`PROJECTION_LEVELS` is decisions.md's lattice, in its order.
+def test_projection_levels_are_the_built_levels_of_the_decisions_lattice() -> None:
+    """`PROJECTION_LEVELS` is the levels of decisions.md's lattice the engine
+    builds, in the lattice's order, and the spec names every other level
+    unbuilt.
 
-    red under: swap `count_only` and `existence_only` in `PROJECTION_LEVELS`."""
-    assert Z.PROJECTION_LEVELS == _LATTICE
+    red under: swap `trivial` and `count_only` in `ProjectionLevel`."""
+    assert set(Z.PROJECTION_LEVELS) <= set(_LATTICE)
+    assert Z.PROJECTION_LEVELS == tuple(level for level in _LATTICE if level in Z.PROJECTION_LEVELS)
+    unbuilt = [level for level in _LATTICE if level not in Z.PROJECTION_LEVELS]
+    stated = re.search(r"^The engine builds .*?(?=\n\n)", spec_text(), re.MULTILINE | re.DOTALL)
+    assert stated is not None, "decisions.md no longer says which levels are built"
+    for level in unbuilt:
+        assert f"`{level}`" in stated.group(0), f"decisions.md does not name `{level}` unbuilt"
 
 
 def test_every_declared_projection_is_a_level() -> None:

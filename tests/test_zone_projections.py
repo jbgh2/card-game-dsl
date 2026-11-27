@@ -3,13 +3,18 @@ visibility, and the projection model"; library.md "Library zone types")."""
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
 from cardlang.openspiel.registry import GAMES, _GAMES_DIR
 from cardlang.openspiel.replay import load
+from cardlang.runtime.observe import _projected
+from cardlang.runtime.values import Card
 from cardlang.stdlib.zones import (
     LIBRARY_ZONE_TYPES,
     PROJECTION_LEVELS,
+    ProjectionLevel,
     ZONE_PROJECTIONS,
     identity_to_all,
     zone_projection,
@@ -98,3 +103,31 @@ def test_no_corpus_game_is_perfect_information_by_zone_type_alone(
         f"zone-type derivation of GameType.information is no longer vacuous "
         f"-- revisit the wall stated at cardlang/openspiel/game.py::_plan"
     )
+
+
+# What `view_of` answers at each level the engine builds, authored from
+# decisions.md's table ("Projections: what visibility controls"): the cards
+# themselves in their rendering order, one integer, or nothing.
+_SHAPE = {"identity": tuple, "count_only": int, "trivial": type(None)}
+
+
+@pytest.mark.parametrize("level", PROJECTION_LEVELS)
+def test_view_of_answers_every_built_level(level: ProjectionLevel) -> None:
+    """One cell per `ProjectionLevel`: the domain is the type, so a level
+    built without its expected shape here is red. red under: `_projected`'s
+    `count_only` arm answering the cards."""
+    cards = [Card("K", "clubs"), Card("2", "hearts")]
+    view = _projected(level, cards)
+    assert type(view) is _SHAPE[level]
+    if level == "identity":
+        assert view == tuple(sorted(cards, key=str))
+    if level == "count_only":
+        assert view == 2
+
+
+@pytest.mark.parametrize("level", ["identity_set", "count_by_type", "existence_only"])
+def test_an_unbuilt_level_is_refused_where_it_is_projected(level: str) -> None:
+    """Past the type check (a value cast in), an unbuilt level is refused
+    loudly by the exhaustive match rather than rendered as something else."""
+    with pytest.raises(AssertionError):
+        _projected(cast(ProjectionLevel, level), [Card("K", "clubs")])

@@ -797,7 +797,7 @@ def test_text_and_json_are_one_answer(path: Path, line: int, column: int) -> Non
 
 def test_the_projection_words_name_every_level() -> None:
     """Every level a zone type can project has its words, so no answer meets
-    a level it cannot say. red under: delete the `"existence_only"` row of
+    a level it cannot say. red under: delete the `"count_only"` row of
     `query.PROJECTION_WORDS`."""
     assert set(PROJECTION_WORDS) == set(PROJECTION_LEVELS)
 

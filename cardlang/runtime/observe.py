@@ -116,12 +116,12 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
   driver's deck seeding the one other write, which transfers nothing. Why
   not higher: a `Zone` is a public class, so which code writes one is a
   fact about the text.
-- Establishes: `view_of` answers the cards, a count, or nothing, for each
-  projection `ZONE_PROJECTIONS` assigns; a level `PROJECTION_LEVELS`
-  declares with no arm here is refused at play, not at declaration. Held
-  by: Review-Enforced Prose. Why not higher: the dispatch is an if-chain
-  over strings ending in an assertion, and the levels no zone type declares
-  are unbuilt; totality over the declared levels is issue #1003.
+- Establishes: `view_of` answers the cards, a count, or nothing, one arm
+  for each level the engine builds (`ProjectionLevel`), and a zone type can
+  declare no other level. Held by: Unrepresentable -- `ZoneVisibility`'s
+  columns are `ProjectionLevel`s, and `_projected` is an exhaustive match
+  over it ending in `assert_never`, so a level added to the type without an
+  arm fails the type check.
 - Establishes: a decision value and a State Variable's content each have
   one deterministic spelling (`render`, `render_state_variable`), shared by
   every log and every rendering of a Seat View, and a value outside the
@@ -157,13 +157,13 @@ from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, fields
 from itertools import islice
 from types import MappingProxyType
-from typing import Any, ClassVar, Literal, TypeGuard, get_args, overload
+from typing import Any, ClassVar, Literal, TypeGuard, assert_never, get_args, overload
 
 from cardlang.domains import zone_observer_key
 from cardlang.runtime.delegation import CONSTRUCTS
 from cardlang.runtime.state import Ctx, RuntimeState
 from cardlang.runtime.values import COMPONENT_SETS, Card, Player, build_deck
-from cardlang.stdlib.zones import zone_projection
+from cardlang.stdlib.zones import ProjectionLevel, zone_projection
 
 
 def _is_integer(value: object) -> TypeGuard[int]:
@@ -669,23 +669,23 @@ def view_of(
 
 def projection_for(
     rs: RuntimeState, zone_name: str, key: Player | str | None, observer: Player
-) -> str:
+) -> ProjectionLevel:
     """The projection `observer` sees this zone instance through: its type's
     owner column for the instance's holder, its others column for every other
     observer."""
     return zone_projection(rs.zones.zone_type[zone_name], _is_owner(rs, zone_name, key, observer))
 
 
-def _projected(proj: str, cards: Any) -> ZoneView:
-    if proj == "identity":
-        return tuple(sorted(cards, key=str))
-    if proj == "count_only":
-        return len(cards)
-    if proj == "trivial":
-        return None
-    # Exhaustive over the projection names ZONE_PROJECTIONS can emit — a new
-    # projection must be implemented here deliberately, never rendered ad hoc.
-    raise AssertionError(f"projection '{proj}' has no declared emission rule")
+def _projected(proj: ProjectionLevel, cards: Any) -> ZoneView:
+    match proj:
+        case "identity":
+            return tuple(sorted(cards, key=str))
+        case "count_only":
+            return len(cards)
+        case "trivial":
+            return None
+        case _ as unbuilt:
+            assert_never(unbuilt)
 
 
 def _label(zone_name: str, key: Player | str | None) -> str:
