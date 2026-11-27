@@ -559,6 +559,7 @@ def run_attempt(bench: Bench, game: GameSpec, model_ref: str, attempt: int) -> A
                     "output_tokens": reply.output_tokens,
                     "cache_read_input_tokens": reply.cache_read_input_tokens,
                     "cache_creation_input_tokens": reply.cache_creation_input_tokens,
+                    "cache_creation_1h_input_tokens": reply.cache_creation_1h_input_tokens,
                 },
             }
             record.rounds.append(row)
@@ -607,6 +608,7 @@ def run_attempt(bench: Bench, game: GameSpec, model_ref: str, attempt: int) -> A
         "output_tokens": sum(b.spend.output_tokens for b in delta),
         "cache_read_input_tokens": sum(b.spend.cache_read_input_tokens for b in delta),
         "cache_creation_input_tokens": sum(b.spend.cache_creation_input_tokens for b in delta),
+        "cache_creation_1h_input_tokens": sum(b.spend.cache_creation_1h_input_tokens for b in delta),
         "cost_usd": round(sum(b.spend.cost_usd for b in delta), 6),
     }
     return record

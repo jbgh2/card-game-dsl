@@ -78,12 +78,35 @@ declines called out: `author_report` reads a decline from a round's stop
 reason, so the first run's declined rounds, recorded as holding no file,
 are listed with their category not recorded.
 
+**Amended 2026-11-26, before the second run.** One attempt of this design
+was run on 2026-11-26 as a live check of the rig, outside the results tree
+and with the operator's approval: run id `2026-11-27T05-13-04Z`, Hearts,
+`claude-opus-5`. It is part of neither run's results. It was green at reply
+3, met no declined reply, and cost $1.67. Request 1 was sent at about
+05:13:05Z and returned at 05:18:53Z with 27,143 output tokens, having
+written 42,994 tokens to the cache; request 2 read nothing from the cache
+and wrote 70,382; request 3, 39 seconds after request 2, read 70,382 and
+wrote 4,627. So a first reply that takes more than five minutes outlives
+the five-minute cache entry the next request would read from. The first
+run's spend log shows the other loss: 87% of its input tokens were read
+from the cache, but the first call for every (game, model) wrote the whole
+prompt of about 42,000 tokens again, ten full writes, although about
+nine-tenths of it is the references block, the same for every game; the
+one breakpoint sat after the game's own text, so the references were never
+stored on their own. The request carries two cache breakpoints, both with
+the one-hour lifetime: one on the references block and one on the
+request's last block. A one-hour write is billed at 2.0 times the input
+price, a five-minute write at 1.25; every round records the one-hour part
+of its writes, priced at its rate, and the spend ceiling counts it. The
+hard bound below is recomputed with every write at the one-hour rate.
+
 ## Design
 
 | | |
 |---|---|
 | models | `frontier` = `claude-opus-5`, `mid` = `claude-sonnet-5` (the newest ids the playing rigs' configs carry) |
 | request | `max_tokens: 64000`, `thinking: {type: adaptive}`, `output_config: {effort: high}`, streamed |
+| prompt cache | two breakpoints, both one-hour (`ttl: 1h`): on the references block (the task text and the reference files, the same for every game) and on the request's last block |
 | games | 3 corpus games withheld, 2 candidates (below) |
 | attempts | 2 per (game, model), each a fresh conversation |
 | round limit | 8 replies per attempt, the first included, a reply holding no file counted; the model is told the limit |
@@ -243,12 +266,13 @@ Cost, at list prices with the prompt cache (`providers.PRICES`):
   on `claude-sonnet-5`, about $22 for the 20 attempts. No estimate here
   prices thinking tokens, which are billed as output and, replayed, as
   input to every later round.
-- **Hard bound, 2026-11-16,** for the request above. Every reply at the 64,000-token output limit, every
-  prompt written to the cache and none read from it, the conversation
-  growing by a full-limit reply each round (an over-count, since a reply at
-  the limit is cut off and not replayed), and about 31,000 tokens before
-  the first round's history: about $25.60 an attempt on `claude-opus-5` and
-  $15.30 on `claude-sonnet-5`, about $410 for the 20.
+- **Hard bound, 2026-11-26,** for the request above. Every reply at the
+  64,000-token output limit, every prompt written to the cache at the
+  one-hour rate and none read from it, the conversation growing by a
+  full-limit reply each round (an over-count, since a reply at the limit is
+  cut off and not replayed), and about 31,000 tokens before the first
+  round's history: about $33.20 an attempt on `claude-opus-5` and $19.90 on
+  `claude-sonnet-5`, about $530 for the 20.
 
 The $40 ceiling sits far below the bound, so a run far from the estimate
 stops as a partial N rather than spending toward the bound.

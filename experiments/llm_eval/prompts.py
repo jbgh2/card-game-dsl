@@ -252,9 +252,11 @@ class Conversation:
     model's earlier replies as assistant turns.
 
     It opens and ends with a user turn and no turn is empty; consecutive
-    user turns are legal. The request carries one cache breakpoint, on the
-    last block of the last turn, so a conversation that extends an earlier
-    one reads the prefix the earlier request wrote.
+    user turns are legal. The request carries two one-hour cache
+    breakpoints (`providers.conversation_messages`): on the first block, so
+    conversations that open with the same block share its cache entry, and
+    on the last block of the last turn, so a conversation that extends an
+    earlier one reads the prefix the earlier request wrote.
     """
 
     turns: tuple[Turn, ...]

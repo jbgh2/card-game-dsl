@@ -22,9 +22,9 @@ figures in the summary are derived from it and nothing else.
 from __future__ import annotations
 
 import os
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Final, Protocol, runtime_checkable
 
 from .prompts import Conversation, Prompt
 
@@ -44,12 +44,18 @@ PRICES: dict[str, tuple[float, float]] = {
     "claude-haiku-4-5": (1.00, 5.00),
 }
 
-#: Prompt-cache rates as multiples of the model's input price, for the
-#: five-minute cache every request asks for: a read is billed at a tenth, a
-#: write at a quarter over. Cache reads on `claude-fable-5-1` are cheaper
-#: still and that model is not priced here.
+#: Prompt-cache rates as multiples of the model's input price: a read is
+#: billed at a tenth, a five-minute write at a quarter over, and a one-hour
+#: write at double. The playing rigs ask for the five-minute cache, the
+#: authoring rig's conversations for the one-hour cache. Cache reads on
+#: `claude-fable-5-1` are cheaper still and that model is not priced here.
 CACHE_READ_RATE = 0.10
 CACHE_WRITE_RATE = 1.25
+CACHE_WRITE_1H_RATE = 2.0
+
+#: The breakpoint the authoring rig's conversations carry: the one-hour
+#: lifetime outlasts a first reply that takes longer than five minutes.
+CONVERSATION_CACHE: Final[Mapping[str, str]] = {"type": "ephemeral", "ttl": "1h"}
 
 
 @dataclass
@@ -60,6 +66,8 @@ class Usage:
     how much of it the cache read and wrote, and the uncached remainder is
     the difference. Kept that way so a cap, a per-game rate and a summary
     figure all mean "prompt tokens" whether or not a call hit the cache.
+    `cache_creation_1h_input_tokens` is the part of the writes made with the
+    one-hour lifetime; the rest are five-minute writes.
     """
 
     calls: int = 0
@@ -67,6 +75,7 @@ class Usage:
     output_tokens: int = 0
     cache_read_input_tokens: int = 0
     cache_creation_input_tokens: int = 0
+    cache_creation_1h_input_tokens: int = 0
 
     def add(self, reply: Reply) -> None:
         self.calls += 1
@@ -74,6 +83,7 @@ class Usage:
         self.output_tokens += reply.output_tokens
         self.cache_read_input_tokens += reply.cache_read_input_tokens
         self.cache_creation_input_tokens += reply.cache_creation_input_tokens
+        self.cache_creation_1h_input_tokens += reply.cache_creation_1h_input_tokens
 
     def since(self, before: Usage) -> Usage:
         """This usage beyond an earlier snapshot of the same provider."""
@@ -84,6 +94,9 @@ class Usage:
             cache_read_input_tokens=self.cache_read_input_tokens - before.cache_read_input_tokens,
             cache_creation_input_tokens=(
                 self.cache_creation_input_tokens - before.cache_creation_input_tokens
+            ),
+            cache_creation_1h_input_tokens=(
+                self.cache_creation_1h_input_tokens - before.cache_creation_1h_input_tokens
             ),
         )
 
@@ -98,10 +111,12 @@ class Usage:
             return 0.0
         per_in, per_out = PRICES[model]
         uncached = self.input_tokens - self.cache_read_input_tokens - self.cache_creation_input_tokens
+        five_minute = self.cache_creation_input_tokens - self.cache_creation_1h_input_tokens
         return (
             uncached * per_in
             + self.cache_read_input_tokens * per_in * CACHE_READ_RATE
-            + self.cache_creation_input_tokens * per_in * CACHE_WRITE_RATE
+            + five_minute * per_in * CACHE_WRITE_RATE
+            + self.cache_creation_1h_input_tokens * per_in * CACHE_WRITE_1H_RATE
             + self.output_tokens * per_out
         ) / 1_000_000
 
@@ -138,6 +153,7 @@ class Reply:
     `content` is the reply's content blocks as the API returned them, for a
     later request to replay unchanged; `text` is its text blocks joined.
     `stop_details` is read only from a declined reply.
+    `cache_creation_1h_input_tokens` is the one-hour part of the writes.
     """
 
     text: str
@@ -149,6 +165,7 @@ class Reply:
     stop_details: StopDetails | None = None
     request_id: str | None = None
     content: tuple[Any, ...] = ()
+    cache_creation_1h_input_tokens: int = 0
 
     def __post_init__(self) -> None:
         cached = self.cache_read_input_tokens + self.cache_creation_input_tokens
@@ -157,6 +174,12 @@ class Reply:
                 f"cache fields ({self.cache_read_input_tokens} read + "
                 f"{self.cache_creation_input_tokens} written) exceed the prompt's "
                 f"{self.input_tokens} input tokens"
+            )
+        if not 0 <= self.cache_creation_1h_input_tokens <= self.cache_creation_input_tokens:
+            raise ValueError(
+                f"the one-hour part of the cache writes "
+                f"({self.cache_creation_1h_input_tokens}) is not within the "
+                f"{self.cache_creation_input_tokens} written"
             )
 
 
@@ -179,8 +202,10 @@ class ConversingProvider(Provider, Protocol):
 
 def conversation_messages(conversation: Conversation) -> list[dict[str, Any]]:
     """The `messages` list a conversation is sent as: each user block a
-    text block, each assistant turn its content as returned, and the cache
-    breakpoint on the last block of the last turn."""
+    text block, each assistant turn its content as returned, and two
+    one-hour cache breakpoints (`CONVERSATION_CACHE`): on the first block of
+    the first turn, the prefix conversations share, and on the last block of
+    the last turn. Both are user blocks, so no returned block is touched."""
     messages: list[dict[str, Any]] = []
     for turn in conversation.turns:
         if turn.role == "user":
@@ -188,7 +213,8 @@ def conversation_messages(conversation: Conversation) -> list[dict[str, Any]]:
         else:
             content = list(turn.content)
         messages.append({"role": turn.role, "content": content})
-    messages[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}
+    messages[0]["content"][0]["cache_control"] = dict(CONVERSATION_CACHE)
+    messages[-1]["content"][-1]["cache_control"] = dict(CONVERSATION_CACHE)
     return messages
 
 
@@ -335,10 +361,13 @@ class AnthropicProvider:
             block.text for block in response.content if block.type == "text"
         )
         # The API's `input_tokens` is the uncached remainder, and its cache
-        # fields are absent (`None`) on a request that asked for no caching.
+        # fields, the lifetime breakdown among them, are absent (`None`) on a
+        # request that asked for no caching.
         usage = response.usage
         cache_read = int(getattr(usage, "cache_read_input_tokens", None) or 0)
         cache_creation = int(getattr(usage, "cache_creation_input_tokens", None) or 0)
+        breakdown = getattr(usage, "cache_creation", None)
+        one_hour = int(getattr(breakdown, "ephemeral_1h_input_tokens", None) or 0)
         reply = Reply(
             text=text,
             input_tokens=usage.input_tokens + cache_read + cache_creation,
@@ -349,6 +378,7 @@ class AnthropicProvider:
             stop_details=_stop_details(response),
             request_id=request_id,
             content=tuple(response.content),
+            cache_creation_1h_input_tokens=one_hour,
         )
         self.usage.add(reply)
         return reply

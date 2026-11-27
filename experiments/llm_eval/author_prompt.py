@@ -17,9 +17,12 @@ rig's answer as a user turn, which is the checker's words verbatim for a
 draft, or why the reply held no file, then the request for the next file.
 A round whose view carries no reply content has no assistant turn: a reply
 that came back empty, and one cut off at the output limit, which
-`author_run` never replays. Each round's
-conversation extends the one before it turn for turn, so the breakpoint on
-its last block lets round k+1 read what round k wrote.
+`author_run` never replays. The first block, the task and the reference
+documents, is the same text for every game, and its one-hour breakpoint
+lets every game's first round read it. Each round's conversation extends
+the one before it turn for turn, so the one-hour breakpoint on its last
+block lets round k+1 read what round k wrote unless round k's reply takes
+an hour or more.
 
 Contract
 --------

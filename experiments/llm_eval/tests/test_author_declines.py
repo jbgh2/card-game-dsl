@@ -12,8 +12,10 @@ property:        every reply is read as exactly one `ReplyKind`, a decline
                  attempt with no further request, and `decline_limit` declined
                  attempts end the run; a config whose `decline_limit` is not a
                  whole number of attempts is refused before any call; a later
-                 round's request is the conversation so far under one cache
-                 breakpoint; a reply cut off at the output limit is never
+                 round's request is the conversation so far, under two
+                 one-hour cache breakpoints, on the references block every
+                 game shares and on the last block; a reply cut off at the
+                 output limit is never
                  replayed, and every other reply that holds content is
                  replayed as returned.
 domain:          `ReplyKind` crossed with its reader and the report's tally,
@@ -218,6 +220,19 @@ def test_a_config_without_a_usable_decline_limit_is_refused_before_any_call(
 # --- later rounds are a conversation ------------------------------------------
 
 
+HOUR = {"type": "ephemeral", "ttl": "1h"}
+
+
+def marks(request: list[dict[str, Any]]) -> dict[tuple[int, int], Any]:
+    """Every cache breakpoint of a request, by (message, block)."""
+    return {
+        (i, j): b["cache_control"]
+        for i, message in enumerate(request)
+        for j, b in enumerate(message["content"])
+        if "cache_control" in b
+    }
+
+
 def test_round_two_is_the_conversation_so_far(tmp_path: Path, tree: Path, rules: Path) -> None:
     provider = FakeProvider(replies=[block(TWO_TYPOS), block(HIGH_CARD)])
     _, _, [attempt] = bench(tmp_path, tree, rules, [], provider=provider)
@@ -238,19 +253,46 @@ def test_round_two_is_the_conversation_so_far(tmp_path: Path, tree: Path, rules:
         return [{k: v for k, v in b.items() if k != "cache_control"} for b in message["content"]]
 
     assert unmarked(second[0]) == unmarked(first[0])
-    # One breakpoint, on the last block of the request.
-    for request in (first, second):
-        marks = [
-            (i, j)
-            for i, message in enumerate(request)
-            for j, b in enumerate(message["content"])
-            if "cache_control" in b
-        ]
-        assert marks == [(len(request) - 1, len(request[-1]["content"]) - 1)]
+    assert marks(first) == {(0, 0): HOUR, (0, 2): HOUR}, (
+        "round 1: one-hour breakpoints on the references block and the request's last block"
+    )
+    assert marks(second) == {(0, 0): HOUR, (2, 1): HOUR}, (
+        "round 2: the references breakpoint in place, the other moved to the last block"
+    )
     # The digest covers the whole message list, so the two rounds differ.
     digests = [r["prompt_sha256"] for r in attempt["rounds"]]
     assert len(set(digests)) == 2
     assert attempt["rounds"][1]["prompt_blocks"] == sum(len(m["content"]) for m in second)
+
+
+def test_a_long_conversation_keeps_its_two_breakpoints(tmp_path: Path, tree: Path, rules: Path) -> None:
+    provider = FakeProvider(replies=["I would rather explain."])
+    bench(tmp_path, tree, rules, [], provider=provider, round_limit=6)
+    assert len(provider.requests) == 6
+    for request in provider.requests:
+        held = marks(request)
+        assert len(held) <= 4, "the API takes at most four breakpoints in a request"
+        assert held == {(0, 0): HOUR, (len(request) - 1, len(request[-1]["content"]) - 1): HOUR}, (
+            "the references block and the last block, both one-hour"
+        )
+
+
+def test_every_game_shares_the_first_block(tmp_path: Path, tree: Path, rules: Path) -> None:
+    lowcard = {
+        "slug": "lowcard",
+        "name": "Low Card",
+        "variant": "2 players",
+        "source_url": "https://example.invalid/lowcard",
+        "rules_file": "lowcard.txt",
+    }
+    games = [*config(tmp_path)["games"], lowcard]
+    provider = FakeProvider(replies=["CANNOT EXPRESS: nothing, this pins the shared prefix"])
+    bench(tmp_path, tree, rules, [], provider=provider, games=games)
+    high, low = provider.requests
+    assert high[0]["content"][0] == low[0]["content"][0], (
+        "the marked references block is byte-identical across games, so its cache entry is shared"
+    )
+    assert high[0]["content"][1] != low[0]["content"][1]
 
 
 def test_a_reply_with_nothing_to_replay_leaves_no_empty_assistant_turn(
@@ -334,6 +376,20 @@ def test_each_round_records_what_it_replayed_and_no_block(tmp_path: Path, tree: 
     assert [r["replayed"] for r in rounds] == [True, False, False]
     record = (run_dir / "attempts.jsonl").read_text(encoding="utf-8")
     assert "sig-1" not in record and "signature" not in record
+
+
+def test_a_round_records_its_one_hour_cache_writes(tmp_path: Path, tree: Path, rules: Path) -> None:
+    written = Reply(
+        text=block(HIGH_CARD),
+        input_tokens=100,
+        output_tokens=16,
+        stop_reason="end_turn",
+        cache_creation_input_tokens=60,
+        cache_creation_1h_input_tokens=45,
+    )
+    _, _, [attempt] = bench(tmp_path, tree, rules, [], provider=ScriptedProvider([written]))
+    assert attempt["rounds"][0]["usage"]["cache_creation_1h_input_tokens"] == 45
+    assert attempt["usage"]["cache_creation_1h_input_tokens"] == 45
 
 
 # --- the closed domains: every member is read --------------------------------
@@ -621,14 +677,17 @@ def test_the_streaming_path_is_opt_in_and_reads_the_streams_request_id() -> None
     assert call["messages"] == [
         {
             "role": "user",
-            "content": [{"type": "text", "text": "static "}, {"type": "text", "text": "request 1"}],
+            "content": [
+                {"type": "text", "text": "static ", "cache_control": HOUR},
+                {"type": "text", "text": "request 1"},
+            ],
         },
         {"role": "assistant", "content": list(earlier)},
         {
             "role": "user",
             "content": [
                 {"type": "text", "text": "checker said"},
-                {"type": "text", "text": "request 2", "cache_control": {"type": "ephemeral"}},
+                {"type": "text", "text": "request 2", "cache_control": HOUR},
             ],
         },
     ]
