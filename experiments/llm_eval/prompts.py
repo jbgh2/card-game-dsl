@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from typing import Any, Literal
 
 from .render import LOG_END, LOG_HEADER
 
@@ -233,6 +234,51 @@ class Prompt:
     def single(cls, text: str) -> Prompt:
         """The prompt as one block with no breakpoint: nothing to cache."""
         return cls(blocks=(text,), cache_at=None)
+
+
+@dataclass(frozen=True)
+class Turn:
+    """One turn of a `Conversation`. A user turn's content is its text
+    blocks; an assistant turn's is the model's reply content blocks as the
+    API returned them, replayed unchanged."""
+
+    role: Literal["user", "assistant"]
+    content: tuple[Any, ...]
+
+
+@dataclass(frozen=True)
+class Conversation:
+    """A request of several turns, for a rig whose later requests carry the
+    model's earlier replies as assistant turns.
+
+    It opens and ends with a user turn and no turn is empty; consecutive
+    user turns are legal. The request carries two one-hour cache
+    breakpoints (`providers.conversation_messages`): on the first block, so
+    conversations that open with the same block share its cache entry, and
+    on the last block of the last turn, so a conversation that extends an
+    earlier one reads the prefix the earlier request wrote.
+    """
+
+    turns: tuple[Turn, ...]
+
+    def __post_init__(self) -> None:
+        if not self.turns:
+            raise ValueError("a conversation needs at least one turn")
+        if self.turns[0].role != "user" or self.turns[-1].role != "user":
+            raise ValueError("a conversation opens and ends with a user turn")
+        for turn in self.turns:
+            if turn.role not in ("user", "assistant"):
+                raise ValueError(f"a turn's role is user or assistant, not {turn.role!r}")
+            if not turn.content:
+                raise ValueError(f"an empty {turn.role} turn is refused by the API")
+            if turn.role == "user" and any(not isinstance(b, str) or not b for b in turn.content):
+                raise ValueError("a user turn's blocks are non-empty strings")
+
+    @property
+    def text(self) -> str:
+        """Every block the user turns carry, concatenated: all the rig wrote
+        into the conversation, the model's own replies excluded."""
+        return "".join(b for turn in self.turns if turn.role == "user" for b in turn.content)
 
 
 def cache_partition(text: str, *, chunk: int = LOG_CHUNK_EVENTS) -> Prompt:

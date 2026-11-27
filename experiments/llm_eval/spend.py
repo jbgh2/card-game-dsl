@@ -102,6 +102,7 @@ ENTRY_FIELDS: Final[Mapping[str, str]] = {
     "output_tokens": "count",
     "cache_read_input_tokens": "count",
     "cache_creation_input_tokens": "count",
+    "cache_creation_1h_input_tokens": "count",
     "cost_usd": "amount",
 }
 
@@ -112,14 +113,24 @@ CACHE_FIELDS: Final[tuple[str, ...]] = (
     "cache_creation_input_tokens",
 )
 
-#: The one other shape of line this log has ever written: every field but the
-#: cache ones. A line of that shape is uncached spend by construction — no
-#: request asked for the cache before the fields that record it existed — so
-#: the reader admits it with both cache counts zero. Anything between the two
-#: shapes (one cache field present) or short of either is damage, refused as
-#: every damaged line is.
+#: The part of the writes made with the one-hour cache lifetime, a subset of
+#: `cache_creation_input_tokens`.
+ONE_HOUR_FIELDS: Final[tuple[str, ...]] = ("cache_creation_1h_input_tokens",)
+
+#: The fields a line gained after its first shape, oldest layer first. A
+#: line carries the prior fields and a prefix of these layers, each layer
+#: whole; a layer it lacks reads as zero, because no request asked for what
+#: the layer records before the layer existed: the cache, then the one-hour
+#: cache. A layer partly present, or a layer without the one before it, is
+#: damage, refused as every damaged line is.
+FIELD_LAYERS: Final[tuple[tuple[str, ...], ...]] = (CACHE_FIELDS, ONE_HOUR_FIELDS)
+
+#: The shape of line this log wrote before any layer: every field but the
+#: layered ones.
 PRIOR_ENTRY_FIELDS: Final[Mapping[str, str]] = {
-    name: kind for name, kind in ENTRY_FIELDS.items() if name not in CACHE_FIELDS
+    name: kind
+    for name, kind in ENTRY_FIELDS.items()
+    if not any(name in layer for layer in FIELD_LAYERS)
 }
 
 
@@ -128,7 +139,8 @@ class Spend:
     """Tokens and dollars, added and subtracted as one quantity.
 
     `input_tokens` is the whole prompt; the two cache fields are the part of
-    it the prompt cache read and wrote (`providers.Usage`).
+    it the prompt cache read and wrote, and `cache_creation_1h_input_tokens`
+    the one-hour part of the writes (`providers.Usage`).
     """
 
     input_tokens: int = 0
@@ -136,6 +148,7 @@ class Spend:
     cost_usd: float = 0.0
     cache_read_input_tokens: int = 0
     cache_creation_input_tokens: int = 0
+    cache_creation_1h_input_tokens: int = 0
 
     def __add__(self, other: Spend) -> Spend:
         return Spend(
@@ -144,6 +157,7 @@ class Spend:
             self.cost_usd + other.cost_usd,
             self.cache_read_input_tokens + other.cache_read_input_tokens,
             self.cache_creation_input_tokens + other.cache_creation_input_tokens,
+            self.cache_creation_1h_input_tokens + other.cache_creation_1h_input_tokens,
         )
 
     def __sub__(self, other: Spend) -> Spend:
@@ -153,6 +167,7 @@ class Spend:
             self.cost_usd - other.cost_usd,
             self.cache_read_input_tokens - other.cache_read_input_tokens,
             self.cache_creation_input_tokens - other.cache_creation_input_tokens,
+            self.cache_creation_1h_input_tokens - other.cache_creation_1h_input_tokens,
         )
 
 
@@ -280,6 +295,7 @@ def _line(
         "output_tokens": billed.spend.output_tokens,
         "cache_read_input_tokens": billed.spend.cache_read_input_tokens,
         "cache_creation_input_tokens": billed.spend.cache_creation_input_tokens,
+        "cache_creation_1h_input_tokens": billed.spend.cache_creation_1h_input_tokens,
         "cost_usd": round(billed.spend.cost_usd, 6),
     }
 
@@ -305,6 +321,7 @@ def _spend_of(provider: Provider) -> Spend:
         usage.cost(provider.model),
         usage.cache_read_input_tokens,
         usage.cache_creation_input_tokens,
+        usage.cache_creation_1h_input_tokens,
     )
 
 
@@ -392,8 +409,20 @@ class SpendLog:
             raise ValueError(
                 f"{where} holds a {type(loaded).__name__}, not a spend entry. {why}"
             )
-        prior = not any(name in loaded for name in CACHE_FIELDS)
-        fields = PRIOR_ENTRY_FIELDS if prior else ENTRY_FIELDS
+        present = [all(name in loaded for name in layer) for layer in FIELD_LAYERS]
+        partial = any(
+            not whole and any(name in loaded for name in layer)
+            for layer, whole in zip(FIELD_LAYERS, present)
+        )
+        carried = present.index(False) if False in present else len(present)
+        if partial or any(present[carried:]):
+            raise ValueError(
+                f"{where} carries the field layers {[list(l) for l in FIELD_LAYERS]} "
+                f"in no shape this log writes: each layer whole, and only after "
+                f"the layers before it. {why}"
+            )
+        absent = [name for layer in FIELD_LAYERS[carried:] for name in layer]
+        fields = {k: v for k, v in ENTRY_FIELDS.items() if k not in absent}
         for field_name, kind in fields.items():
             if field_name not in loaded:
                 raise ValueError(
@@ -404,9 +433,7 @@ class SpendLog:
                     f"{where} carries {field_name}={loaded[field_name]!r}, which "
                     f"is not a readable {kind}. {why}"
                 )
-        if prior:
-            loaded = {**loaded, **{name: 0 for name in CACHE_FIELDS}}
-        return loaded
+        return {**loaded, **{name: 0 for name in absent}}
 
     def total(self, window: Window, *, now: datetime | None = None) -> Spend:
         """What the window admits, re-read from disk on every call.
@@ -433,6 +460,7 @@ class SpendLog:
                     entry["cost_usd"],
                     entry["cache_read_input_tokens"],
                     entry["cache_creation_input_tokens"],
+                    entry["cache_creation_1h_input_tokens"],
                 )
         return total
 

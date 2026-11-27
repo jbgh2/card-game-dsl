@@ -499,10 +499,12 @@ Every study above measures a model *playing* a corpus game. The authoring
 benchmark (issue #1053, epic #1043) measures a model *writing* one: given a
 game's rules text and `docs/authoring.md` with a fixed set of reference files,
 the model drafts a `.cardlang` file, `cardlang check` answers, the checker's
-words go back verbatim, and the loop runs to green, a give-up or the round
-limit. It records whether the first draft checks green, how many fix rounds
-green took, every refusal the model's next edit left standing at an unchanged
-line, and whether the green file is the real game. Its design, definitions and
+words go back verbatim in a conversation that carries the model's earlier
+replies, and the loop runs to green, a give-up, a reply the API declines, or
+the round limit. It records whether the first draft checks green, how many
+fix rounds green took, every refusal the model's next edit left standing at
+an unchanged line, every reply the API declined, and whether the green file
+is the real game. Its design, definitions and
 the first run's games and models are
 [`PREREGISTRATION_AUTHORING.md`](PREREGISTRATION_AUTHORING.md); its config is
 `config_authoring.yaml`, its output tree `results_authoring/`. It shares the
@@ -603,7 +605,7 @@ author_check.py   `cardlang check` as a subprocess, read into typed refusals
 author_facts.py   The real-game check: playout facts and the differential
 author_report.py  The table and the refusals a model could not act on
 config_authoring.yaml        Games, references, round limit, models, caps
-PREREGISTRATION_AUTHORING.md The first run's design, dated before any model ran
+PREREGISTRATION_AUTHORING.md The design, dated before any model ran, and its dated amendments
 ```
 
 **`verify.py` is the single audit entry point for all three games.** It reads the

@@ -45,7 +45,9 @@ registry:        run_eval.py::CAPS (the cap axis, held to `Budget`'s own
                  spend.py::WINDOW_SPELLINGS the one spelling per kind the grid
                  reads; spend.py::ROLLING_SPELLING (the parametric spelling);
                  spend.py::ENTRY_FIELDS (the line's fields, read by both the
-                 writer and the reader). Per-model summation:
+                 writer and the reader) with spend.py::FIELD_LAYERS (the
+                 later fields, oldest first, that an older line lacks and
+                 reads as zero). Per-model summation:
                  test_runner.py::test_budget_sums_across_every_model_in_the_registry.
                  The runner's end-to-end behaviour under a crossed window:
                  test_runner.py::test_a_second_invocation_stops_where_the_first_left_off.
@@ -445,6 +447,9 @@ def _damaged(field_name: str, kind: str) -> list[str]:
     good = json.loads(_LINE)
     missing = {k: v for k, v in good.items() if k != field_name}
     wrong = {**good, field_name: (None if kind == "text" else "lots")}
+    if (field_name,) in spend_mod.FIELD_LAYERS:
+        # A layer of one field, removed whole, is the earlier shape: it reads.
+        return [json.dumps(wrong)]
     return [json.dumps(missing), json.dumps(wrong)]
 
 
@@ -461,6 +466,7 @@ _LINE = json.dumps(
         "output_tokens": 2,
         "cache_read_input_tokens": 0,
         "cache_creation_input_tokens": 0,
+        "cache_creation_1h_input_tokens": 0,
         "cost_usd": 0.5,
     }
 )
@@ -532,10 +538,43 @@ def _prior_line() -> dict[str, Any]:
 
 
 def test_the_prior_line_schema_is_a_registered_member() -> None:
-    """The prior shape is the current table minus the cache fields and
-    nothing else — the one shape `record` ever wrote before them."""
-    assert set(PRIOR_ENTRY_FIELDS) == set(ENTRY_FIELDS) - set(CACHE_FIELDS)
+    """The prior shape is the current table minus every field layer and
+    nothing else: the one shape `record` wrote before any of them."""
+    layered = {name for layer in spend_mod.FIELD_LAYERS for name in layer}
+    assert set(PRIOR_ENTRY_FIELDS) == set(ENTRY_FIELDS) - layered
     assert all(PRIOR_ENTRY_FIELDS[k] == ENTRY_FIELDS[k] for k in PRIOR_ENTRY_FIELDS)
+    assert spend_mod.FIELD_LAYERS[0] == CACHE_FIELDS
+    assert layered <= set(ENTRY_FIELDS)
+
+
+def _pre_one_hour_line() -> dict[str, Any]:
+    """A line with the cache fields and without the one-hour part."""
+    return {k: v for k, v in json.loads(_LINE).items() if k != "cache_creation_1h_input_tokens"}
+
+
+@pytest.mark.parametrize("kind", [k for k in WINDOW_KINDS if k != "invocation"])
+def test_a_line_without_the_one_hour_part_reads_it_as_zero(tmp_path: Path, kind: str) -> None:
+    """Every request before the one-hour part asked for the five-minute
+    cache, so such a line's writes are all five-minute writes, and its
+    tokens and dollars count in full.
+
+    red under: making the one-hour layer required in `SpendLog._read_entry`.
+    """
+    line = {**_pre_one_hour_line(), "cache_creation_input_tokens": 3}
+    log = SpendLog(tmp_path / "log.jsonl")
+    log.path.parent.mkdir(parents=True, exist_ok=True)
+    log.path.write_text(json.dumps(line) + "\n", encoding="utf-8")
+    assert log.total(parse_window(WINDOWS[kind]), now=NOW) == Spend(10, 2, 0.5, 0, 3, 0)
+    entry = next(iter(log.entries()))
+    assert entry["cache_creation_1h_input_tokens"] == 0
+    assert set(entry) == set(ENTRY_FIELDS)
+
+
+def test_a_recorded_line_carries_its_one_hour_writes(tmp_path: Path) -> None:
+    log = SpendLog(tmp_path / "log.jsonl")
+    log.record("r", "t", [Billed("m", PRICED, 1, Spend(10, 2, 0.5, 0, 6, 4))])
+    assert next(iter(log.entries()))["cache_creation_1h_input_tokens"] == 4
+    assert log.total(Window("all"), now=NOW).cache_creation_1h_input_tokens == 4
 
 
 @pytest.mark.parametrize("kind", [k for k in WINDOW_KINDS if k != "invocation"])
@@ -545,7 +584,7 @@ def test_a_prior_schema_line_reads_with_zero_cache_counts(tmp_path: Path, kind: 
     record it — so it reads under every file-reading window with both cache
     counts zero, and its tokens and dollars count in full.
 
-    red under: dropping the prior-schema arm of `SpendLog._read_entry`.
+    red under: requiring every field of `ENTRY_FIELDS` in `SpendLog._read_entry`.
     """
     log = SpendLog(tmp_path / "log.jsonl")
     log.path.parent.mkdir(parents=True, exist_ok=True)
@@ -559,6 +598,8 @@ def test_a_prior_schema_line_reads_with_zero_cache_counts(tmp_path: Path, kind: 
     [
         # Half-migrated: exactly one cache field present is neither shape.
         *[json.dumps({**_prior_line(), name: 0}) for name in CACHE_FIELDS],
+        # A later layer without the one before it is neither shape.
+        json.dumps({**_prior_line(), "cache_creation_1h_input_tokens": 0}),
         # The prior shape missing one of its own fields, or carrying the
         # wrong kind there, is damage under that shape too.
         *[

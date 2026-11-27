@@ -15,6 +15,10 @@ round_limit: 8
 # Attempts per (game, model). Each is independent: a fresh conversation.
 attempts: 2
 
+# The run stops once this many attempts have ended at a reply the API
+# declined (`stop_reason` "refusal"). A declined reply ends its attempt.
+decline_limit: 2
+
 checker:
   # The rig reads the text form, the words a model is shown; its reader for
   # `cardlang check --json` is issue #1136.
@@ -103,22 +107,25 @@ roster: [frontier, mid]
 
 models:
   # Ids and request keys as the playing rigs' configs use them. Thinking is
-  # disabled, which the playing rigs record as legal at effort `high` or
-  # below, so the whole output budget is the file. 16000 output tokens holds
-  # the largest corpus file several times over, and stays under the size the
-  # SDK refuses to send without streaming.
+  # adaptive at effort `high`, so a model reasons in its thinking blocks and
+  # its reply holds the file. 64000 output tokens leaves room for thinking
+  # beside the largest corpus file; the SDK sends a request that large
+  # only as a stream, and `streaming: true` has the provider stream it (a key
+  # the provider consumes and never sends).
   frontier:
     kind: anthropic
     model: claude-opus-5
     params:
-      max_tokens: 16000
-      thinking: {type: disabled}
+      max_tokens: 64000
+      streaming: true
+      thinking: {type: adaptive}
       output_config: {effort: high}
 
   mid:
     kind: anthropic
     model: claude-sonnet-5
     params:
-      max_tokens: 16000
-      thinking: {type: disabled}
+      max_tokens: 64000
+      streaming: true
+      thinking: {type: adaptive}
       output_config: {effort: high}
