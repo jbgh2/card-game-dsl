@@ -23,9 +23,9 @@ lazy:
   it, refuse on the remainder. The worked example is the soundness matrix's
   probe table (`tests/openspiel_ready/partition.py`, `ZONE_PROBES`): the
   distinctions each projection level must show and must hide are a declared
-  table, pinned complete against `ZONE_PROJECTIONS` at test time and
-  enforced by a probe-time refusal, so a new emission rule cannot be
-  silently under-probed.
+  table, pinned complete against the built levels (`PROJECTION_LEVELS`) at
+  test time and enforced by a probe-time refusal, so a new emission rule
+  cannot be silently under-probed.
 - An **open design space** — which round axes exist, the meld model, the
   constructive world generator — stays corpus-first: generalizing from zero
   or one instance produces speculative abstractions, and waiting is cheap.
