@@ -85,8 +85,8 @@ and with the operator's approval: run id `2026-11-27T05-13-04Z`, Hearts,
 3, met no declined reply, and cost $1.67. Request 1 was sent at about
 05:13:05Z and returned at 05:18:53Z with 27,143 output tokens, having
 written 42,994 tokens to the cache; request 2 read nothing from the cache
-and wrote 70,382; request 3, 39 seconds after request 2, read 70,382 and
-wrote 4,627. So a first reply that takes more than five minutes outlives
+and wrote 70,382; request 3, which returned 39 seconds after request 2
+returned, read 70,382 and wrote 4,627. So a first reply that takes more than five minutes outlives
 the five-minute cache entry the next request would read from. The first
 run's spend log shows the other loss: 87% of its input tokens were read
 from the cache, but the first call for every (game, model) wrote the whole
